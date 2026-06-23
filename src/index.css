@@ -10,13 +10,83 @@
     sans-serif;
 }
 
+html,
 body {
+  width: 100%;
+  height: 100%;
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 420px;
+  overflow: hidden;
 }
 
 #root {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.widget-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 28px;
+  height: 28px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.widget-resize-handle::before,
+.widget-resize-handle::after {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  content: "";
+  border-right: 1px solid #71717a;
+  border-bottom: 1px solid #71717a;
+}
+
+.widget-resize-handle::before {
+  width: 13px;
+  height: 13px;
+}
+
+.widget-resize-handle::after {
+  width: 8px;
+  height: 8px;
+}
+
+.calendar-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: clamp(2px, 0.8vw, 4px);
+}
+
+.calendar-day-cell {
+  min-height: clamp(28px, 7.4vh, 42px);
+  font-size: clamp(10px, 2.7vw, 12px);
+}
+
+.todo-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-height: 480px) {
+  .calendar-legend,
+  .todo-goal {
+    display: none;
+  }
+
+  .calendar-day-cell {
+    min-height: 25px;
+  }
+}
