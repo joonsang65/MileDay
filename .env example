@@ -1,0 +1,6 @@
+VITE_SUPABASE_URL=YOUR_PROJECT_URL
+VITE_SUPABASE_ANON_KEY=YOUR_PUBLIC_KEY
+
+# Local migration scripts only.
+# Do not expose this value in the Electron renderer or packaged client.
+SUPABASE_DB_URL=YOUR_DIRECT_CONNECTION_STRING
