@@ -1,3 +1,4 @@
+-- GOALS 테이블 정의 --
 create table if not exists public.goals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -17,6 +18,8 @@ create table if not exists public.goals (
     )
 );
 
+
+-- milestone 테이블 정의 --
 create table if not exists public.milestones (
   id uuid primary key default gen_random_uuid(),
   goal_id uuid not null references public.goals(id) on delete cascade,
