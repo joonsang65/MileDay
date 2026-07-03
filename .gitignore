@@ -1,42 +1,76 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# FastAPI / backend runtime files
+*.log
+logs/
+*.sqlite
+*.sqlite3
+*.db
+
+# Node / Electron / Vite frontend artifacts
 node_modules/
 dist/
-dist-electron/
-release/
-.env
-.env.local
+build/
+out/
+.vite/
+.next/
+coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-out/
-build/
+# Electron build outputs
+release/
+releases/
+*.asar
+*.exe
+*.msi
+*.dmg
+*.AppImage
 
-.env.*.local
-!.env.example
-
-*.log
-
+# OS files
 .DS_Store
 Thumbs.db
-Desktop.ini
+desktop.ini
 
-.vscode/
+# IDE / editor local files
 .idea/
+.vscode/*
+!.vscode/settings.json
 
-__pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-.mypy_cache/
-.venv/
-venv/
+# Codex / local agent scratch files
+.codex/
+.agents/
 
-*.tsbuildinfo
-.vite/
-coverage/
-temp/
+# Temporary files
 tmp/
-
-SKILL*.md
-progress_logs/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
