@@ -1,5 +1,7 @@
-﻿# 목표 CRUD 및 목표 정보 조회 API 제공
-from fastapi import APIRouter
+# 목표 CRUD 및 목표 정보 조회 API 제공
+from typing import Annotated
+
+from fastapi import APIRouter, Path
 
 from schemas.goal_schemas import (
     GoalCreateRequest,
@@ -29,19 +31,34 @@ def goal_data(goal_id: str = "uuid") -> dict:
 
 
 # 목표 목록 조회 API
-@router.get("", response_model=GoalListResponse, summary="목표 목록 조회")
+@router.get(
+    "",
+    response_model=GoalListResponse,
+    summary="목표 목록 조회",
+    description="현재 로그인한 사용자의 목표 목록을 조회합니다.",
+)
 def list_goals():
     return {"success": True, "data": [goal_data()]}
 
 
 # 목표 상세 조회 API
-@router.get("/{goal_id}", response_model=GoalResponse, summary="목표 상세 조회")
-def get_goal(goal_id: str):
+@router.get(
+    "/{goal_id}",
+    response_model=GoalResponse,
+    summary="목표 상세 조회",
+    description="goal_id에 해당하는 특정 목표의 상세 정보를 조회합니다.",
+)
+def get_goal(goal_id: Annotated[str, Path(description="조회할 목표 ID")]):
     return {"success": True, "data": goal_data(goal_id)}
 
 
 # 목표 생성 API
-@router.post("", response_model=GoalResponse, summary="목표 생성")
+@router.post(
+    "",
+    response_model=GoalResponse,
+    summary="목표 생성",
+    description="새 목표를 생성합니다.",
+)
 def create_goal(body: GoalCreateRequest):
     data = goal_data()
     data.update(body.model_dump())
@@ -49,14 +66,30 @@ def create_goal(body: GoalCreateRequest):
 
 
 # 목표 수정 API
-@router.patch("/{goal_id}", response_model=GoalResponse, summary="목표 수정")
-def update_goal(goal_id: str, body: GoalUpdateRequest):
+@router.patch(
+    "/{goal_id}",
+    response_model=GoalResponse,
+    summary="목표 수정",
+    description="goal_id에 해당하는 목표의 제목, 마감일, 반복 여부, 색상 등을 수정합니다.",
+)
+def update_goal(
+    goal_id: Annotated[str, Path(description="수정할 목표 ID")],
+    body: GoalUpdateRequest,
+):
     data = goal_data(goal_id)
     data.update(body.model_dump(exclude_unset=True))
     return {"success": True, "data": data}
 
 
-# 목표 삭제 API
-@router.delete("/{goal_id}", response_model=GoalDeleteResponse, summary="목표 삭제")
-def delete_goal(goal_id: str):
-    return {"success": True, "message": "Goal deleted."}
+# 목표 및 목표 하위 마일스톤 삭제 API
+@router.delete(
+    "/{goal_id}",
+    response_model=GoalDeleteResponse,
+    summary="목표 및 하위 마일스톤 삭제",
+    description=(
+        "goal_id에 해당하는 목표를 삭제합니다. "
+        "동일한 goal_id를 갖는 하위 마일스톤도 함께 삭제합니다."
+    ),
+)
+def delete_goal(goal_id: Annotated[str, Path(description="삭제할 목표 ID")]):
+    return {"success": True, "message": "Goal and related milestones deleted."}

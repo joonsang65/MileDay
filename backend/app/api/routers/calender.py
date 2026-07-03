@@ -1,5 +1,7 @@
-﻿# 월간 캘린더 및 날짜별 상세 조회 API 제공
-from fastapi import APIRouter
+# 월간 캘린더 및 날짜별 상세 조회 API 제공
+from typing import Annotated
+
+from fastapi import APIRouter, Path, Query
 
 from schemas.calendar_schemas import CalendarDateResponse, CalendarMonthResponse
 
@@ -38,8 +40,16 @@ def milestone_data() -> dict:
 
 
 # 월간 캘린더 조회 API
-@router.get("/month", response_model=CalendarMonthResponse, summary="월간 캘린더 조회")
-def get_month_calendar(year: int, month: int):
+@router.get(
+    "/month",
+    response_model=CalendarMonthResponse,
+    summary="월간 캘린더 조회",
+    description="특정 연월의 목표와 마일스톤 표시 데이터를 조회합니다.",
+)
+def get_month_calendar(
+    year: Annotated[int, Query(description="조회할 연도", ge=1)],
+    month: Annotated[int, Query(description="조회할 월", ge=1, le=12)],
+):
     return {
         "success": True,
         "data": {
@@ -52,8 +62,15 @@ def get_month_calendar(year: int, month: int):
 
 
 # 날짜 상세 조회 API
-@router.get("/date/{date}", response_model=CalendarDateResponse, summary="날짜 상세 조회")
-def get_date_calendar(date: str):
+@router.get(
+    "/date/{date}",
+    response_model=CalendarDateResponse,
+    summary="날짜 상세 조회",
+    description="특정 날짜의 목표와 마일스톤 상세 데이터를 조회합니다.",
+)
+def get_date_calendar(
+    date: Annotated[str, Path(description="조회할 날짜. YYYY-MM-DD 형식")],
+):
     return {
         "success": True,
         "data": {

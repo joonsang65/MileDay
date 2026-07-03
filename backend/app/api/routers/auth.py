@@ -36,7 +36,10 @@ def signup(body: SignUpRequest):
     "/login",
     response_model=LogInResponse,
     summary="로그인",
-    description="이메일과 비밀번호를 기반으로 로그인하고 토큰 정보를 반환합니다.",
+    description=(
+        "이메일과 비밀번호를 기반으로 로그인합니다. "
+        "Supabase Auth에서 발급된 Access Token과 Refresh Token을 반환합니다."
+    ),
 )
 def login(body: LogInRequest):
     return {
@@ -72,7 +75,7 @@ def logout():
     "/me",
     response_model=UserStatusResponse,
     summary="현재 사용자 조회",
-    description="JWT를 기준으로 현재 로그인한 사용자 정보를 조회합니다.",
+    description="현재 JWT를 기준으로 로그인한 사용자 정보를 조회합니다.",
 )
 def user():
     return {

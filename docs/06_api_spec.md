@@ -9,7 +9,35 @@
 - 타입: SPEC, DESIGN
 - 기준 시점: 2026-07-01
 
-> 주의: Notion API 명세서 페이지는 본문이 길어 도구 응답에서 중간 이후가 잘렸다. 아래 내용은 확인된 원문 범위와 다른 설계 문서에 반복적으로 등장한 API 구조를 기준으로 정리한 Codex용 구현 context이다. 구현 전 Notion 원문 API 페이지를 Export해서 추가로 넣으면 더 안전하다.
+## 0. Postman 명세서 작성 방식
+
+Postman에서 각 API 요청에는 다음 내용을 작성한다.
+
+| 항목 | 작성 내용 |
+| --- | --- |
+| Name | API 이름. 예: 목표 생성 |
+| Method | GET, POST, PATCH, DELETE |
+| URL | {{base_url}}/goals |
+| Authorization | Bearer Token |
+| Headers | Content-Type: application/json |
+| Body | Request JSON 예시 |
+| Description | API 설명, 처리 기준, 주의사항 |
+| Example Response | 성공/실패 응답 예시 |
+
+---
+
+### 0.1. Postman Environment 변수
+
+Postman에서는 환경 변수를 사용하여 Local, Production 환경을 구분한다.
+
+**[Local Environment]**
+
+| 변수명 | 값 |
+| --- | --- |
+| base_url | http://localhost:8000 |
+| access_token | 로그인 후 발급된 JWT |
+| goal_id | 테스트용 목표 ID |
+| milestone_id | 테스트용 마일스톤 ID |
 
 ## 1. API 명세서 개요
 
@@ -337,8 +365,8 @@ Response Body는 수정된 목표 객체를 반환한다.
 ### DELETE /goals/{goal_id}
 
 특정 목표를 삭제한다.
-목표 삭제 시 하위 마일스톤 처리 정책은 구현 시 명확히 해야 한다.
-권장 정책은 `ON DELETE CASCADE` 또는 서비스 레이어에서 명시적 삭제를 선택하는 것이다.
+목표 삭제 시 동일한 goal_id를 갖는 하위 마일스톤도 함께 삭제한다.
+구현 방식은 DB의 `ON DELETE CASCADE` 또는 서비스 레이어의 명시적 삭제 중 하나로 통일한다.
 
 ## 6. Milestone API
 
