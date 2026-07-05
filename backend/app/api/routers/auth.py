@@ -19,7 +19,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/signup",
     response_model=SignUpResponse,
     summary="회원가입",
-    description="이메일과 비밀번호를 기반으로 회원가입을 처리합니다.",
+    description="이메일과 비밀번호를 기반으로 회원가입을 처리",
 )
 def signup(body: SignUpRequest):
     return {
@@ -37,8 +37,8 @@ def signup(body: SignUpRequest):
     response_model=LogInResponse,
     summary="로그인",
     description=(
-        "이메일과 비밀번호를 기반으로 로그인합니다. "
-        "Supabase Auth에서 발급된 Access Token과 Refresh Token을 반환합니다."
+        "이메일과 비밀번호를 기반으로 로그인"
+        "Supabase Auth에서 발급된 Access Token과 Refresh Token 반환"
     ),
 )
 def login(body: LogInRequest):
@@ -61,7 +61,7 @@ def login(body: LogInRequest):
     "/logout",
     response_model=LogOutResponse,
     summary="로그아웃",
-    description="현재 사용자의 로그아웃을 처리합니다.",
+    description="현재 사용자의 로그아웃 처리",
 )
 def logout():
     return {
@@ -75,7 +75,7 @@ def logout():
     "/me",
     response_model=UserStatusResponse,
     summary="현재 사용자 조회",
-    description="현재 JWT를 기준으로 로그인한 사용자 정보를 조회합니다.",
+    description="현재 JWT를 기준으로 로그인한 사용자 정보 조회",
 )
 def user():
     return {

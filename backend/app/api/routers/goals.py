@@ -35,7 +35,7 @@ def goal_data(goal_id: str = "uuid") -> dict:
     "",
     response_model=GoalListResponse,
     summary="목표 목록 조회",
-    description="현재 로그인한 사용자의 목표 목록을 조회합니다.",
+    description="사용자 목표 목록 조회",
 )
 def list_goals():
     return {"success": True, "data": [goal_data()]}
@@ -46,7 +46,7 @@ def list_goals():
     "/{goal_id}",
     response_model=GoalResponse,
     summary="목표 상세 조회",
-    description="goal_id에 해당하는 특정 목표의 상세 정보를 조회합니다.",
+    description="해당 goal_id의 상세 정보 조회",
 )
 def get_goal(goal_id: Annotated[str, Path(description="조회할 목표 ID")]):
     return {"success": True, "data": goal_data(goal_id)}
@@ -57,7 +57,7 @@ def get_goal(goal_id: Annotated[str, Path(description="조회할 목표 ID")]):
     "",
     response_model=GoalResponse,
     summary="목표 생성",
-    description="새 목표를 생성합니다.",
+    description="새 목표 생성",
 )
 def create_goal(body: GoalCreateRequest):
     data = goal_data()
@@ -70,7 +70,7 @@ def create_goal(body: GoalCreateRequest):
     "/{goal_id}",
     response_model=GoalResponse,
     summary="목표 수정",
-    description="goal_id에 해당하는 목표의 제목, 마감일, 반복 여부, 색상 등을 수정합니다.",
+    description="해당 goal_id의 제목, 마감일, 반복 여부, 색상 등 수정",
 )
 def update_goal(
     goal_id: Annotated[str, Path(description="수정할 목표 ID")],
@@ -87,8 +87,8 @@ def update_goal(
     response_model=GoalDeleteResponse,
     summary="목표 및 하위 마일스톤 삭제",
     description=(
-        "goal_id에 해당하는 목표를 삭제합니다. "
-        "동일한 goal_id를 갖는 하위 마일스톤도 함께 삭제합니다."
+        "goal_id에 해당하는 목표 삭제"
+        "동일한 goal_id를 갖는 하위 마일스톤도 함께 삭제"
     ),
 )
 def delete_goal(goal_id: Annotated[str, Path(description="삭제할 목표 ID")]):

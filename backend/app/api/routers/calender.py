@@ -44,7 +44,7 @@ def milestone_data() -> dict:
     "/month",
     response_model=CalendarMonthResponse,
     summary="월간 캘린더 조회",
-    description="특정 연월의 목표와 마일스톤 표시 데이터를 조회합니다.",
+    description="특정 연월의 목표, 마일스톤 표시 데이터 조회",
 )
 def get_month_calendar(
     year: Annotated[int, Query(description="조회할 연도", ge=1)],
@@ -66,7 +66,7 @@ def get_month_calendar(
     "/date/{date}",
     response_model=CalendarDateResponse,
     summary="날짜 상세 조회",
-    description="특정 날짜의 목표와 마일스톤 상세 데이터를 조회합니다.",
+    description="특정 날짜의 목표, 마일스톤 상세 데이터 조회",
 )
 def get_date_calendar(
     date: Annotated[str, Path(description="조회할 날짜. YYYY-MM-DD 형식")],

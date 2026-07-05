@@ -31,7 +31,7 @@ def settings_data() -> dict:
     "",
     response_model=SettingsResponse,
     summary="사용자 설정 조회",
-    description="현재 로그인한 사용자의 계정 기준 앱 설정을 조회합니다.",
+    description="사용자의 계정 기준 앱 설정 조회",
 )
 def get_settings():
     return {"success": True, "data": settings_data()}
@@ -42,7 +42,7 @@ def get_settings():
     "",
     response_model=SettingsResponse,
     summary="사용자 설정 수정",
-    description="현재 로그인한 사용자의 계정 기준 앱 설정을 수정합니다.",
+    description="사용자의 계정 기준 앱 설정 수정",
 )
 def update_settings(body: SettingsUpdateRequest):
     data = settings_data()

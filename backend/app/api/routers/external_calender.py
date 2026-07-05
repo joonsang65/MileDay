@@ -3,3 +3,5 @@ from fastapi import APIRouter
 
 
 router = APIRouter(prefix="/external-calenders", tags=["external-calenders"])
+
+## 추후 구현 예정
