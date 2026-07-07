@@ -67,6 +67,54 @@ pytest
 pytest -m integration
 ```
 
+## schema_migrations 접근 권한 제한
+
+Supabase CLI migration 기록 테이블은 일반 사용자 API 접근 대상이 아니므로 `anon`, `authenticated`, `public` 권한을 제거하는 기준을 추가했다.
+
+적용 위치:
+
+```text
+supabase/migrations/202607050001_m1_base_schema.sql
+```
+
+적용 방식:
+
+- `supabase_migrations` schema가 존재할 때만 권한 정리 실행
+- `public`, `anon`, `authenticated`의 schema/table 권한 제거
+- `postgres`의 schema/table 권한 유지
+- CLI migration이 사용하는 `postgres` 권한은 revoke하지 않음
+
+추가된 권한 기준:
+
+```sql
+revoke all on schema supabase_migrations from public;
+revoke all on schema supabase_migrations from anon;
+revoke all on schema supabase_migrations from authenticated;
+
+revoke all on all tables in schema supabase_migrations from public;
+revoke all on all tables in schema supabase_migrations from anon;
+revoke all on all tables in schema supabase_migrations from authenticated;
+
+grant usage on schema supabase_migrations to postgres;
+grant all on all tables in schema supabase_migrations to postgres;
+```
+
+검증 쿼리:
+
+```sql
+select grantee, privilege_type
+from information_schema.role_table_grants
+where table_schema = 'supabase_migrations'
+  and table_name = 'schema_migrations';
+```
+
+기대 상태:
+
+- `postgres` 접근 가능
+- `anon` 접근 불가
+- `authenticated` 접근 불가
+- Supabase CLI migration 정상 동작
+
 ### 4. 안전한 통합 테스트 skeleton 추가
 
 `tests/integration/test_supabase_project.py`를 추가했다.

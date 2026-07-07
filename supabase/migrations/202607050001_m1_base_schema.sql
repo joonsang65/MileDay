@@ -1,5 +1,25 @@
 create extension if not exists pgcrypto;
 
+-- supabase_migrations는 postgres만 접근, anon/authenticated 접근 차단
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.schemata
+    where schema_name = 'supabase_migrations'
+  ) then
+    execute 'revoke all on schema supabase_migrations from public';
+    execute 'revoke all on schema supabase_migrations from anon';
+    execute 'revoke all on schema supabase_migrations from authenticated';
+    execute 'revoke all on all tables in schema supabase_migrations from public';
+    execute 'revoke all on all tables in schema supabase_migrations from anon';
+    execute 'revoke all on all tables in schema supabase_migrations from authenticated';
+    execute 'grant usage on schema supabase_migrations to postgres';
+    execute 'grant all on all tables in schema supabase_migrations to postgres';
+  end if;
+end;
+$$;
+
 -- updated_at 자동 갱신 공통 트리거 함수
 create or replace function public.set_updated_at()
 returns trigger

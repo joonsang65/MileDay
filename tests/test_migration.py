@@ -22,6 +22,9 @@ def test_m1_migration_contains_required_tables_and_security_policies() -> None:
     assert "create or replace function public.ensure_milestone_goal_owner()" in sql
     assert "milestone user_id must match goal user_id" in sql
     assert "auth.uid() = user_id" in sql
+    assert "revoke all on schema supabase_migrations from anon" in sql
+    assert "revoke all on schema supabase_migrations from authenticated" in sql
+    assert "grant usage on schema supabase_migrations to postgres" in sql
 
     for policy in [
         "goals_select_own",
