@@ -1,4 +1,4 @@
-# 사용자 설정 조회 및 수정 API 제공
+# 사용자 설정 조회/수정 API
 from fastapi import APIRouter
 
 from schemas.settings_schemas import SettingsResponse, SettingsUpdateRequest
@@ -7,7 +7,7 @@ from schemas.settings_schemas import SettingsResponse, SettingsUpdateRequest
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-# 설정 API 명세용 예시 데이터
+# M1 API 명세 검증용 임시 설정 데이터
 def settings_data() -> dict:
     return {
         "calendar_view": "month",
@@ -16,8 +16,8 @@ def settings_data() -> dict:
         "font_family": "system",
         "font_size": 14,
         "ai_suggestion": False,
-        "holiday_display": True,
-        "week_starts_on": "monday",
+        "holiday_display": "normal",
+        "week_starts_on": 1,
         "completed_milestones": True,
         "default_goal_color": "#4F46E5",
         "default_milestone_color": "#F97316",
@@ -26,7 +26,7 @@ def settings_data() -> dict:
     }
 
 
-# 사용자 설정 조회 API
+# 저장소 연결 전 기본 설정 조회
 @router.get(
     "",
     response_model=SettingsResponse,
@@ -37,7 +37,7 @@ def get_settings():
     return {"success": True, "data": settings_data()}
 
 
-# 사용자 설정 수정 API
+# 저장소 연결 전 요청 값 병합 응답
 @router.patch(
     "",
     response_model=SettingsResponse,

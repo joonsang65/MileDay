@@ -11,8 +11,8 @@ class UserSettings(BaseModel):
     font_family: str
     font_size: int
     ai_suggestion: bool
-    holiday_display: bool
-    week_starts_on: str
+    holiday_display: str
+    week_starts_on: int
     completed_milestones: bool
     default_goal_color: str
     default_milestone_color: str
@@ -20,7 +20,7 @@ class UserSettings(BaseModel):
     timezone: str
 
 
-# 사용자 설정 수정 요청 DTO
+# 부분 수정 요청 DTO, 전달된 필드만 갱신 대상
 class SettingsUpdateRequest(BaseModel):
     calendar_view: Optional[str] = None
     theme: Optional[str] = None
@@ -28,8 +28,8 @@ class SettingsUpdateRequest(BaseModel):
     font_family: Optional[str] = None
     font_size: Optional[int] = None
     ai_suggestion: Optional[bool] = None
-    holiday_display: Optional[bool] = None
-    week_starts_on: Optional[str] = None
+    holiday_display: Optional[str] = None
+    week_starts_on: Optional[int] = None
     completed_milestones: Optional[bool] = None
     default_goal_color: Optional[str] = None
     default_milestone_color: Optional[str] = None
