@@ -4,6 +4,35 @@
 
 Notion의 개발 작업 계획서를 Codex 실행 지침으로 압축한 문서이며, 구현 중 임의 확장이나 구조 변경을 막기 위한 기준으로 사용함
 
+## 0. 문서 참조 기준
+
+Codex가 작업을 시작하기 전에는 요청 범위에 맞는 문서를 먼저 확인함
+여러 영역이 함께 변경되는 작업이면 아래 문서를 조합해서 읽고, 문서 간 기준이 다르면 `codex_rules.md`를 최상위 실행 기준으로 둠
+
+| 작업 상황 | 먼저 읽을 문서 | 함께 확인할 문서 | 확인 목적 |
+|---|---|---|---|
+| 프로젝트 전체 방향을 파악해야 할 때 | `codex_rules.md` | `requirements.md` | 구현 범위, MVP/Future 구분, 금지 사항을 확인함 |
+| 요구사항 ID나 마일스톤 기준으로 작업할 때 | `requirements.md` | `codex_rules.md` | M1~M9 범위와 기능별 상세 요구사항을 확인함 |
+| API 라우터, schema, 응답 형식을 구현할 때 | `api_spec.md` | `error_logging.md`, `data_flow.md` | endpoint, 요청/응답, 인증 필요 여부, 에러 응답 흐름을 확인함 |
+| DB 테이블, RLS, migration을 구현할 때 | `db_schema.md` | `requirements.md`, `codex_rules.md` | 테이블 필드, 관계, user_id 기준 접근 제한을 확인함 |
+| 인증, 권한, 사용자별 데이터 접근을 구현할 때 | `codex_rules.md` | `api_spec.md`, `db_schema.md`, `data_flow.md` | Supabase Auth JWT, user_id 추출, RLS, 백엔드 권한 검증 흐름을 확인함 |
+| 목표, 마일스톤, 캘린더, 설정 기능 흐름을 구현할 때 | `data_flow.md` | `requirements.md`, `api_spec.md` | 프론트엔드에서 백엔드와 DB까지 이어지는 기능별 데이터 흐름을 확인함 |
+| 예외 처리, 에러 응답, 로그를 구현할 때 | `error_logging.md` | `api_spec.md`, `codex_rules.md` | custom exception, global handler, error.code, request_id, 로그 저장 기준을 확인함 |
+| 커밋을 만들 때 | `commit_guide.md` | 변경한 파일 diff | Conventional Commit 형식과 scope 기준을 확인함 |
+| 문서만 수정할 때 | 수정 대상 문서 | `codex_rules.md` | 기존 문서 구조와 Codex 실행 기준이 어긋나지 않는지 확인함 |
+
+문서별 역할은 아래 기준으로 해석함
+
+| 문서 | 역할 |
+|---|---|
+| `codex_rules.md` | Codex가 반드시 따를 최상위 작업 규칙 |
+| `requirements.md` | Notion 요구사항 DB를 기준으로 정리한 기능 범위와 마일스톤 |
+| `api_spec.md` | FastAPI endpoint, 요청/응답, 인증 필요 여부 기준 |
+| `db_schema.md` | Supabase PostgreSQL 테이블, 필드, 관계, RLS 기준 |
+| `data_flow.md` | 기능별 데이터 흐름과 계층 간 처리 순서 |
+| `error_logging.md` | 예외 처리, 로그, 에러 코드, request_id 기준 |
+| `commit_guide.md` | 커밋 메시지 형식과 분할 커밋 기준 |
+
 ## 1. 프로젝트 기준
 
 - MileDay는 Windows 데스크톱에서 동작하는 Electron 기반 위젯형 플래너 앱임
@@ -572,4 +601,3 @@ Codex는 구현 전에 다음을 확인해야 함
 5. 인증, 권한, RLS, 로그, 예외 처리 기준을 보존함
 6. 작은 단위로 구현하고 검증 가능한 테스트 또는 실행 확인을 남김
 7. Future 기능은 확장 가능한 구조만 남기고 실제 동작은 요청 시 구현함
-
