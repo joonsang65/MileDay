@@ -31,6 +31,9 @@ logs/
 *.sqlite3
 *.db
 
+# Supabase CLI local state
+supabase/.temp/
+
 # Node / Electron / Vite frontend artifacts
 node_modules/
 dist/
