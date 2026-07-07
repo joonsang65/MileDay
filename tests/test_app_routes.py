@@ -2,6 +2,35 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from core.auth import get_auth_service as get_auth_dependency
+from services.auth_service import AuthSession, AuthUser, get_auth_service
+
+
+class FakeAuthService:
+    # Auth router 테스트용 Supabase 대체 서비스
+    def signup(self, *, email: str, password: str) -> AuthUser:
+        return AuthUser(id="user-1", email=email)
+
+    def login(self, *, email: str, password: str) -> AuthSession:
+        return AuthSession(
+            access_token="jwt_access_token",
+            refresh_token="refresh_token",
+            token_type="bearer",
+            user=AuthUser(id="user-1", email=email),
+        )
+
+    def get_user(self, access_token: str) -> AuthUser:
+        assert access_token == "jwt_access_token"
+        return AuthUser(id="user-1", email="user@example.com")
+
+    def logout(self, access_token: str) -> None:
+        assert access_token == "jwt_access_token"
+
+
+def override_auth_service() -> FakeAuthService:
+    # FastAPI 의존성 override용 생성 함수
+    return FakeAuthService()
+
 
 def test_health_endpoints(client: TestClient) -> None:
     response = client.get("/health", headers={"X-Request-ID": "req-test-health"})
@@ -34,6 +63,9 @@ def test_settings_get_and_patch(client: TestClient) -> None:
 
 
 def test_auth_placeholder_routes(client: TestClient) -> None:
+    client.app.dependency_overrides[get_auth_service] = override_auth_service
+    client.app.dependency_overrides[get_auth_dependency] = override_auth_service
+
     signup = client.post(
         "/auth/signup",
         json={"email": "user@example.com", "password": "secret-password"},
@@ -48,13 +80,21 @@ def test_auth_placeholder_routes(client: TestClient) -> None:
     assert login.status_code == 200
     assert login.json()["data"]["token_type"] == "bearer"
 
-    logout = client.post("/auth/logout")
+    logout = client.post(
+        "/auth/logout",
+        headers={"Authorization": "Bearer jwt_access_token"},
+    )
     assert logout.status_code == 200
     assert logout.json()["success"] is True
 
-    current_user = client.get("/auth/me")
+    current_user = client.get(
+        "/auth/me",
+        headers={"Authorization": "Bearer jwt_access_token"},
+    )
     assert current_user.status_code == 200
     assert current_user.json()["data"]["email"] == "user@example.com"
+
+    client.app.dependency_overrides.clear()
 
 
 def test_goal_placeholder_routes(client: TestClient) -> None:

@@ -75,6 +75,7 @@ def test_exception_classes_expose_status_code_and_error_code() -> None:
     from exceptions.auth import (
         AuthInvalidCredentialsError,
         AuthInvalidTokenError,
+        AuthLogoutFailedError,
         AuthTokenExpiredError,
         AuthUserNotFoundError,
     )
@@ -83,6 +84,7 @@ def test_exception_classes_expose_status_code_and_error_code() -> None:
         ConflictError,
         ExternalServiceError,
         NotFoundError,
+        SupabaseUnavailableError,
         UnauthorizedError,
     )
     from exceptions.goals import (
@@ -109,8 +111,10 @@ def test_exception_classes_expose_status_code_and_error_code() -> None:
         NotFoundError(),
         ConflictError(),
         ExternalServiceError(),
+        SupabaseUnavailableError(),
         AuthInvalidCredentialsError(),
         AuthInvalidTokenError(),
+        AuthLogoutFailedError(),
         AuthTokenExpiredError(),
         AuthUserNotFoundError(),
         GoalNotFoundError(),
