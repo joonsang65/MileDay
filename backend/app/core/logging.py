@@ -7,13 +7,13 @@ from typing import Any
 from core.config import get_settings
 
 
-# 요청 단위 로그 문맥
+# 요청 단위 로그 문맥 설정
 request_id_context: ContextVar[str | None] = ContextVar("request_id", default=None)
 user_id_context: ContextVar[str | None] = ContextVar("user_id", default=None)
 path_context: ContextVar[str | None] = ContextVar("path", default=None)
 duration_context: ContextVar[float | None] = ContextVar("duration_ms", default=None)
 
-# 로그와 에러 detail에서 숨길 민감 키
+# 로그와 에러 detail에서 숨길 비공개 키
 SENSITIVE_KEYS = {
     "password",
     "access_token",
