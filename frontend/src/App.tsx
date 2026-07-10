@@ -30,6 +30,7 @@ import {
   parseDateKey,
   toDateKey,
 } from "@/utils/date";
+import { getUserFacingErrorMessage } from "@/utils/errorMessages";
 
 type RequestState = {
   isLoading: boolean;
@@ -52,24 +53,6 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
   language: "ko",
   timezone: "Asia/Seoul",
 };
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    if (
-      error.detail &&
-      typeof error.detail === "object" &&
-      "message" in error.detail &&
-      typeof error.detail.message === "string"
-    ) {
-      return `${error.message} (${error.detail.message})`;
-    }
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return "요청을 처리하지 못했습니다.";
-}
 
 export default function App() {
   const {
@@ -149,7 +132,7 @@ export default function App() {
         apiClient.setAccessToken(null);
         setIsAuthenticated(false);
       }
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }, [
     applySettingsToCalendar,
@@ -173,7 +156,7 @@ export default function App() {
       setHasAppliedInitialSettings(false);
       setRequestState({ isLoading: false, message: null, notice: null });
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -187,7 +170,7 @@ export default function App() {
         notice: "회원가입이 완료되었습니다. 로그인해 주세요.",
       });
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -237,7 +220,7 @@ export default function App() {
       await apiClient.completeMilestone(milestoneId, isCompleted);
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -247,7 +230,7 @@ export default function App() {
       await apiClient.createGoal(payload);
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -259,7 +242,7 @@ export default function App() {
       }
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -269,7 +252,7 @@ export default function App() {
       await apiClient.updateGoal(goalId, payload);
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -279,7 +262,7 @@ export default function App() {
       await apiClient.deleteGoal(goalId);
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -289,7 +272,7 @@ export default function App() {
       await apiClient.updateMilestone(milestoneId, payload);
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -299,7 +282,7 @@ export default function App() {
       await apiClient.deleteMilestone(milestoneId);
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 
@@ -312,7 +295,7 @@ export default function App() {
       setRequestState({ isLoading: false, message: null, notice: null });
       await loadCalendar();
     } catch (error) {
-      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
     }
   }
 

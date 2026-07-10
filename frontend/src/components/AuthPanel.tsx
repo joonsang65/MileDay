@@ -28,6 +28,15 @@ export function AuthPanel({
     event.preventDefault();
     setValidationMessage(null);
 
+    if (!email.trim()) {
+      setValidationMessage("이메일을 입력해 주세요.");
+      return;
+    }
+    if (!password) {
+      setValidationMessage("비밀번호를 입력해 주세요.");
+      return;
+    }
+
     if (mode === "signup") {
       if (password.length < 8) {
         setValidationMessage("비밀번호는 8자 이상이어야 합니다.");
@@ -37,14 +46,14 @@ export function AuthPanel({
         setValidationMessage("비밀번호 확인이 일치하지 않습니다.");
         return;
       }
-      await onSignup(email, password);
+      await onSignup(email.trim(), password);
       setMode("login");
       setPassword("");
       setPasswordConfirm("");
       return;
     }
 
-    await onLogin(email, password);
+    await onLogin(email.trim(), password);
   }
 
   function switchMode(nextMode: AuthMode) {
@@ -85,6 +94,7 @@ export function AuthPanel({
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              disabled={isLoading}
               required
             />
           </label>
@@ -95,6 +105,7 @@ export function AuthPanel({
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              disabled={isLoading}
               required
             />
           </label>
@@ -106,6 +117,7 @@ export function AuthPanel({
                 autoComplete="new-password"
                 value={passwordConfirm}
                 onChange={(event) => setPasswordConfirm(event.target.value)}
+                disabled={isLoading}
                 required
               />
             </label>

@@ -48,4 +48,18 @@ describe("AuthPanel", () => {
     expect(onSignup).not.toHaveBeenCalled();
     expect(screen.getByText("비밀번호 확인이 일치하지 않습니다.")).toBeInTheDocument();
   });
+
+  it("로딩 중에는 입력과 제출을 비활성화한다", () => {
+    render(
+      <AuthPanel
+        isLoading
+        onLogin={vi.fn()}
+        onSignup={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("이메일")).toBeDisabled();
+    expect(screen.getByLabelText("비밀번호", { selector: "input" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "처리 중" })).toBeDisabled();
+  });
 });
