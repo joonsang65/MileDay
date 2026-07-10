@@ -34,6 +34,17 @@ class Settings(BaseModel):
     )
     supabase_db_url: str | None = Field(default_factory=lambda: getenv("SUPABASE_DB_URL"))
 
+    # 한국 공휴일 API 설정. 키가 없으면 캘린더는 주말 기준으로만 동작한다.
+    holiday_api_service_key: str | None = Field(
+        default_factory=lambda: getenv("HOLIDAY_API_SERVICE_KEY")
+    )
+    holiday_api_base_url: str = Field(
+        default_factory=lambda: getenv(
+            "HOLIDAY_API_BASE_URL",
+            "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getHoliDeInfo",
+        )
+    )
+
     # 같은 Supabase 프로젝트를 쓰는 통합 테스트 안전장치
     integration_tests_enabled: bool = Field(
         default_factory=lambda: env_bool("ENABLE_INTEGRATION_TESTS")

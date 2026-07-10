@@ -6,11 +6,17 @@ from datetime import date, timedelta
 from typing import Any
 
 from repositories.calendar import CalendarRepository, get_calendar_repository
+from services.holiday_service import HolidayService, get_holiday_service
 
 
 class CalendarService:
-    def __init__(self, repository: CalendarRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: CalendarRepository | None = None,
+        holiday_service: HolidayService | None = None,
+    ) -> None:
         self.repository = repository or get_calendar_repository()
+        self.holiday_service = holiday_service or get_holiday_service()
 
     def get_month_calendar(
         self,
@@ -34,6 +40,10 @@ class CalendarService:
                 end_date=last_day.isoformat(),
             )
         ]
+        holidays = self.holiday_service.get_holidays_for_range(
+            start_date=first_day,
+            end_date=last_day,
+        )
         return {
             "year": year,
             "month": month,
@@ -42,6 +52,7 @@ class CalendarService:
                 end_date=last_day,
                 goals=goals,
                 milestones=milestones,
+                holidays=holidays,
                 today=today or date.today(),
             ),
             "goals": goals,
@@ -69,6 +80,10 @@ class CalendarService:
                 end_date=end_date.isoformat(),
             )
         ]
+        holidays = self.holiday_service.get_holidays_for_range(
+            start_date=start_date,
+            end_date=end_date,
+        )
         return {
             "start_date": start_date,
             "end_date": end_date,
@@ -77,6 +92,7 @@ class CalendarService:
                 end_date=end_date,
                 goals=goals,
                 milestones=milestones,
+                holidays=holidays,
                 today=today or date.today(),
             ),
             "goals": goals,
@@ -102,9 +118,15 @@ class CalendarService:
                 scheduled_date=date_text,
             )
         ]
+        holiday_name = self.holiday_service.get_holidays_for_range(
+            start_date=target_date,
+            end_date=target_date,
+        ).get(date_text)
         return {
             "date": target_date,
             "is_today": target_date == (today or date.today()),
+            "is_holiday": holiday_name is not None,
+            "holiday_name": holiday_name,
             "goal_count": len(goals),
             "milestone_count": len(milestones),
             "completed_milestone_count": self._completed_count(milestones),
@@ -123,6 +145,7 @@ class CalendarService:
         end_date: date,
         goals: list[dict[str, Any]],
         milestones: list[dict[str, Any]],
+        holidays: dict[str, str],
         today: date,
     ) -> list[dict[str, Any]]:
         goals_by_date = self._group_by_date(rows=goals, date_field="deadline")
@@ -137,10 +160,13 @@ class CalendarService:
             date_key = current.isoformat()
             day_goals = goals_by_date[date_key]
             day_milestones = milestones_by_date[date_key]
+            holiday_name = holidays.get(date_key)
             days.append(
                 {
                     "date": current,
                     "is_today": current == today,
+                    "is_holiday": holiday_name is not None,
+                    "holiday_name": holiday_name,
                     "goal_count": len(day_goals),
                     "milestone_count": len(day_milestones),
                     "completed_milestone_count": self._completed_count(

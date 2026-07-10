@@ -21,6 +21,8 @@ class CalendarMilestoneSummary(BaseModel):
 class CalendarDayData(BaseModel):
     date: date
     is_today: bool
+    is_holiday: bool = False
+    holiday_name: str | None = None
     goal_count: int
     milestone_count: int
     completed_milestone_count: int

@@ -91,9 +91,20 @@ class InMemoryCalendarRepository:
         ]
 
 
+class FakeHolidayService:
+    def __init__(self, holidays=None) -> None:
+        self.holidays = holidays or {}
+        self.queries = []
+
+    def get_holidays_for_range(self, *, start_date, end_date):
+        self.queries.append((start_date, end_date))
+        return self.holidays
+
+
 def test_calendar_service_builds_month_days_from_owned_rows() -> None:
     repository = InMemoryCalendarRepository()
-    service = CalendarService(repository=repository)
+    holiday_service = FakeHolidayService({"2026-07-10": "제헌절"})
+    service = CalendarService(repository=repository, holiday_service=holiday_service)
 
     result = service.get_month_calendar(
         user_id="user-1",
@@ -113,6 +124,8 @@ def test_calendar_service_builds_month_days_from_owned_rows() -> None:
     day = result["days"][9]
     assert day["date"] == date(2026, 7, 10)
     assert day["is_today"] is True
+    assert day["is_holiday"] is True
+    assert day["holiday_name"] == "제헌절"
     assert day["goal_count"] == 1
     assert day["milestone_count"] == 1
     assert day["completed_milestone_count"] == 1
@@ -122,11 +135,13 @@ def test_calendar_service_builds_month_days_from_owned_rows() -> None:
         ("goals", "user-1", "2026-07-01", "2026-07-31"),
         ("milestones", "user-1", "2026-07-01", "2026-07-31"),
     ]
+    assert holiday_service.queries == [(date(2026, 7, 1), date(2026, 7, 31))]
 
 
 def test_calendar_service_builds_date_detail_with_goal_title() -> None:
     repository = InMemoryCalendarRepository()
-    service = CalendarService(repository=repository)
+    holiday_service = FakeHolidayService({"2026-07-10": "제헌절"})
+    service = CalendarService(repository=repository, holiday_service=holiday_service)
 
     result = service.get_date_calendar(
         user_id="user-1",
@@ -136,6 +151,8 @@ def test_calendar_service_builds_date_detail_with_goal_title() -> None:
 
     assert result["date"] == date(2026, 7, 10)
     assert result["is_today"] is False
+    assert result["is_holiday"] is True
+    assert result["holiday_name"] == "제헌절"
     assert [row["id"] for row in result["goals"]] == ["goal-1"]
     assert [row["id"] for row in result["milestones"]] == ["milestone-1"]
     assert result["goal_count"] == 1
@@ -150,7 +167,7 @@ def test_calendar_service_builds_date_detail_with_goal_title() -> None:
 
 def test_calendar_service_builds_week_days_from_start_date() -> None:
     repository = InMemoryCalendarRepository()
-    service = CalendarService(repository=repository)
+    service = CalendarService(repository=repository, holiday_service=FakeHolidayService())
 
     result = service.get_week_calendar(
         user_id="user-1",
