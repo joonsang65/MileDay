@@ -1,13 +1,15 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # 마일스톤 공통 DTO
 class MilestoneBase(BaseModel):
-    title: str
-    color: str
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1)
+    color: str = Field(min_length=1)
     scheduled_date: date
 
 
@@ -18,14 +20,18 @@ class MilestoneCreateRequest(MilestoneBase):
 
 # 마일스톤 수정 요청 DTO
 class MilestoneUpdateRequest(BaseModel):
-    title: Optional[str] = None
-    color: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    title: Optional[str] = Field(default=None, min_length=1)
+    color: Optional[str] = Field(default=None, min_length=1)
     scheduled_date: Optional[date] = None
     is_completed: Optional[bool] = None
 
 
 # 마일스톤 완료 처리 요청 DTO
 class MilestoneCompleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     is_completed: bool = True
 
 
@@ -34,6 +40,7 @@ class Milestone(MilestoneBase):
     id: str
     goal_id: str
     user_id: str
+    goal_title: Optional[str] = None
     is_completed: bool
     created_at: datetime
     updated_at: datetime

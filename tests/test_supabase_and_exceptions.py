@@ -35,6 +35,50 @@ def test_supabase_client_factories(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
+def test_supabase_db_health_checks_goal_columns_used_by_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.supabase as supabase_module
+
+    class FakeQuery:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def select(self, value):
+            self.calls.append(("select", value))
+            return self
+
+        def limit(self, value):
+            self.calls.append(("limit", value))
+            return self
+
+        def execute(self):
+            self.calls.append(("execute", None))
+            return type("Response", (), {"data": [{"id": "goal-1"}]})()
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.table_name = None
+            self.query = FakeQuery()
+
+        def table(self, name):
+            self.table_name = name
+            return self.query
+
+    fake_client = FakeClient()
+    monkeypatch.setattr(supabase_module, "get_supabase_admin_client", lambda: fake_client)
+
+    result = supabase_module.check_supabase_db_health()
+
+    assert result == {"row_count": 1}
+    assert fake_client.table_name == "goals"
+    assert fake_client.query.calls == [
+        ("select", "id,title,deadline,is_recurring,recurrence_type,color"),
+        ("limit", 1),
+        ("execute", None),
+    ]
+
+
 def test_supabase_admin_client_requires_service_role_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

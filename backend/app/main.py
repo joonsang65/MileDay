@@ -1,15 +1,15 @@
-# M1 공통 진입점: 설정, 로깅, 미들웨어, 예외 핸들러, 라우터 등록
 import sys
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 APP_DIR = Path(__file__).resolve().parent
 if str(APP_DIR) not in sys.path:
-    # backend/app 직접 실행 시 절대 import 경로 보정
+    # backend/app를 직접 실행할 때도 로컬 import가 동작하도록 경로를 보정한다.
     sys.path.insert(0, str(APP_DIR))
 
 from api.routers.auth import router as auth_router
@@ -22,6 +22,7 @@ from api.routers.settings import router as settings_router
 from core.config import get_settings
 from core.logging import configure_logging
 from core.middleware import RequestContextMiddleware
+from core.supabase import check_supabase_db_health
 from exceptions.base import MileDayBaseException
 from exceptions.handlers import (
     http_exception_handler,
@@ -29,14 +30,13 @@ from exceptions.handlers import (
     unhandled_exception_handler,
     validation_exception_handler,
 )
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 settings = get_settings()
 configure_logging()
 
 app = FastAPI(title=settings.app_name)
 
-# 요청 문맥 미들웨어가 CORS보다 먼저 request_id 확보
+# 요청 문맥 미들웨어가 CORS보다 먼저 request_id를 기록한다.
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -46,7 +46,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 모든 실패 응답을 공통 ErrorResponse 형태로 변환
 app.add_exception_handler(MileDayBaseException, mileday_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
@@ -64,13 +63,21 @@ def health() -> dict[str, str]:
 
 
 @app.get("/health/db", summary="DB 상태 확인")
-def health_db() -> dict[str, str]:
-    # 외부 DB 연결 없이 환경 변수 구성 상태만 노출
-    status = "configured" if settings.is_supabase_configured else "not_configured"
-    return {"status": status}
+def health_db() -> dict[str, str | int]:
+    try:
+        result = check_supabase_db_health()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "status": "unavailable",
+                "type": exc.__class__.__name__,
+                "message": str(exc),
+            },
+        ) from exc
+    return {"status": "ok", **result}
 
 
-# 기능별 라우터는 공통 미들웨어와 핸들러 등록 뒤 연결
 app.include_router(auth_router)
 app.include_router(goals_router)
 app.include_router(milestones_router)

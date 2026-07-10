@@ -12,11 +12,16 @@ def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
     if not authorization:
         raise UnauthorizedError()
 
-    scheme, _, token = authorization.partition(" ")
+    # 잘못된 헤더가 통과하지 않도록 정확히 "Bearer <token>" 형식만 허용한다.
+    parts = authorization.strip().split()
+    if len(parts) != 2:
+        raise AuthInvalidTokenError()
+
+    scheme, token = parts
     if scheme.lower() != "bearer" or not token.strip():
         raise AuthInvalidTokenError()
 
-    return token.strip()
+    return token
 
 
 def get_current_user(

@@ -2,6 +2,7 @@ import logging
 
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -37,6 +38,19 @@ def error_payload(
     }
 
 
+def _validation_detail(exc: RequestValidationError) -> list[dict]:
+    # Pydantic 검증 상세에는 JSONResponse가 직렬화할 수 없는 예외 객체가 포함될 수 있다.
+    details = []
+    for error in exc.errors():
+        safe_error = dict(error)
+        if "ctx" in safe_error and isinstance(safe_error["ctx"], dict):
+            safe_error["ctx"] = {
+                key: str(value) for key, value in safe_error["ctx"].items()
+            }
+        details.append(safe_error)
+    return jsonable_encoder(details)
+
+
 async def mileday_exception_handler(
     request: Request, exc: MileDayBaseException
 ) -> JSONResponse:
@@ -67,7 +81,7 @@ async def validation_exception_handler(
             request_id=_request_id(request),
             code=ErrorCode.BAD_REQUEST,
             message="Invalid request.",
-            detail=exc.errors(),
+            detail=_validation_detail(exc),
         ),
     )
 
@@ -93,6 +107,7 @@ async def http_exception_handler(
             request_id=_request_id(request),
             code=error_code,
             message=str(exc.detail),
+            detail=exc.detail,
         ),
     )
 

@@ -42,3 +42,13 @@ class MilestoneDeleteFailedError(MileDayBaseException):
             message="Failed to delete milestone.",
             detail=detail,
         )
+
+
+class MilestoneInvalidScheduledDateError(MileDayBaseException):
+    def __init__(self, detail: object | None = None):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            error_code=ErrorCode.MILESTONE_INVALID_SCHEDULED_DATE,
+            message="Invalid milestone scheduled date.",
+            detail=detail,
+        )
