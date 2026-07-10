@@ -41,3 +41,36 @@ def test_m1_migration_contains_required_tables_and_security_policies() -> None:
         "user_settings_delete_own",
     ]:
         assert policy in sql
+
+
+def test_backfill_migration_adds_color_columns_to_existing_tables() -> None:
+    sql_path = (
+        Path(__file__).resolve().parents[1]
+        / "supabase"
+        / "migrations"
+        / "202607090001_backfill_goal_milestone_color_columns.sql"
+    )
+    sql = sql_path.read_text(encoding="utf-8").lower()
+
+    assert "alter table if exists public.goals" in sql
+    assert "add column if not exists color text not null default '#4f46e5'" in sql
+    assert "alter table if exists public.milestones" in sql
+    assert "add column if not exists color text not null default '#f97316'" in sql
+    assert "notify pgrst, 'reload schema'" in sql
+
+
+def test_recurrence_type_migration_allows_null_for_non_recurring_goals() -> None:
+    sql_path = (
+        Path(__file__).resolve().parents[1]
+        / "supabase"
+        / "migrations"
+        / "202607090002_fix_goal_recurrence_type_nullability.sql"
+    )
+    sql = sql_path.read_text(encoding="utf-8").lower()
+
+    assert "alter table if exists public.goals" in sql
+    assert "alter column recurrence_type drop not null" in sql
+    assert "goals_recurrence_type_state" in sql
+    assert "is_recurring = true and recurrence_type in ('daily', 'weekly', 'monthly')" in sql
+    assert "is_recurring = false and recurrence_type is null" in sql
+    assert "notify pgrst, 'reload schema'" in sql
