@@ -11,6 +11,7 @@ from services.auth_service import AuthSession, AuthUser, get_auth_service
 from services.calendar_service import get_calendar_service
 from services.goal_service import get_goal_service
 from services.milestone_service import get_milestone_service
+from services.settings_service import get_settings_service
 
 
 class FakeAuthService:
@@ -304,6 +305,38 @@ def override_calendar_service() -> FakeCalendarService:
     return FakeCalendarService()
 
 
+class FakeSettingsService:
+    def __init__(self) -> None:
+        self.settings = {
+            "calendar_view": "month",
+            "theme": "system",
+            "accent_color": "#4F46E5",
+            "font_family": "system",
+            "font_size": 14,
+            "ai_suggestion": False,
+            "holiday_display": "normal",
+            "week_starts_on": 1,
+            "completed_milestones": True,
+            "default_goal_color": "#4F46E5",
+            "default_milestone_color": "#F97316",
+            "language": "ko",
+            "timezone": "Asia/Seoul",
+        }
+
+    def get_settings(self, *, user_id: str) -> dict:
+        assert user_id == "user-1"
+        return self.settings
+
+    def update_settings(self, *, user_id: str, body) -> dict:
+        assert user_id == "user-1"
+        self.settings.update(body.model_dump(exclude_unset=True, exclude_none=True))
+        return self.settings
+
+
+def override_settings_service() -> FakeSettingsService:
+    return FakeSettingsService()
+
+
 def test_health_endpoints(client: TestClient, monkeypatch) -> None:
     import main
 
@@ -337,22 +370,54 @@ def test_health_db_returns_503_when_real_db_check_fails(client: TestClient, monk
 
 
 def test_settings_get_and_patch(client: TestClient) -> None:
-    get_response = client.get("/settings")
-    assert get_response.status_code == 200
-    body = get_response.json()
-    assert body["success"] is True
-    assert body["data"]["calendar_view"] == "month"
-    assert body["data"]["week_starts_on"] == 1
+    client.app.dependency_overrides[require_current_user_id] = override_current_user_id
+    client.app.dependency_overrides[get_settings_service] = override_settings_service
+    try:
+        get_response = client.get("/settings")
+        assert get_response.status_code == 200
+        body = get_response.json()
+        assert body["success"] is True
+        assert body["data"]["calendar_view"] == "month"
+        assert body["data"]["week_starts_on"] == 1
 
-    patch_response = client.patch(
-        "/settings",
-        json={"theme": "dark", "font_size": 16, "ai_suggestion": True},
-    )
-    assert patch_response.status_code == 200
-    patched = patch_response.json()
-    assert patched["data"]["theme"] == "dark"
-    assert patched["data"]["font_size"] == 16
-    assert patched["data"]["ai_suggestion"] is True
+        patch_response = client.patch(
+            "/settings",
+            json={
+                "calendar_view": "week",
+                "holiday_display": "weekend_like",
+                "week_starts_on": 0,
+                "language": "en",
+            },
+        )
+        assert patch_response.status_code == 200
+        patched = patch_response.json()
+        assert patched["data"]["calendar_view"] == "week"
+        assert patched["data"]["holiday_display"] == "weekend_like"
+        assert patched["data"]["week_starts_on"] == 0
+        assert patched["data"]["language"] == "en"
+    finally:
+        client.app.dependency_overrides.clear()
+
+
+def test_settings_routes_require_authentication(client: TestClient) -> None:
+    response = client.get("/settings")
+
+    assert response.status_code == 401
+
+
+def test_settings_routes_reject_invalid_values(client: TestClient) -> None:
+    client.app.dependency_overrides[require_current_user_id] = override_current_user_id
+    client.app.dependency_overrides[get_settings_service] = override_settings_service
+    try:
+        response = client.patch(
+            "/settings",
+            json={"calendar_view": "year", "week_starts_on": 2, "language": "jp"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["success"] is False
+    finally:
+        client.app.dependency_overrides.clear()
 
 
 def test_auth_placeholder_routes(client: TestClient) -> None:
