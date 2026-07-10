@@ -50,16 +50,16 @@ class Settings(BaseModel):
         default_factory=lambda: env_bool("ENABLE_INTEGRATION_TESTS")
     )
     integration_test_email: str | None = Field(
-        default_factory=lambda: getenv("INTEGRATION_TEST_EMAIL")
+        default_factory=lambda: getenv("TEST_EMAIL")
     )
     integration_test_password: str | None = Field(
-        default_factory=lambda: getenv("INTEGRATION_TEST_PASSWORD")
+        default_factory=lambda: getenv("TEST_PASSWORD")
     )
     integration_test_user_id: str | None = Field(
-        default_factory=lambda: getenv("INTEGRATION_TEST_USER_ID")
+        default_factory=lambda: getenv("TEST_USER_ID")
     )
     integration_test_title_prefix: str = Field(
-        default_factory=lambda: getenv("INTEGRATION_TEST_TITLE_PREFIX", "[TEST]")
+        default_factory=lambda: getenv("TEST_TITLE_PREFIX", "[TEST]")
     )
 
     # 로컬 파일 로그와 보존 기간
@@ -98,10 +98,10 @@ class Settings(BaseModel):
         missing = [
             name
             for name, value in {
-                "INTEGRATION_TEST_EMAIL": self.integration_test_email,
-                "INTEGRATION_TEST_PASSWORD": self.integration_test_password,
-                "INTEGRATION_TEST_USER_ID": self.integration_test_user_id,
-                "INTEGRATION_TEST_TITLE_PREFIX": self.integration_test_title_prefix,
+                "TEST_EMAIL": self.integration_test_email,
+                "TEST_PASSWORD": self.integration_test_password,
+                "TEST_USER_ID": self.integration_test_user_id,
+                "TEST_TITLE_PREFIX": self.integration_test_title_prefix,
                 "SUPABASE_SERVICE_ROLE_KEY": self.supabase_service_role_key,
             }.items()
             if not value

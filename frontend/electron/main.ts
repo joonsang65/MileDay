@@ -1,6 +1,7 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 
+import { getAutoLaunchState, setAutoLaunchState } from "./autoLaunch";
 import { createMainWindowOptions } from "./windowOptions";
 
 let mainWindow: BrowserWindow | null = null;
@@ -20,8 +21,20 @@ function createWindow(): void {
   }
 }
 
+function registerAutoLaunchHandlers(): void {
+  ipcMain.handle("auto-launch:get", () => getAutoLaunchState(app));
+  ipcMain.handle("auto-launch:set", (_event, openAtLogin: boolean) =>
+    setAutoLaunchState({
+      app,
+      openAtLogin,
+      executablePath: process.execPath,
+    }),
+  );
+}
+
 app.whenReady().then(() => {
   app.setAppUserModelId("com.mileday.app");
+  registerAutoLaunchHandlers();
 
   createWindow();
 

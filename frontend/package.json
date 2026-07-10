@@ -10,7 +10,13 @@
     "preview": "electron-vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "perf:goal:create": "node ../tests/performance/goal_create_latency.mjs",
+    "perf:milestone:create": "node ../tests/performance/milestone_create_latency.mjs",
+    "perf:milestone:toggle": "node ../tests/performance/milestone_toggle_latency.mjs",
+    "perf:settings:update": "node ../tests/performance/settings_update_latency.mjs",
+    "perf:date:select": "node ../tests/performance/date_select_latency.mjs",
+    "perf:cleanup": "node ../tests/performance/cleanup_test_data.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
@@ -23,6 +29,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",

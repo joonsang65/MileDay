@@ -47,10 +47,10 @@ def test_integration_test_settings_require_safe_identity(
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
     monkeypatch.setenv("SUPABASE_ANON_KEY", "anon")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service")
-    monkeypatch.setenv("INTEGRATION_TEST_EMAIL", "test+integration@example.com")
-    monkeypatch.setenv("INTEGRATION_TEST_PASSWORD", "password")
-    monkeypatch.setenv("INTEGRATION_TEST_USER_ID", "11111111-1111-1111-1111-111111111111")
-    monkeypatch.setenv("INTEGRATION_TEST_TITLE_PREFIX", "[TEST]")
+    monkeypatch.setenv("TEST_EMAIL", "test+integration@example.com")
+    monkeypatch.setenv("TEST_PASSWORD", "password")
+    monkeypatch.setenv("TEST_USER_ID", "11111111-1111-1111-1111-111111111111")
+    monkeypatch.setenv("TEST_TITLE_PREFIX", "[TEST]")
     monkeypatch.setenv("LOG_DIR", str(tmp_path))
 
     settings = get_settings()
@@ -70,17 +70,17 @@ def test_integration_test_settings_reject_unsafe_identity(
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
     monkeypatch.setenv("SUPABASE_ANON_KEY", "anon")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service")
-    monkeypatch.setenv("INTEGRATION_TEST_EMAIL", "real-user@example.com")
-    monkeypatch.setenv("INTEGRATION_TEST_PASSWORD", "password")
-    monkeypatch.setenv("INTEGRATION_TEST_USER_ID", "11111111-1111-1111-1111-111111111111")
-    monkeypatch.setenv("INTEGRATION_TEST_TITLE_PREFIX", "[TEST]")
+    monkeypatch.setenv("TEST_EMAIL", "real-user@example.com")
+    monkeypatch.setenv("TEST_PASSWORD", "password")
+    monkeypatch.setenv("TEST_USER_ID", "11111111-1111-1111-1111-111111111111")
+    monkeypatch.setenv("TEST_TITLE_PREFIX", "[TEST]")
 
     with pytest.raises(ValueError, match="test-only account"):
         get_settings()
 
     get_settings.cache_clear()
-    monkeypatch.setenv("INTEGRATION_TEST_EMAIL", "test+integration@example.com")
-    monkeypatch.setenv("INTEGRATION_TEST_TITLE_PREFIX", "M1")
+    monkeypatch.setenv("TEST_EMAIL", "test+integration@example.com")
+    monkeypatch.setenv("TEST_TITLE_PREFIX", "M1")
 
     with pytest.raises(ValueError, match="must start with"):
         get_settings()
