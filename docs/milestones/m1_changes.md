@@ -20,18 +20,18 @@
 
 ```env
 ENABLE_INTEGRATION_TESTS=false
-INTEGRATION_TEST_EMAIL=test+integration@example.com
-INTEGRATION_TEST_PASSWORD=your_test_user_password
-INTEGRATION_TEST_USER_ID=your_test_user_uuid
-INTEGRATION_TEST_TITLE_PREFIX=[TEST]
+TEST_EMAIL=test+integration@example.com
+TEST_PASSWORD=your_test_user_password
+TEST_USER_ID=your_test_user_uuid
+TEST_TITLE_PREFIX=[TEST]
 ```
 
 `ENABLE_INTEGRATION_TESTS=true`일 때는 다음 안전 조건을 검증한다.
 
-- `INTEGRATION_TEST_EMAIL` 존재
-- `INTEGRATION_TEST_PASSWORD` 존재
-- `INTEGRATION_TEST_USER_ID` 존재 및 UUID 형식
-- `INTEGRATION_TEST_TITLE_PREFIX` 존재
+- `TEST_EMAIL` 존재
+- `TEST_PASSWORD` 존재
+- `TEST_USER_ID` 존재 및 UUID 형식
+- `TEST_TITLE_PREFIX` 존재
 - `SUPABASE_SERVICE_ROLE_KEY` 존재
 - 테스트 이메일 local-part가 `test`로 시작
 - 테스트 title prefix가 `[TEST`로 시작
