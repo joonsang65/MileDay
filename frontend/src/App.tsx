@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { startOfWeek } from "date-fns";
-
 import { ApiClientError, apiClient } from "@/api/client";
 import type {
   CalendarDateData,
@@ -12,15 +10,19 @@ import type {
   Milestone,
   MilestoneCreatePayload,
   MilestoneUpdatePayload,
+  UserSettings,
+  UserSettingsUpdatePayload,
 } from "@/api/types";
 import { AuthPanel } from "@/components/AuthPanel";
 import { CalendarBoard } from "@/components/CalendarBoard";
 import { CalendarHeader } from "@/components/CalendarHeader";
 import { CreationPanel } from "@/components/CreationPanel";
 import { DateDetail } from "@/components/DateDetail";
+import { SettingsPanel } from "@/components/SettingsPanel";
 import { TodayList } from "@/components/TodayList";
 import { useCalendarStore, type CalendarMode } from "@/store/calendarStore";
 import {
+  getWeekStartDate,
   getMonthLabel,
   getWeekLabel,
   moveMonth,
@@ -33,6 +35,22 @@ type RequestState = {
   isLoading: boolean;
   message: string | null;
   notice: string | null;
+};
+
+const DEFAULT_USER_SETTINGS: UserSettings = {
+  calendar_view: "month",
+  theme: "system",
+  accent_color: "#4F46E5",
+  font_family: "system",
+  font_size: 14,
+  ai_suggestion: false,
+  holiday_display: "normal",
+  week_starts_on: 1,
+  completed_milestones: true,
+  default_goal_color: "#4F46E5",
+  default_milestone_color: "#F97316",
+  language: "ko",
+  timezone: "Asia/Seoul",
 };
 
 function getErrorMessage(error: unknown): string {
@@ -53,16 +71,14 @@ function getErrorMessage(error: unknown): string {
   return "요청을 처리하지 못했습니다.";
 }
 
-function getWeekStart(dateKey: string): string {
-  return toDateKey(startOfWeek(parseDateKey(dateKey), { weekStartsOn: 1 }));
-}
-
 export default function App() {
   const {
     mode,
     selectedDate,
     visibleDate,
+    weekStartsOn,
     setMode,
+    setWeekStartsOn,
     selectDate,
     setVisibleDate,
   } = useCalendarStore();
@@ -78,6 +94,9 @@ export default function App() {
   const [dateDetail, setDateDetail] = useState<CalendarDateData | null>(null);
   const [todayMilestones, setTodayMilestones] = useState<Milestone[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [userSettings, setUserSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasAppliedInitialSettings, setHasAppliedInitialSettings] = useState(false);
 
   const headerLabel = useMemo(() => {
     if (mode === "month") {
@@ -86,6 +105,19 @@ export default function App() {
     return getWeekLabel(parseDateKey(visibleDate));
   }, [mode, visibleDate]);
 
+  const applySettingsToCalendar = useCallback(
+    (settings: UserSettings) => {
+      setWeekStartsOn(settings.week_starts_on);
+      setMode(settings.calendar_view);
+      setVisibleDate(
+        settings.calendar_view === "week"
+          ? getWeekStartDate(selectedDate, settings.week_starts_on)
+          : selectedDate,
+      );
+    },
+    [selectedDate, setMode, setVisibleDate, setWeekStartsOn],
+  );
+
   const loadCalendar = useCallback(async () => {
     if (!isAuthenticated) {
       return;
@@ -93,14 +125,20 @@ export default function App() {
     setRequestState({ isLoading: true, message: null, notice: null });
     try {
       const visible = parseDateKey(visibleDate);
-      const [calendar, detail, today, goalList] = await Promise.all([
+      const [settings, calendar, detail, today, goalList] = await Promise.all([
+        apiClient.getSettings(),
         mode === "month"
           ? apiClient.getMonthCalendar(visible.getFullYear(), visible.getMonth() + 1)
-          : apiClient.getWeekCalendar(getWeekStart(visibleDate)),
+          : apiClient.getWeekCalendar(getWeekStartDate(visibleDate, weekStartsOn)),
         apiClient.getDateCalendar(selectedDate),
         apiClient.getTodayMilestones(),
         apiClient.listGoals(),
       ]);
+      setUserSettings(settings);
+      if (!hasAppliedInitialSettings) {
+        applySettingsToCalendar(settings);
+        setHasAppliedInitialSettings(true);
+      }
       setCalendarData(calendar);
       setDateDetail(detail);
       setTodayMilestones(today);
@@ -113,7 +151,15 @@ export default function App() {
       }
       setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
     }
-  }, [isAuthenticated, mode, selectedDate, visibleDate]);
+  }, [
+    applySettingsToCalendar,
+    hasAppliedInitialSettings,
+    isAuthenticated,
+    mode,
+    selectedDate,
+    visibleDate,
+    weekStartsOn,
+  ]);
 
   useEffect(() => {
     void loadCalendar();
@@ -124,6 +170,7 @@ export default function App() {
     try {
       await apiClient.login(email, password);
       setIsAuthenticated(true);
+      setHasAppliedInitialSettings(false);
       setRequestState({ isLoading: false, message: null, notice: null });
     } catch (error) {
       setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
@@ -151,12 +198,15 @@ export default function App() {
     setDateDetail(null);
     setTodayMilestones([]);
     setGoals([]);
+    setUserSettings(DEFAULT_USER_SETTINGS);
+    setIsSettingsOpen(false);
+    setHasAppliedInitialSettings(false);
   }
 
   function handleModeChange(nextMode: CalendarMode) {
     setMode(nextMode);
     if (nextMode === "week") {
-      setVisibleDate(getWeekStart(selectedDate));
+      setVisibleDate(getWeekStartDate(selectedDate, weekStartsOn));
     } else {
       setVisibleDate(selectedDate);
     }
@@ -165,14 +215,14 @@ export default function App() {
   function handleSelectDate(date: string) {
     selectDate(date);
     if (mode === "week") {
-      setVisibleDate(getWeekStart(date));
+      setVisibleDate(getWeekStartDate(date, weekStartsOn));
     }
   }
 
   function handleToday() {
     const today = toDateKey(new Date());
     selectDate(today);
-    setVisibleDate(mode === "week" ? getWeekStart(today) : today);
+    setVisibleDate(mode === "week" ? getWeekStartDate(today, weekStartsOn) : today);
   }
 
   function handleMove(direction: -1 | 1) {
@@ -253,6 +303,19 @@ export default function App() {
     }
   }
 
+  async function handleUpdateSettings(payload: UserSettingsUpdatePayload) {
+    setRequestState({ isLoading: true, message: null, notice: null });
+    try {
+      const settings = await apiClient.updateSettings(payload);
+      setUserSettings(settings);
+      applySettingsToCalendar(settings);
+      setRequestState({ isLoading: false, message: null, notice: null });
+      await loadCalendar();
+    } catch (error) {
+      setRequestState({ isLoading: false, message: getErrorMessage(error), notice: null });
+    }
+  }
+
   if (!isAuthenticated) {
     return (
       <AuthPanel
@@ -276,7 +339,8 @@ export default function App() {
         onNext={() => handleMove(1)}
         onToday={handleToday}
         onRefresh={loadCalendar}
-        onLogout={handleLogout}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        language={userSettings.language}
       />
       {requestState.message ? <p className="toast-error">{requestState.message}</p> : null}
       <div className="workspace">
@@ -286,31 +350,45 @@ export default function App() {
             visibleDate={visibleDate}
             selectedDate={selectedDate}
             days={calendarData?.days ?? []}
+            weekStartsOn={weekStartsOn}
+            holidayDisplay={userSettings.holiday_display}
             onSelectDate={handleSelectDate}
           />
         </div>
         <aside className="side-pane">
-          <TodayList
-            milestones={todayMilestones}
-            isLoading={requestState.isLoading && todayMilestones.length === 0}
-            onToggleMilestone={handleToggleMilestone}
-          />
-          <DateDetail
-            detail={dateDetail}
-            isLoading={requestState.isLoading && !dateDetail}
-            onToggleMilestone={handleToggleMilestone}
-            onUpdateGoal={handleUpdateGoal}
-            onDeleteGoal={handleDeleteGoal}
-            onUpdateMilestone={handleUpdateMilestone}
-            onDeleteMilestone={handleDeleteMilestone}
-          />
-          <CreationPanel
-            goals={goals}
-            selectedDate={selectedDate}
-            isLoading={requestState.isLoading}
-            onCreateGoal={handleCreateGoal}
-            onCreateMilestones={handleCreateMilestones}
-          />
+          {isSettingsOpen ? (
+            <SettingsPanel
+              settings={userSettings}
+              isLoading={requestState.isLoading}
+              onSave={handleUpdateSettings}
+              onClose={() => setIsSettingsOpen(false)}
+              onLogout={handleLogout}
+            />
+          ) : (
+            <>
+              <TodayList
+                milestones={todayMilestones}
+                isLoading={requestState.isLoading && todayMilestones.length === 0}
+                onToggleMilestone={handleToggleMilestone}
+              />
+              <DateDetail
+                detail={dateDetail}
+                isLoading={requestState.isLoading && !dateDetail}
+                onToggleMilestone={handleToggleMilestone}
+                onUpdateGoal={handleUpdateGoal}
+                onDeleteGoal={handleDeleteGoal}
+                onUpdateMilestone={handleUpdateMilestone}
+                onDeleteMilestone={handleDeleteMilestone}
+              />
+              <CreationPanel
+                goals={goals}
+                selectedDate={selectedDate}
+                isLoading={requestState.isLoading}
+                onCreateGoal={handleCreateGoal}
+                onCreateMilestones={handleCreateMilestones}
+              />
+            </>
+          )}
         </aside>
       </div>
     </main>

@@ -12,6 +12,8 @@ import type {
   MilestoneCreatePayload,
   MilestoneUpdatePayload,
   SignUpResult,
+  UserSettings,
+  UserSettingsUpdatePayload,
 } from "./types";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
@@ -168,6 +170,17 @@ export class MileDayApiClient {
     return this.request<Milestone>(`/milestones/${milestoneId}/complete`, {
       method: "PATCH",
       body: { is_completed: isCompleted },
+    });
+  }
+
+  getSettings(): Promise<UserSettings> {
+    return this.request<UserSettings>("/settings");
+  }
+
+  updateSettings(payload: UserSettingsUpdatePayload): Promise<UserSettings> {
+    return this.request<UserSettings>("/settings", {
+      method: "PATCH",
+      body: payload,
     });
   }
 

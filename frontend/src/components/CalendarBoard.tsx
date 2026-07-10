@@ -1,18 +1,18 @@
 import { format, isSameMonth } from "date-fns";
 
-import type { CalendarDay } from "@/api/types";
+import type { CalendarDay, HolidayDisplay } from "@/api/types";
 import type { CalendarMode } from "@/store/calendarStore";
-import { getMonthGridDays, getWeekDays, parseDateKey, toDateKey } from "@/utils/date";
+import { getMonthGridDays, getWeekDays, getWeekdayLabels, parseDateKey, toDateKey } from "@/utils/date";
 
 type CalendarBoardProps = {
   mode: CalendarMode;
   visibleDate: string;
   selectedDate: string;
   days: CalendarDay[];
+  weekStartsOn: 0 | 1;
+  holidayDisplay: HolidayDisplay;
   onSelectDate: (date: string) => void;
 };
-
-const weekdayLabels = [ "월", "화", "수", "목", "금", "토","일"];
 
 type GoalTaskGroup = {
   id: string;
@@ -61,12 +61,15 @@ export function CalendarBoard({
   visibleDate,
   selectedDate,
   days,
+  weekStartsOn,
+  holidayDisplay,
   onSelectDate,
 }: CalendarBoardProps) {
   const visible = parseDateKey(visibleDate);
   const dayMap = new Map(days.map((day) => [day.date, day]));
   const cells =
-    mode === "month" ? getMonthGridDays(visible, 1) : getWeekDays(parseDateKey(visibleDate));
+    mode === "month" ? getMonthGridDays(visible, weekStartsOn) : getWeekDays(parseDateKey(visibleDate));
+  const weekdayLabels = getWeekdayLabels(weekStartsOn);
 
   return (
     <section className="calendar-surface" aria-label="캘린더">
@@ -81,6 +84,10 @@ export function CalendarBoard({
           const day = dayMap.get(dateKey);
           const isSelected = selectedDate === dateKey;
           const isMuted = mode === "month" && !isSameMonth(cellDate, visible);
+          const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
+          const shouldShowHoliday = holidayDisplay === "normal" && day?.is_holiday;
+          const shouldMarkHoliday =
+            shouldShowHoliday || (holidayDisplay === "weekend_like" && day?.is_holiday);
           const goalGroups = getGoalTaskGroups(day);
           const milestoneCount = day?.milestone_count ?? 0;
           const completedMilestoneCount = day?.completed_milestone_count ?? 0;
@@ -94,6 +101,7 @@ export function CalendarBoard({
                 day?.is_today ? "today" : "",
                 isSelected ? "selected" : "",
                 isMuted ? "muted" : "",
+                isWeekend || shouldMarkHoliday ? "holiday" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -108,6 +116,9 @@ export function CalendarBoard({
                   </span>
                 ) : null}
               </span>
+              {shouldShowHoliday ? (
+                <span className="holiday-name">{day?.holiday_name}</span>
+              ) : null}
               <span className="event-list" aria-hidden="true">
                 {goalGroups.slice(0, 3).map((goal) => (
                   <span key={goal.id} className="event-text goal-event">

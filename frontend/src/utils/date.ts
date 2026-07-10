@@ -31,6 +31,11 @@ export function getWeekLabel(startDate: Date): string {
   return `${format(startDate, "MM.dd")} - ${format(endDate, "MM.dd")}`;
 }
 
+export function getWeekdayLabels(weekStartsOn: 0 | 1): string[] {
+  const labels = ["일", "월", "화", "수", "목", "금", "토"];
+  return weekStartsOn === 0 ? labels : [...labels.slice(1), labels[0]];
+}
+
 export function getMonthGridDays(monthDate: Date, weekStartsOn: 0 | 1 = 1): Date[] {
   const monthStart = startOfMonth(monthDate);
   const gridStart = startOfWeek(monthStart, { weekStartsOn });
@@ -50,6 +55,10 @@ export function moveMonth(value: Date, direction: -1 | 1): Date {
 
 export function moveWeek(value: Date, direction: -1 | 1): Date {
   return direction === 1 ? addWeeks(value, 1) : subWeeks(value, 1);
+}
+
+export function getWeekStartDate(dateKey: string, weekStartsOn: 0 | 1): string {
+  return toDateKey(startOfWeek(parseDateKey(dateKey), { weekStartsOn }));
 }
 
 export function isToday(value: Date, today = new Date()): boolean {

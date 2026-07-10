@@ -282,6 +282,75 @@ describe("MileDayApiClient", () => {
     );
   });
 
+  it("sends settings get and update requests to settings endpoint", async () => {
+    const client = new MileDayApiClient({
+      baseUrl: "http://api.test",
+      accessToken: "access-token",
+    });
+    let fetchMock = mockFetch({
+      success: true,
+      data: {
+        calendar_view: "month",
+        theme: "system",
+        accent_color: "#4F46E5",
+        font_family: "system",
+        font_size: 14,
+        ai_suggestion: false,
+        holiday_display: "normal",
+        week_starts_on: 1,
+        completed_milestones: true,
+        default_goal_color: "#4F46E5",
+        default_milestone_color: "#F97316",
+        language: "ko",
+        timezone: "Asia/Seoul",
+      },
+    });
+
+    await client.getSettings();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://api.test/settings",
+      expect.objectContaining({ method: "GET" }),
+    );
+
+    fetchMock = mockFetch({
+      success: true,
+      data: {
+        calendar_view: "week",
+        theme: "system",
+        accent_color: "#4F46E5",
+        font_family: "system",
+        font_size: 14,
+        ai_suggestion: false,
+        holiday_display: "weekend_like",
+        week_starts_on: 0,
+        completed_milestones: true,
+        default_goal_color: "#4F46E5",
+        default_milestone_color: "#F97316",
+        language: "en",
+        timezone: "Asia/Seoul",
+      },
+    });
+
+    await client.updateSettings({
+      calendar_view: "week",
+      holiday_display: "weekend_like",
+      week_starts_on: 0,
+      language: "en",
+    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://api.test/settings",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          calendar_view: "week",
+          holiday_display: "weekend_like",
+          week_starts_on: 0,
+          language: "en",
+        }),
+      }),
+    );
+  });
+
   it("keeps backend error detail for troubleshooting", async () => {
     mockFetch(
       {
