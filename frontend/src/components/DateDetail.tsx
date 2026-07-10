@@ -87,7 +87,7 @@ export function DateDetail({
         <span>{detail?.date ?? "-"}</span>
       </div>
       {isLoading ? <p className="muted-text">불러오는 중입니다.</p> : null}
-      {!isLoading && detail ? (
+      {detail ? (
         <>
           <div className="summary-row">
             <span>목표 {goalGroups.length}</span>
@@ -129,6 +129,7 @@ export function DateDetail({
                     {group.goal && editingItem?.type === "goal" && editingItem.id === group.id ? (
                       <GoalEditor
                         goal={group.goal}
+                        isLoading={isLoading}
                         onCancel={() => setEditingItem(null)}
                         onSave={async (payload) => {
                           await onUpdateGoal(group.id, payload);
@@ -150,6 +151,7 @@ export function DateDetail({
                                 className="check-button"
                                 onClick={() => onToggleMilestone(milestone.id, !milestone.is_completed)}
                                 title={milestone.is_completed ? "미완료로 변경" : "완료로 변경"}
+                                disabled={isLoading}
                               >
                                 {milestone.is_completed ? (
                                   <CheckCircle2 size={18} aria-hidden="true" />
@@ -173,6 +175,7 @@ export function DateDetail({
                             {editingItem?.type === "milestone" && editingItem.id === milestone.id ? (
                               <MilestoneEditor
                                 milestone={milestone}
+                                isLoading={isLoading}
                                 onCancel={() => setEditingItem(null)}
                                 onSave={async (payload) => {
                                   await onUpdateMilestone(milestone.id, payload);
@@ -201,11 +204,13 @@ export function DateDetail({
 
 function GoalEditor({
   goal,
+  isLoading,
   onCancel,
   onSave,
   onDelete,
 }: {
   goal: Goal;
+  isLoading: boolean;
   onCancel: () => void;
   onSave: (payload: GoalUpdatePayload) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -213,9 +218,19 @@ function GoalEditor({
   const [title, setTitle] = useState(goal.title);
   const [deadline, setDeadline] = useState(goal.deadline);
   const [color, setColor] = useState(goal.color);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setValidationMessage(null);
+    if (!title.trim()) {
+      setValidationMessage("목표 제목을 입력해 주세요.");
+      return;
+    }
+    if (!deadline) {
+      setValidationMessage("마감일을 선택해 주세요.");
+      return;
+    }
     await onSave({
       title: title.trim(),
       deadline,
@@ -226,31 +241,40 @@ function GoalEditor({
   }
 
   return (
-    <form className="inline-editor" onSubmit={handleSubmit}>
+    <form className="inline-editor" onSubmit={handleSubmit} noValidate>
       <label>
         제목
-        <input value={title} onChange={(event) => setTitle(event.target.value)} required />
+        <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
       </label>
       <label>
         마감일
-        <input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} required />
+        <input
+          type="date"
+          value={deadline}
+          onChange={(event) => setDeadline(event.target.value)}
+          disabled={isLoading}
+          required
+        />
       </label>
       <label>
         색상
-        <input value={color} onChange={(event) => setColor(event.target.value)} required />
+        <input value={color} onChange={(event) => setColor(event.target.value)} disabled={isLoading} required />
       </label>
-      <EditorActions onCancel={onCancel} onDelete={onDelete} />
+      {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
+      <EditorActions isLoading={isLoading} onCancel={onCancel} onDelete={onDelete} />
     </form>
   );
 }
 
 function MilestoneEditor({
   milestone,
+  isLoading,
   onCancel,
   onSave,
   onDelete,
 }: {
   milestone: Milestone;
+  isLoading: boolean;
   onCancel: () => void;
   onSave: (payload: MilestoneUpdatePayload) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -258,9 +282,19 @@ function MilestoneEditor({
   const [title, setTitle] = useState(milestone.title);
   const [scheduledDate, setScheduledDate] = useState(milestone.scheduled_date);
   const [color, setColor] = useState(milestone.color);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setValidationMessage(null);
+    if (!title.trim()) {
+      setValidationMessage("마일스톤 제목을 입력해 주세요.");
+      return;
+    }
+    if (!scheduledDate) {
+      setValidationMessage("예정일을 선택해 주세요.");
+      return;
+    }
     await onSave({
       title: title.trim(),
       scheduled_date: scheduledDate,
@@ -269,10 +303,10 @@ function MilestoneEditor({
   }
 
   return (
-    <form className="inline-editor" onSubmit={handleSubmit}>
+    <form className="inline-editor" onSubmit={handleSubmit} noValidate>
       <label>
         제목
-        <input value={title} onChange={(event) => setTitle(event.target.value)} required />
+        <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
       </label>
       <label>
         예정일
@@ -280,37 +314,41 @@ function MilestoneEditor({
           type="date"
           value={scheduledDate}
           onChange={(event) => setScheduledDate(event.target.value)}
+          disabled={isLoading}
           required
         />
       </label>
       <label>
         색상
-        <input value={color} onChange={(event) => setColor(event.target.value)} required />
+        <input value={color} onChange={(event) => setColor(event.target.value)} disabled={isLoading} required />
       </label>
-      <EditorActions onCancel={onCancel} onDelete={onDelete} />
+      {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
+      <EditorActions isLoading={isLoading} onCancel={onCancel} onDelete={onDelete} />
     </form>
   );
 }
 
 function EditorActions({
+  isLoading,
   onCancel,
   onDelete,
 }: {
+  isLoading: boolean;
   onCancel: () => void;
   onDelete: () => Promise<void>;
 }) {
   return (
     <div className="editor-actions">
-      <button type="submit" className="primary-button compact">
-        저장
+      <button type="submit" className="primary-button compact" disabled={isLoading}>
+        {isLoading ? "저장 중" : "저장"}
       </button>
-      <button type="button" className="ghost-button compact" onClick={onCancel}>
+      <button type="button" className="ghost-button compact" onClick={onCancel} disabled={isLoading}>
         <X size={14} aria-hidden="true" />
         닫기
       </button>
-      <button type="button" className="danger-button compact" onClick={() => void onDelete()}>
+      <button type="button" className="danger-button compact" onClick={() => void onDelete()} disabled={isLoading}>
         <Trash2 size={14} aria-hidden="true" />
-        삭제
+        {isLoading ? "삭제 중" : "삭제"}
       </button>
     </div>
   );

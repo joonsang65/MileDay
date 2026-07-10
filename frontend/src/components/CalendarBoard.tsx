@@ -96,6 +96,7 @@ export function CalendarBoard({
             <button
               type="button"
               key={dateKey}
+              data-date={dateKey}
               className={[
                 "day-cell",
                 day?.is_today ? "today" : "",

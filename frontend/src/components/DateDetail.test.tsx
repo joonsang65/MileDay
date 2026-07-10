@@ -114,4 +114,31 @@ describe("DateDetail", () => {
     expect(screen.getByText("제출")).toBeInTheDocument();
     expect(screen.queryByText("연결된 목표가 없습니다.")).not.toBeInTheDocument();
   });
+
+  it("수정 폼의 제목이 공백이면 저장 API를 호출하지 않는다", async () => {
+    const user = userEvent.setup();
+    const onUpdateGoal = vi.fn().mockResolvedValue(undefined);
+    renderDateDetail({ onUpdateGoal });
+
+    const goalSection = screen.getByRole("heading", { name: "목표" }).closest(".section-block") as HTMLElement;
+    await user.click(within(goalSection).getByRole("button", { name: /포트폴리오 준비/ }));
+
+    const editor = screen.getByLabelText("마감일").closest("form") as HTMLElement;
+    await user.clear(within(editor).getByLabelText("제목"));
+    await user.click(within(editor).getByRole("button", { name: "저장" }));
+
+    expect(screen.getByText("목표 제목을 입력해 주세요.")).toBeInTheDocument();
+    expect(onUpdateGoal).not.toHaveBeenCalled();
+  });
+
+  it("로딩 중에는 수정/삭제 버튼을 비활성화한다", async () => {
+    const user = userEvent.setup();
+    renderDateDetail({ isLoading: true });
+
+    const goalSection = screen.getByRole("heading", { name: "목표" }).closest(".section-block") as HTMLElement;
+    await user.click(within(goalSection).getByRole("button", { name: /포트폴리오 준비/ }));
+
+    expect(screen.getByRole("button", { name: "저장 중" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "삭제 중" })).toBeDisabled();
+  });
 });

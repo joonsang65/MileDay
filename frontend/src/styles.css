@@ -463,6 +463,7 @@ button:disabled {
 
 .settings-panel {
   min-height: 100%;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   border: 1px solid #d8dee8;
@@ -491,6 +492,13 @@ button:disabled {
   padding: 0 10px;
   color: #17202a;
   background: #ffffff;
+}
+
+.settings-toggle-row {
+  display: flex !important;
+  grid-template-columns: none;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .settings-logout {

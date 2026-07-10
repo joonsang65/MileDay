@@ -67,6 +67,10 @@ export function CreationPanel({
       setValidationMessage("목표 제목을 입력해 주세요.");
       return;
     }
+    if (!goalDeadline) {
+      setValidationMessage("마감일을 선택해 주세요.");
+      return;
+    }
 
     await onCreateGoal({
       title: goalTitle.trim(),
@@ -88,6 +92,14 @@ export function CreationPanel({
     }
     if (!milestoneTitle.trim()) {
       setValidationMessage("마일스톤 제목을 입력해 주세요.");
+      return;
+    }
+    if (!milestoneDate) {
+      setValidationMessage("예정일을 선택해 주세요.");
+      return;
+    }
+    if (isMilestoneRecurring && !milestoneRepeatUntil) {
+      setValidationMessage("반복 종료일을 선택해 주세요.");
       return;
     }
 
@@ -134,7 +146,7 @@ export function CreationPanel({
 
       {isOpen ? (
         <div className="creation-stack">
-          <form className="creation-form" onSubmit={handleGoalSubmit}>
+          <form className="creation-form" onSubmit={handleGoalSubmit} noValidate>
             <div className="panel-heading compact-heading">
               <h2>목표</h2>
             </div>
@@ -145,6 +157,7 @@ export function CreationPanel({
                 value={goalTitle}
                 onChange={(event) => setGoalTitle(event.target.value)}
                 placeholder="새 목표"
+                disabled={isLoading}
               />
             </label>
             <label>
@@ -153,13 +166,14 @@ export function CreationPanel({
                 type="date"
                 value={goalDeadline}
                 onChange={(event) => setGoalDeadline(event.target.value)}
+                disabled={isLoading}
                 required
               />
             </label>
-            <ColorPicker value={goalColor} onChange={setGoalColor} />
+            <ColorPicker value={goalColor} disabled={isLoading} onChange={setGoalColor} />
             <button type="submit" className="primary-button compact" disabled={isLoading}>
               <ListPlus size={16} aria-hidden="true" />
-              목표 추가
+              {isLoading ? "추가 중" : "목표 추가"}
             </button>
           </form>
 
@@ -168,20 +182,20 @@ export function CreationPanel({
             type="button"
             className="secondary-toggle"
             onClick={() => setShowMilestoneForm((value) => !value)}
-            disabled={!hasGoals}
+            disabled={!hasGoals || isLoading}
           >
             <Flag size={15} aria-hidden="true" />
             {showMilestoneForm ? "마일스톤 닫기" : "마일스톤 추가"}
           </button>
 
           {showMilestoneForm ? (
-            <form className="creation-form" onSubmit={handleMilestoneSubmit}>
+            <form className="creation-form" onSubmit={handleMilestoneSubmit} noValidate>
               <label>
                 목표
                 <select
                   value={selectedGoalId}
                   onChange={(event) => setMilestoneGoalId(event.target.value)}
-                  disabled={!hasGoals}
+                  disabled={!hasGoals || isLoading}
                 >
                   {goals.map((goal) => (
                     <option key={goal.id} value={goal.id}>
@@ -197,7 +211,7 @@ export function CreationPanel({
                   value={milestoneTitle}
                   onChange={(event) => setMilestoneTitle(event.target.value)}
                   placeholder="새 마일스톤"
-                  disabled={!hasGoals}
+                  disabled={!hasGoals || isLoading}
                 />
               </label>
               <label>
@@ -210,16 +224,16 @@ export function CreationPanel({
                     setMilestoneRepeatUntil(event.target.value);
                   }}
                   required
-                  disabled={!hasGoals}
+                  disabled={!hasGoals || isLoading}
                 />
               </label>
-              <ColorPicker value={milestoneColor} onChange={setMilestoneColor} />
+              <ColorPicker value={milestoneColor} disabled={isLoading || !hasGoals} onChange={setMilestoneColor} />
               <label className="toggle-row">
                 <input
                   type="checkbox"
                   checked={isMilestoneRecurring}
                   onChange={(event) => setIsMilestoneRecurring(event.target.checked)}
-                  disabled={!hasGoals}
+                  disabled={!hasGoals || isLoading}
                 />
                 반복 마일스톤
               </label>
@@ -230,6 +244,7 @@ export function CreationPanel({
                     <select
                       value={milestoneRecurrenceType}
                       onChange={(event) => setMilestoneRecurrenceType(event.target.value as RecurrenceType)}
+                      disabled={isLoading}
                     >
                       {(Object.keys(recurrenceLabels) as RecurrenceType[]).map((value) => (
                         <option key={value} value={value}>
@@ -245,6 +260,7 @@ export function CreationPanel({
                       value={milestoneRepeatUntil}
                       min={milestoneDate}
                       onChange={(event) => setMilestoneRepeatUntil(event.target.value)}
+                      disabled={isLoading}
                       required
                     />
                   </label>
@@ -254,7 +270,7 @@ export function CreationPanel({
               {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
               <button type="submit" className="primary-button compact" disabled={isLoading || !hasGoals}>
                 <ListPlus size={16} aria-hidden="true" />
-                마일스톤 추가
+                {isLoading ? "추가 중" : "마일스톤 추가"}
               </button>
             </form>
           ) : null}
@@ -267,9 +283,11 @@ export function CreationPanel({
 
 function ColorPicker({
   value,
+  disabled = false,
   onChange,
 }: {
   value: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -283,6 +301,7 @@ function ColorPicker({
             className={value === color ? "selected" : ""}
             style={{ background: color }}
             onClick={() => onChange(color)}
+            disabled={disabled}
             title={color}
             aria-label={`색상 ${color}`}
           />

@@ -111,4 +111,51 @@ describe("CreationPanel", () => {
 
     expect(screen.getByRole("button", { name: "마일스톤 추가" })).toBeDisabled();
   });
+
+  it("반복 종료일이 시작일보다 빠르면 마일스톤 API를 호출하지 않는다", async () => {
+    const user = userEvent.setup();
+    const onCreateMilestones = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <CreationPanel
+        goals={goals}
+        selectedDate="2026-07-10"
+        isLoading={false}
+        onCreateGoal={vi.fn()}
+        onCreateMilestones={onCreateMilestones}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "빠른 추가" }));
+    await user.click(screen.getByRole("button", { name: "마일스톤 추가" }));
+
+    const milestoneForm = screen.getByRole("button", { name: "마일스톤 추가" }).closest("form") as HTMLElement;
+    await user.type(within(milestoneForm).getByLabelText("제목"), "이력서 초안 작성");
+    await user.click(within(milestoneForm).getByLabelText("반복 마일스톤"));
+    await user.clear(within(milestoneForm).getByLabelText("반복 종료일"));
+    await user.type(within(milestoneForm).getByLabelText("반복 종료일"), "2026-07-01");
+    await user.click(within(milestoneForm).getByRole("button", { name: "마일스톤 추가" }));
+
+    expect(screen.getByText("반복 종료일은 시작일 이후여야 합니다.")).toBeInTheDocument();
+    expect(onCreateMilestones).not.toHaveBeenCalled();
+  });
+
+  it("로딩 중에는 추가 버튼과 입력을 비활성화한다", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <CreationPanel
+        goals={goals}
+        selectedDate="2026-07-10"
+        isLoading
+        onCreateGoal={vi.fn()}
+        onCreateMilestones={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "빠른 추가" }));
+
+    expect(screen.getByLabelText("제목")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "추가 중" })).toBeDisabled();
+  });
 });

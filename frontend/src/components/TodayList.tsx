@@ -27,6 +27,7 @@ export function TodayList({ milestones, isLoading, onToggleMilestone }: TodayLis
               className="check-button"
               onClick={() => onToggleMilestone(milestone.id, !milestone.is_completed)}
               title={milestone.is_completed ? "미완료로 변경" : "완료로 변경"}
+              disabled={isLoading}
             >
               {milestone.is_completed ? (
                 <CheckCircle2 size={18} aria-hidden="true" />
