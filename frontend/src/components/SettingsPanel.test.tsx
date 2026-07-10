@@ -27,10 +27,15 @@ describe("SettingsPanel", () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     const onLogout = vi.fn();
+    const autoLaunch = {
+      get: vi.fn().mockResolvedValue({ openAtLogin: false }),
+      set: vi.fn().mockResolvedValue({ openAtLogin: true }),
+    };
     render(
       <SettingsPanel
         settings={settings}
         isLoading={false}
+        autoLaunch={autoLaunch}
         onSave={onSave}
         onClose={vi.fn()}
         onLogout={onLogout}
@@ -41,8 +46,11 @@ describe("SettingsPanel", () => {
     await user.selectOptions(screen.getByLabelText("휴일 표현"), "weekend_like");
     await user.selectOptions(screen.getByLabelText("주 시작 요일"), "0");
     await user.selectOptions(screen.getByLabelText("언어"), "en");
+    await user.click(screen.getByLabelText("Open at Windows login"));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
+    expect(autoLaunch.get).toHaveBeenCalledTimes(1);
+    expect(autoLaunch.set).toHaveBeenCalledWith(true);
     expect(onSave).toHaveBeenCalledWith({
       calendar_view: "week",
       holiday_display: "weekend_like",
