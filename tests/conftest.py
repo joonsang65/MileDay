@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = PROJECT_ROOT / "backend" / "app"
 
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 

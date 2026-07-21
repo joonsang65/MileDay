@@ -1,0 +1,36 @@
+models:
+  - id: candidate-1
+    provider: ollama
+    runtime: ollama
+    model_tag: ingu627/exaone4.0:1.2b
+    context_window: 65536
+    quantization: Q4_K_M
+    license_note: EXAONE AI Model License Agreement 1.1 - NC; verify service/commercial usage before production evaluation.
+  - id: candidate-2
+    provider: ollama
+    runtime: ollama
+    model_tag: replace-with-local-model-2
+    context_window: 4096
+    quantization: unknown
+    license_note: Replace with the selected model license note before evaluation.
+  - id: candidate-3
+    provider: ollama
+    runtime: ollama
+    model_tag: replace-with-local-model-3
+    context_window: 4096
+    quantization: unknown
+    license_note: Replace with the selected model license note before evaluation.
+  - id: candidate-4
+    provider: ollama
+    runtime: ollama
+    model_tag: replace-with-local-model-4
+    context_window: 4096
+    quantization: unknown
+    license_note: Replace with the selected model license note before evaluation.
+  - id: candidate-5
+    provider: ollama
+    runtime: ollama
+    model_tag: replace-with-local-model-5
+    context_window: 4096
+    quantization: unknown
+    license_note: Replace with the selected model license note before evaluation.

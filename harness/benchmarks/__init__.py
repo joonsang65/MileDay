@@ -1,0 +1,2 @@
+"""Benchmark adapter primitives."""
+

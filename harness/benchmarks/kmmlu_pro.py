@@ -1,0 +1,239 @@
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+from typing import Any, Iterable
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from harness.benchmarks.mcq import (
+    MCQChoice,
+    MCQQuestion,
+    aggregate_mcq_results,
+    build_mcq_prompt,
+    score_mcq_response,
+)
+from harness.schemas import FailureCategory
+
+
+BENCHMARK_ID = "kmmlu-pro"
+DEFAULT_DATASET_ID = "kmmlu-pro-local"
+
+
+class KMMLUProDatasetError(ValueError):
+    def __init__(self, category: FailureCategory, message: str) -> None:
+        super().__init__(message)
+        self.category = category
+        self.message = message
+
+
+class KMMLUProFieldMapping(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    case_id: str = "case_id"
+    question: str = "question"
+    answer: str = "answer"
+    choices: dict[str, str] = Field(
+        default_factory=lambda: {
+            "A": "choice_a",
+            "B": "choice_b",
+            "C": "choice_c",
+            "D": "choice_d",
+        }
+    )
+    category: str | None = "category"
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("choices")
+    @classmethod
+    def _validate_choice_mapping(cls, value: dict[str, str]) -> dict[str, str]:
+        if len(value) < 2:
+            raise ValueError("choice mapping must include at least two choices")
+        normalized: dict[str, str] = {}
+        for label, field_name in value.items():
+            choice_label = label.strip().upper()
+            if choice_label not in tuple("ABCDEFGHIJ"):
+                raise ValueError("choice mapping labels must be A-J")
+            if not field_name.strip():
+                raise ValueError("choice mapping field names must not be blank")
+            normalized[choice_label] = field_name.strip()
+        return dict(sorted(normalized.items()))
+
+
+class KMMLUProCase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    benchmark_id: str = BENCHMARK_ID
+    dataset_id: str = DEFAULT_DATASET_ID
+    case_id: str = Field(min_length=1)
+    category: str | None = None
+    question: str = Field(min_length=1)
+    choices: list[MCQChoice] = Field(min_length=2, max_length=10)
+    answer: str = Field(min_length=1, max_length=1)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("answer")
+    @classmethod
+    def _normalize_answer(cls, value: str) -> str:
+        return value.strip().upper()
+
+    @model_validator(mode="after")
+    def _validate_answer_membership(self) -> KMMLUProCase:
+        labels = {choice.label for choice in self.choices}
+        if self.answer not in labels:
+            raise ValueError("answer must match one of the choices")
+        return self
+
+    def to_mcq_question(self) -> MCQQuestion:
+        return MCQQuestion(
+            benchmark_id=self.benchmark_id,
+            case_id=self.case_id,
+            category=self.category,
+            question=self.question,
+            choices=self.choices,
+            answer=self.answer,
+        )
+
+    def build_prompt(self) -> str:
+        return build_mcq_prompt(self.to_mcq_question())
+
+    def score_response(self, raw_output: str):
+        return score_mcq_response(self.to_mcq_question(), raw_output)
+
+
+def load_kmmlu_pro_cases(
+    source_path: str | Path,
+    *,
+    dataset_id: str = DEFAULT_DATASET_ID,
+    mapping: KMMLUProFieldMapping | None = None,
+) -> list[KMMLUProCase]:
+    path = Path(source_path)
+    field_mapping = mapping or KMMLUProFieldMapping()
+    rows = _load_rows(path)
+    return [
+        _normalize_row(row, dataset_id=dataset_id, mapping=field_mapping, row_number=index)
+        for index, row in enumerate(rows, start=1)
+    ]
+
+
+def score_kmmlu_pro_responses(
+    cases: Iterable[KMMLUProCase],
+    raw_outputs_by_case_id: dict[str, str],
+):
+    results = [
+        case.score_response(raw_outputs_by_case_id.get(case.case_id, ""))
+        for case in cases
+    ]
+    return aggregate_mcq_results(results)
+
+
+def _load_rows(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        raise KMMLUProDatasetError(
+            FailureCategory.DATASET_UNAVAILABLE,
+            f"KMMLU-Pro dataset file does not exist: {path}",
+        )
+    if path.suffix.lower() == ".jsonl":
+        return _load_jsonl(path)
+    if path.suffix.lower() == ".csv":
+        return _load_csv(path)
+    raise KMMLUProDatasetError(
+        FailureCategory.DATASET_UNAVAILABLE,
+        f"Unsupported KMMLU-Pro dataset file extension: {path.suffix}",
+    )
+
+
+def _load_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise KMMLUProDatasetError(
+                FailureCategory.DATASET_SCHEMA_CHANGED,
+                f"Invalid JSONL at line {line_number}: {exc.msg}",
+            ) from exc
+        if not isinstance(row, dict):
+            raise KMMLUProDatasetError(
+                FailureCategory.DATASET_SCHEMA_CHANGED,
+                f"JSONL line {line_number} must be an object.",
+            )
+        rows.append(row)
+    return rows
+
+
+def _load_csv(path: Path) -> list[dict[str, Any]]:
+    with path.open("r", encoding="utf-8", newline="") as file:
+        return list(csv.DictReader(file))
+
+
+def _normalize_row(
+    row: dict[str, Any],
+    *,
+    dataset_id: str,
+    mapping: KMMLUProFieldMapping,
+    row_number: int,
+) -> KMMLUProCase:
+    case_id = _required_text(row, mapping.case_id, row_number)
+    question = _required_text(row, mapping.question, row_number)
+    answer = _required_text(row, mapping.answer, row_number).upper()
+    choices = [
+        MCQChoice(label=label, text=_required_text(row, field_name, row_number))
+        for label, field_name in mapping.choices.items()
+    ]
+    category = (
+        _optional_text(row, mapping.category, row_number)
+        if mapping.category is not None
+        else None
+    )
+    metadata = {
+        name: row[field_name]
+        for name, field_name in mapping.metadata.items()
+        if field_name in row and row[field_name] not in (None, "")
+    }
+
+    try:
+        return KMMLUProCase(
+            dataset_id=dataset_id,
+            case_id=case_id,
+            category=category,
+            question=question,
+            choices=choices,
+            answer=answer,
+            metadata=metadata,
+        )
+    except ValueError as exc:
+        raise KMMLUProDatasetError(
+            FailureCategory.DATASET_SCHEMA_CHANGED,
+            f"Invalid KMMLU-Pro row {row_number}: {exc}",
+        ) from exc
+
+
+def _required_text(row: dict[str, Any], field_name: str, row_number: int) -> str:
+    if field_name not in row:
+        raise KMMLUProDatasetError(
+            FailureCategory.DATASET_SCHEMA_CHANGED,
+            f"KMMLU-Pro row {row_number} is missing mapped field '{field_name}'.",
+        )
+    value = row[field_name]
+    if value is None or str(value).strip() == "":
+        raise KMMLUProDatasetError(
+            FailureCategory.DATASET_SCHEMA_CHANGED,
+            f"KMMLU-Pro row {row_number} has blank mapped field '{field_name}'.",
+        )
+    return str(value).strip()
+
+
+def _optional_text(
+    row: dict[str, Any], field_name: str | None, row_number: int
+) -> str | None:
+    if field_name is None:
+        return None
+    if field_name not in row:
+        return None
+    value = row[field_name]
+    text = str(value).strip() if value is not None else ""
+    return text or None
