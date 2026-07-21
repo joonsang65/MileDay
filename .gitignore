@@ -17,6 +17,8 @@ __pycache__/
 .coverage
 coverage.xml
 htmlcov/
+*.egg-info/
+.eggs/
 
 # Python virtual environments
 .venv/
@@ -33,6 +35,17 @@ logs/
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Local LLM harness runtime artifacts
+artifacts/runs/
+artifacts/tmp/
+artifacts/cache/
+artifacts/*.log
+
+# Dataset source and generated evaluation files
+datasets/*/*/source/
+datasets/*/*/processed/
+datasets/*/*/evaluator/
 
 # Node / Electron / Vite frontend artifacts
 node_modules/
@@ -66,9 +79,28 @@ desktop.ini
 .vscode/*
 !.vscode/settings.json
 
-# Codex / local agent scratch files
+# Codex local scratch files
 .codex/
-.agents/
+
+# Local-only Markdown notes and drafts
+notes/
+drafts/
+*.local.md
+*.scratch.md
+*.tmp.md
+*_draft.md
+*_notes.md
+
+# Tracked source documents and BMAD/Codex artifacts
+!README.md
+!AGENTS.md
+!codex_bmad_harness_adoption_spec.md
+!docs/**/*.md
+!_bmad/**/*.md
+!_bmad-output/**/*.md
+!.agents/
+!.agents/skills/
+!.agents/skills/**
 
 # Temporary files
 tmp/

@@ -1,0 +1,49 @@
+project: local-llm-evaluation
+updated_at: "2026-07-21"
+
+epics:
+  epic_1:
+    title: Project foundation and common harness
+    status: planned
+    stories:
+      EVAL-001: done
+      EVAL-002: done
+
+  epic_2:
+    title: Local inference runtime
+    status: planned
+    stories:
+      EVAL-003: done
+
+  epic_3:
+    title: Public benchmarks
+    status: planned
+    stories:
+      EVAL-005: done
+      EVAL-006: done
+      EVAL-007: done
+      EVAL-008: done
+      EVAL-009: backlog
+
+  epic_4:
+    title: MileDay test set evaluation
+    status: planned
+    stories:
+      EVAL-010: backlog
+      EVAL-011: backlog
+      EVAL-012: backlog
+
+  epic_5:
+    title: System performance
+    status: planned
+    stories:
+      EVAL-004: done
+      EVAL-013: backlog
+
+  epic_6:
+    title: Result aggregation and reporting
+    status: planned
+    stories:
+      EVAL-014: backlog
+      EVAL-015: backlog
+      EVAL-016: backlog
