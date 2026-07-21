@@ -1,0 +1,162 @@
+{
+  "dataset_key": "ifeval_ko",
+  "dataset_id": "allganize/IFEval-Ko",
+  "source_url": "https://huggingface.co/datasets/allganize/IFEval-Ko",
+  "official_repository": "https://github.com/EleutherAI/lm-evaluation-harness",
+  "revision": "54199e3801116897697babf341865741dcd06fc8",
+  "downloaded_at": "2026-07-21T14:48:04.268256+00:00",
+  "access": "public",
+  "license": "apache-2.0",
+  "commercial_use_verified": true,
+  "configs": [
+    "default"
+  ],
+  "selected_config": "default",
+  "selected_split": "train",
+  "splits": {
+    "default": {
+      "train": 342
+    }
+  },
+  "source_schema": {
+    "key": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "prompt": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "instruction_id_list": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "kwargs": {
+      "feature": {
+        "capital_frequency": {
+          "dtype": "null",
+          "_type": "Value"
+        },
+        "capital_relation": {
+          "dtype": "null",
+          "_type": "Value"
+        },
+        "end_phrase": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "first_word": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "forbidden_words": {
+          "feature": {
+            "dtype": "string",
+            "_type": "Value"
+          },
+          "_type": "List"
+        },
+        "frequency": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "keyword": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "keywords": {
+          "feature": {
+            "dtype": "string",
+            "_type": "Value"
+          },
+          "_type": "List"
+        },
+        "language": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "let_frequency": {
+          "dtype": "null",
+          "_type": "Value"
+        },
+        "let_relation": {
+          "dtype": "null",
+          "_type": "Value"
+        },
+        "letter": {
+          "dtype": "null",
+          "_type": "Value"
+        },
+        "nth_paragraph": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "num_bullets": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "num_highlights": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "num_paragraphs": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "num_placeholders": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "num_sections": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "num_sentences": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "num_words": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "postscript_marker": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "prompt_to_repeat": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "relation": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "section_spliter": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      },
+      "_type": "List"
+    }
+  },
+  "source_path": "datasets\\ifeval-ko\\54199e3801116897697babf341865741dcd06fc8\\source",
+  "repo_files": [
+    ".gitattributes",
+    "README.md",
+    "README_Ko.md",
+    "benchmark-score-bar-chart.png",
+    "benchmark-score-dot-plot.png",
+    "data/train-00000-of-00001.parquet",
+    "ifeval_ko/README.md",
+    "ifeval_ko/ifeval_ko.yaml",
+    "ifeval_ko/instructions.py",
+    "ifeval_ko/instructions_registry.py",
+    "ifeval_ko/instructions_util.py",
+    "ifeval_ko/utils.py"
+  ],
+  "processed_schema_version": "1.0.0",
+  "field_mapping_version": "1.0.0"
+}

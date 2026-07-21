@@ -1,0 +1,70 @@
+{
+  "dataset_key": "kmmlu_pro",
+  "dataset_id": "LGAI-EXAONE/KMMLU-Pro",
+  "source_url": "https://huggingface.co/datasets/LGAI-EXAONE/KMMLU-Pro",
+  "official_repository": "https://github.com/LG-AI-EXAONE/KMMLU-Pro",
+  "revision": "e1567939724a369e428e66f15472562c55a5d181",
+  "downloaded_at": "2026-07-21T14:47:44.716867+00:00",
+  "access": "gated",
+  "license": "cc-by-nc-nd-4.0",
+  "commercial_use_verified": false,
+  "configs": [
+    "kmmlu_pro"
+  ],
+  "selected_config": "kmmlu_pro",
+  "selected_split": "test",
+  "splits": {
+    "kmmlu_pro": {
+      "test": 2822
+    }
+  },
+  "source_schema": {
+    "question": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "options": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "solution": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "score": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "license_name": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "subject": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "year": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "round": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "session": {
+      "dtype": "int64",
+      "_type": "Value"
+    }
+  },
+  "source_path": "datasets\\kmmlu-pro\\e1567939724a369e428e66f15472562c55a5d181\\source",
+  "repo_files": [
+    ".gitattributes",
+    "README.md",
+    "data/kmmlu_pro.jsonl"
+  ],
+  "processed_schema_version": "1.0.0",
+  "field_mapping_version": "1.0.0"
+}

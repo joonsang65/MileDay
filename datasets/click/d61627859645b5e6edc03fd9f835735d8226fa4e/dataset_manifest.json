@@ -1,0 +1,79 @@
+{
+  "dataset_key": "click",
+  "dataset_id": "EunsuKim/CLIcK",
+  "source_url": "https://huggingface.co/datasets/EunsuKim/CLIcK",
+  "official_repository": "https://github.com/rladmstn1714/CLIcK",
+  "revision": "d61627859645b5e6edc03fd9f835735d8226fa4e",
+  "downloaded_at": "2026-07-21T14:47:57.104307+00:00",
+  "access": "public",
+  "license": "unknown",
+  "commercial_use_verified": false,
+  "configs": [
+    "default"
+  ],
+  "selected_config": "default",
+  "selected_split": "train",
+  "splits": {
+    "default": {
+      "train": 1995
+    }
+  },
+  "source_schema": {
+    "id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "paragraph": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "question": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "choices": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "List"
+    },
+    "answer": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "source_path": "datasets\\click\\d61627859645b5e6edc03fd9f835735d8226fa4e\\source",
+  "repo_files": [
+    ".gitattributes",
+    "Dataset/Culture/Korean Economy/Economy_KIIP.json",
+    "Dataset/Culture/Korean Economy/Economy_Kedu.json",
+    "Dataset/Culture/Korean Geography/Geography_CSAT.json",
+    "Dataset/Culture/Korean Geography/Geography_KIIP.json",
+    "Dataset/Culture/Korean Geography/Geography_Kedu.json",
+    "Dataset/Culture/Korean History/History_KHB.json",
+    "Dataset/Culture/Korean History/History_Kedu.json",
+    "Dataset/Culture/Korean History/History_PSE.json",
+    "Dataset/Culture/Korean Law/Law_KIIP.json",
+    "Dataset/Culture/Korean Law/Law_PSAT.json",
+    "Dataset/Culture/Korean Politics/Politics_KIIP.json",
+    "Dataset/Culture/Korean Politics/Politics_Kedu.json",
+    "Dataset/Culture/Korean Popular/Popular_KIIP.json",
+    "Dataset/Culture/Korean Popular/Popular_Kedu.json",
+    "Dataset/Culture/Korean Society/Society_KIIP.json",
+    "Dataset/Culture/Korean Society/Society_Kedu.json",
+    "Dataset/Culture/Korean Tradition/Tradition_KIIP.json",
+    "Dataset/Culture/Korean Tradition/Tradition_Kedu.json",
+    "Dataset/Language/Functional/Functional_CSAT.json",
+    "Dataset/Language/Functional/Functional_Kedu.json",
+    "Dataset/Language/Functional/Functional_PSE.json",
+    "Dataset/Language/Grammar/Grammar_CSAT.json",
+    "Dataset/Language/Grammar/Grammar_Kedu.json",
+    "Dataset/Language/Grammar/Grammar_TOPIK.json",
+    "Dataset/Language/Textual/Textual_CSAT.json",
+    "Dataset/Language/Textual/Textual_TOPIK.json",
+    "README.md"
+  ],
+  "processed_schema_version": "1.0.0",
+  "field_mapping_version": "1.0.0"
+}

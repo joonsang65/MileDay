@@ -1,0 +1,63 @@
+{
+  "dataset_key": "kobalt",
+  "dataset_id": "snunlp/KoBALT-700",
+  "source_url": "https://huggingface.co/datasets/snunlp/KoBALT-700",
+  "official_repository": "https://github.com/snunlp/KoBALT",
+  "revision": "30c30a431066508e6bef77cfa6d6059b85b12f0d",
+  "downloaded_at": "2026-07-21T14:47:49.992484+00:00",
+  "access": "public",
+  "license": "cc-by-nc-4.0",
+  "commercial_use_verified": false,
+  "configs": [
+    "kobalt_v1"
+  ],
+  "selected_config": "kobalt_v1",
+  "selected_split": "raw",
+  "splits": {
+    "kobalt_v1": {
+      "raw": 700
+    }
+  },
+  "source_schema": {
+    "ID": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "Class": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "Subclass": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "Question": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "Answer": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "Level": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "Sampling_YN": {
+      "dtype": "int64",
+      "_type": "Value"
+    }
+  },
+  "source_path": "datasets\\kobalt-700\\30c30a431066508e6bef77cfa6d6059b85b12f0d\\source",
+  "repo_files": [
+    ".gitattributes",
+    "LICENSE.md",
+    "README.md",
+    "data/train.jsonl",
+    "evaluation_protocol.md",
+    "kobalt_croissant.json",
+    "requirements.txt"
+  ],
+  "processed_schema_version": "1.0.0",
+  "field_mapping_version": "1.0.0"
+}
