@@ -1,0 +1,2 @@
+{"benchmark_id":"ifeval-ko","dataset_id":"ifeval-ko-local","case_id":"synthetic-1","prompt":"Write exactly two bullet points without commas.","instruction_ids":["punctuation:no_comma","detectable_format:number_bullet_lists"],"kwargs":[{},{"num_bullets":2}],"source_version":"synthetic-v1"}
+{"benchmark_id":"ifeval-ko","dataset_id":"ifeval-ko-local","case_id":"synthetic-2","prompt":"Write at least five words.","instruction_ids":["length_constraints:number_words"],"kwargs":[{"num_words":5,"relation":"at least"}],"source_version":"synthetic-v1"}
