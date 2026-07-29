@@ -16,6 +16,34 @@ def _streaming_client(lines: list[str], status_code: int = 200) -> httpx.Client:
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
+def test_stream_sends_response_format_and_options_to_ollama_payload():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(request.read() and __import__("json").loads(request.content))
+        return httpx.Response(
+            200,
+            content=b'{"response":"{}","done":true}\n',
+            request=request,
+        )
+
+    runtime = OllamaRuntime(client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    list(
+        runtime.stream(
+            RuntimeRequest(
+                model_tag="local-model:latest",
+                prompt="json only",
+                response_format="json",
+                options={"temperature": 0},
+            )
+        )
+    )
+
+    assert captured["format"] == "json"
+    assert captured["options"] == {"temperature": 0}
+
+
 def test_stream_yields_normalized_chunks_and_metadata():
     client = _streaming_client(
         [
@@ -118,4 +146,3 @@ def test_generate_categorizes_invalid_stream_json():
 
     assert response.error is not None
     assert response.error.category == FailureCategory.PARSER_ERROR
-

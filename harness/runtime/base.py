@@ -12,6 +12,7 @@ class RuntimeRequest(BaseModel):
     model_tag: str = Field(min_length=1)
     prompt: str = Field(min_length=1)
     system: str | None = None
+    response_format: str | dict[str, object] | None = None
     options: dict[str, object] = Field(default_factory=dict)
     timeout_seconds: int = Field(default=120, gt=0)
 
@@ -46,4 +47,3 @@ class RuntimeAdapterError(Exception):
 
     def to_evaluation_error(self) -> EvaluationError:
         return EvaluationError(category=self.category, message=self.message)
-

@@ -33,6 +33,8 @@ class OllamaRuntime:
         }
         if request.system is not None:
             payload["system"] = request.system
+        if request.response_format is not None:
+            payload["format"] = request.response_format
         if request.options:
             payload["options"] = request.options
 
@@ -172,4 +174,3 @@ class OllamaRuntime:
         if eval_duration <= 0:
             return None
         return eval_count / (eval_duration / 1_000_000_000)
-
