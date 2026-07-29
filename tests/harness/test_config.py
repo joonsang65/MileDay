@@ -45,3 +45,16 @@ def test_load_settings_rejects_non_json_config(tmp_path):
     with pytest.raises(ValueError, match=".json"):
         load_settings(config_path)
 
+
+def test_load_settings_accepts_gemini_judge_env(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("GEMINI_API_BASE_URL", "https://example.test/v1beta")
+    monkeypatch.setenv("GEMINI_JUDGE_MODEL", "gemini-test")
+    monkeypatch.setenv("MILEDAY_REQUIRE_EXPLANATION_JUDGE", "true")
+
+    settings = load_settings()
+
+    assert settings.gemini_api_key == "test-key"
+    assert settings.gemini_api_base_url == "https://example.test/v1beta"
+    assert settings.gemini_judge_model == "gemini-test"
+    assert settings.mileday_require_explanation_judge is True

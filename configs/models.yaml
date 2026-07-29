@@ -9,28 +9,28 @@ models:
   - id: candidate-2
     provider: ollama
     runtime: ollama
-    model_tag: replace-with-local-model-2
+    model_tag: hf.co/pathcosmos/frankenstallm:Q4_K_M
     context_window: 4096
-    quantization: unknown
-    license_note: Replace with the selected model license note before evaluation.
+    quantization: Q4_K_M
+    license_note: FRANKENSTALLM 3B v2 Korean ORPO; Apache-2.0; HF GGUF direct tag, or create local frankenstallm from the provided Ollama Modelfile.
   - id: candidate-3
     provider: ollama
     runtime: ollama
-    model_tag: replace-with-local-model-3
-    context_window: 4096
-    quantization: unknown
-    license_note: Replace with the selected model license note before evaluation.
+    model_tag: granite4.1:3b
+    context_window: 131072
+    quantization: Q4_K_M
+    license_note: IBM Granite 4.1 3B instruct; Apache-2.0; multilingual including Korean, tool use, and structured JSON output.
   - id: candidate-4
     provider: ollama
     runtime: ollama
-    model_tag: replace-with-local-model-4
-    context_window: 4096
-    quantization: unknown
-    license_note: Replace with the selected model license note before evaluation.
+    model_tag: qwen3.5:4b
+    context_window: 262144
+    quantization: Q4_K_M
+    license_note: Qwen3.5 4B open-source multimodal model; 256K context; verify Qwen license terms before production evaluation.
   - id: candidate-5
     provider: ollama
     runtime: ollama
-    model_tag: replace-with-local-model-5
-    context_window: 4096
-    quantization: unknown
-    license_note: Replace with the selected model license note before evaluation.
+    model_tag: ministral-3:3b
+    context_window: 262144
+    quantization: Q4_K_M
+    license_note: Ministral 3 3B instruct; Apache-2.0; edge-focused multilingual model with JSON outputting and function-calling capabilities.
