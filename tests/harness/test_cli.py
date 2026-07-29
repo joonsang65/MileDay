@@ -1,6 +1,7 @@
 from typer.testing import CliRunner
 
-from harness.cli import _evaluate_mileday_record, _mileday_generation_prompt, app
+from harness.benchmarks.mcq import MCQCaseResult
+from harness.cli import PublicBenchmarkCase, _evaluate_mileday_record, _mileday_generation_prompt, app
 from harness.mileday.dataset import load_mileday_generation_cases
 from harness.mileday.explanation_judge import ExplanationJudgeResult
 from harness.runtime.base import RuntimeResponse
@@ -181,6 +182,91 @@ def test_run_mileday_smoke_rejects_unknown_model_id():
 
     assert result.exit_code != 0
     assert "Unknown model id: candidate-missing" in result.output
+
+
+def test_run_benchmark_uses_comma_models_and_writes_reports(monkeypatch, tmp_path):
+    monkeypatch.setenv("HARNESS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("HARNESS_RUNS_DIR", str(tmp_path / "artifacts" / "runs"))
+    runtimes = []
+
+    def score_response(raw_output):
+        return MCQCaseResult(
+            benchmark_id="click",
+            case_id="case-1",
+            category="reading",
+            correct_answer="A",
+            raw_output=raw_output,
+            parsed_answer=raw_output.strip(),
+            is_correct=raw_output.strip() == "A",
+            is_invalid=False,
+        )
+
+    def fake_load_cases(dataset_configs, *, sample_dir, limit, seed):
+        assert limit == 1
+        assert seed == 7
+        sample_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "ifeval_ko": [],
+            "kobalt": [],
+            "click": [
+                PublicBenchmarkCase(
+                    dataset_key="click",
+                    dataset_id="click",
+                    benchmark_id="click",
+                    case_id="case-1",
+                    prompt="question",
+                    score_response=score_response,
+                )
+            ],
+            "kmmlu_pro": [],
+        }
+
+    class MockOllamaRuntime:
+        def __init__(self, base_url):
+            self.base_url = base_url
+            self.requests = []
+            runtimes.append(self)
+
+        def stream(self, request):
+            return iter(())
+
+        def generate(self, request):
+            self.requests.append(request)
+            return RuntimeResponse(
+                model_tag=request.model_tag,
+                text="A",
+                metrics=RuntimeMetrics(ttft_ms=1, latency_ms=2, tokens_per_second=3),
+            )
+
+    monkeypatch.setattr("harness.cli._load_public_benchmark_cases", fake_load_cases)
+    monkeypatch.setattr("harness.cli.OllamaRuntime", MockOllamaRuntime)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run-benchmark",
+            "--model-id",
+            "candidate-1,candidate-3",
+            "--limit",
+            "1",
+            "--seed",
+            "7",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "batch_id=benchmark-batch-1-1cases" in result.stdout
+    assert "candidate-1 -> candidate-1-benchmark-1-1cases" in result.stdout
+    assert "candidate-3 -> candidate-3-benchmark-1-1cases" in result.stdout
+    assert (tmp_path / "artifacts" / "runs" / "candidate-1-benchmark-1-1cases" / "report.md").exists()
+    assert (tmp_path / "artifacts" / "runs" / "candidate-3-benchmark-1-1cases" / "report.md").exists()
+    summary_path = tmp_path / "artifacts" / "runs" / "benchmark-batch-1-1cases-summary.md"
+    assert summary_path.exists()
+    assert "데이터셋별 점수" in summary_path.read_text(encoding="utf-8")
+    assert [runtime.requests[0].model_tag for runtime in runtimes] == [
+        "ingu627/exaone4.0:1.2b",
+        "granite4.1:3b",
+    ]
 
 
 def test_mileday_prompt_enforces_korean_json_contract_and_required_fields():

@@ -42,6 +42,14 @@ class ProcessedDataset(BaseModel):
     row_count: int = Field(ge=0)
 
 
+class ProcessedDatasetRows(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    dataset_key: str
+    source_path: Path
+    rows: list[dict[str, Any]]
+
+
 def prepare_all_datasets(
     *,
     registry: DatasetRegistry | None = None,
@@ -79,12 +87,72 @@ def prepare_dataset(
     )
 
 
+def load_processed_dataset_rows(
+    dataset_key: str,
+    dataset: DatasetConfig,
+) -> ProcessedDatasetRows:
+    """Normalize a pinned source snapshot into benchmark rows without writing files."""
+
+    if dataset_key == "kmmlu_pro":
+        source_file = _revision_dir(dataset_key, dataset) / "source" / "data" / "kmmlu_pro.jsonl"
+        return ProcessedDatasetRows(
+            dataset_key=dataset_key,
+            source_path=source_file,
+            rows=_build_kmmlu_pro_rows(dataset_key, dataset, sample_limit=None),
+        )
+    if dataset_key == "kobalt":
+        source_file = _revision_dir(dataset_key, dataset) / "source" / "data" / "train.jsonl"
+        return ProcessedDatasetRows(
+            dataset_key=dataset_key,
+            source_path=source_file,
+            rows=_build_kobalt_rows(dataset_key, dataset, sample_limit=None),
+        )
+    if dataset_key == "click":
+        source_dir = _revision_dir(dataset_key, dataset) / "source" / "Dataset"
+        return ProcessedDatasetRows(
+            dataset_key=dataset_key,
+            source_path=source_dir,
+            rows=_build_click_rows(dataset_key, dataset, sample_limit=None),
+        )
+    if dataset_key == "ifeval_ko":
+        source_file = (
+            _revision_dir(dataset_key, dataset)
+            / "source"
+            / "data"
+            / "train-00000-of-00001.parquet"
+        )
+        return ProcessedDatasetRows(
+            dataset_key=dataset_key,
+            source_path=source_file,
+            rows=_build_ifeval_ko_rows(dataset_key, dataset, sample_limit=None),
+        )
+    raise DatasetProcessingError(
+        FailureCategory.CONFIG_ERROR,
+        f"Unsupported dataset key: {dataset_key}",
+    )
+
+
 def _prepare_kmmlu_pro(
     dataset_key: str,
     dataset: DatasetConfig,
     *,
     sample_limit: int | None,
 ) -> ProcessedDataset:
+    source_file = _revision_dir(dataset_key, dataset) / "source" / "data" / "kmmlu_pro.jsonl"
+    return _write_processed(
+        dataset_key,
+        dataset,
+        source_file,
+        _build_kmmlu_pro_rows(dataset_key, dataset, sample_limit=sample_limit),
+    )
+
+
+def _build_kmmlu_pro_rows(
+    dataset_key: str,
+    dataset: DatasetConfig,
+    *,
+    sample_limit: int | None,
+) -> list[dict[str, Any]]:
     source_file = _revision_dir(dataset_key, dataset) / "source" / "data" / "kmmlu_pro.jsonl"
     rows = _read_jsonl(source_file)
 
@@ -108,7 +176,7 @@ def _prepare_kmmlu_pro(
                 },
             )
         )
-    return _write_processed(dataset_key, dataset, source_file, processed_rows)
+    return processed_rows
 
 
 def _prepare_kobalt(
@@ -117,6 +185,21 @@ def _prepare_kobalt(
     *,
     sample_limit: int | None,
 ) -> ProcessedDataset:
+    source_file = _revision_dir(dataset_key, dataset) / "source" / "data" / "train.jsonl"
+    return _write_processed(
+        dataset_key,
+        dataset,
+        source_file,
+        _build_kobalt_rows(dataset_key, dataset, sample_limit=sample_limit),
+    )
+
+
+def _build_kobalt_rows(
+    dataset_key: str,
+    dataset: DatasetConfig,
+    *,
+    sample_limit: int | None,
+) -> list[dict[str, Any]]:
     source_file = _revision_dir(dataset_key, dataset) / "source" / "data" / "train.jsonl"
     rows = _read_json_array(source_file)
 
@@ -138,7 +221,7 @@ def _prepare_kobalt(
                 },
             )
         )
-    return _write_processed(dataset_key, dataset, source_file, processed_rows)
+    return processed_rows
 
 
 def _prepare_click(
@@ -147,6 +230,21 @@ def _prepare_click(
     *,
     sample_limit: int | None,
 ) -> ProcessedDataset:
+    source_dir = _revision_dir(dataset_key, dataset) / "source" / "Dataset"
+    return _write_processed(
+        dataset_key,
+        dataset,
+        source_dir,
+        _build_click_rows(dataset_key, dataset, sample_limit=sample_limit),
+    )
+
+
+def _build_click_rows(
+    dataset_key: str,
+    dataset: DatasetConfig,
+    *,
+    sample_limit: int | None,
+) -> list[dict[str, Any]]:
     source_dir = _revision_dir(dataset_key, dataset) / "source" / "Dataset"
     source_files = sorted(source_dir.rglob("*.json"))
     if not source_files:
@@ -187,8 +285,8 @@ def _prepare_click(
                 )
             )
             if sample_limit is not None and len(processed_rows) >= sample_limit:
-                return _write_processed(dataset_key, dataset, source_dir, processed_rows)
-    return _write_processed(dataset_key, dataset, source_dir, processed_rows)
+                return processed_rows
+    return processed_rows
 
 
 def _prepare_ifeval_ko(
@@ -197,6 +295,26 @@ def _prepare_ifeval_ko(
     *,
     sample_limit: int | None,
 ) -> ProcessedDataset:
+    source_file = (
+        _revision_dir(dataset_key, dataset)
+        / "source"
+        / "data"
+        / "train-00000-of-00001.parquet"
+    )
+    return _write_processed(
+        dataset_key,
+        dataset,
+        source_file,
+        _build_ifeval_ko_rows(dataset_key, dataset, sample_limit=sample_limit),
+    )
+
+
+def _build_ifeval_ko_rows(
+    dataset_key: str,
+    dataset: DatasetConfig,
+    *,
+    sample_limit: int | None,
+) -> list[dict[str, Any]]:
     try:
         import pyarrow.parquet as pq
     except ImportError as exc:
@@ -229,7 +347,7 @@ def _prepare_ifeval_ko(
                 "kwargs": row[dataset.fields["kwargs"]],
             }
         )
-    return _write_processed(dataset_key, dataset, source_file, processed_rows)
+    return processed_rows
 
 
 def _revision_dir(dataset_key: str, dataset: DatasetConfig) -> Path:

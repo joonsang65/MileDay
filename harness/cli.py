@@ -4,15 +4,19 @@ import json
 import re
 import random
 import subprocess
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Callable
 
 import typer
 from pydantic import ValidationError
 
+from harness.benchmarks.ifeval_ko import load_ifeval_ko_cases
+from harness.benchmarks.mcq import MCQChoice, MCQQuestion, build_mcq_prompt, score_mcq_response
 from harness.config import load_settings
-from harness.dataset_processor import DatasetProcessingError, prepare_all_datasets
-from harness.dataset_registry import DEFAULT_DATASET_REGISTRY_PATH
+from harness.dataset_processor import DatasetProcessingError, load_processed_dataset_rows, prepare_all_datasets
+from harness.dataset_registry import DEFAULT_DATASET_REGISTRY_PATH, load_dataset_registry
 from harness.mileday.constraints import validate_schedule_output
 from harness.mileday.dataset import MileDayGenerationCase, load_mileday_generation_cases
 from harness.mileday.explanation_judge import (
@@ -45,6 +49,23 @@ from harness.schemas import EvaluationError, FailureCategory, RequestResult, Res
 
 app = typer.Typer(help="Local LLM evaluation harness.")
 FENCED_JSON_PATTERN = re.compile(r"```(?:json)?\s*(?P<json>.*?)\s*```", re.IGNORECASE | re.DOTALL)
+PUBLIC_BENCHMARK_DATASET_KEYS = ("ifeval_ko", "kobalt", "click", "kmmlu_pro")
+PUBLIC_DATASET_IDS = {
+    "ifeval_ko": "ifeval-ko",
+    "kobalt": "kobalt-700",
+    "click": "click",
+    "kmmlu_pro": "kmmlu-pro",
+}
+
+
+@dataclass(frozen=True)
+class PublicBenchmarkCase:
+    dataset_key: str
+    dataset_id: str
+    benchmark_id: str
+    case_id: str
+    prompt: str
+    score_response: Callable[[str], Any]
 
 
 @app.callback()
@@ -302,6 +323,112 @@ def run_mileday_smoke(
     typer.echo(f"batch_summary={summary_path}")
 
 
+@app.command("run-benchmark")
+def run_benchmark(
+    model_id: Annotated[
+        str,
+        typer.Option("--model-id", help="Comma-separated model ids from configs/models.yaml."),
+    ],
+    limit: Annotated[
+        int,
+        typer.Option("--limit", help="Random sample size per public benchmark dataset."),
+    ] = 50,
+    seed: Annotated[
+        int,
+        typer.Option("--seed", help="Set dataset sampling seed."),
+    ] = 42,
+    registry: Annotated[
+        Path,
+        typer.Option("--registry", help="Model registry YAML path."),
+    ] = DEFAULT_MODEL_REGISTRY_PATH,
+    dataset_registry: Annotated[
+        Path,
+        typer.Option("--dataset-registry", help="Dataset registry YAML path."),
+    ] = DEFAULT_DATASET_REGISTRY_PATH,
+    mode: Annotated[
+        BenchmarkMode,
+        typer.Option("--mode", help="cold or warm execution mode."),
+    ] = BenchmarkMode.COLD,
+) -> None:
+    """Run sampled public benchmark evaluation for selected local models."""
+
+    if limit <= 0:
+        raise typer.BadParameter("limit must be positive.")
+    settings = load_settings()
+    try:
+        model_registry = load_model_registry(registry)
+        dataset_configs = load_dataset_registry(dataset_registry)
+        requested_model_ids = _parse_model_ids(model_id)
+        model_by_id = {item.id: item for item in model_registry.models}
+        missing_model_ids = [item for item in requested_model_ids if item not in model_by_id]
+        if missing_model_ids:
+            raise typer.BadParameter(f"Unknown model id: {', '.join(missing_model_ids)}")
+        missing_dataset_keys = [
+            dataset_key
+            for dataset_key in PUBLIC_BENCHMARK_DATASET_KEYS
+            if dataset_key not in dataset_configs.datasets
+        ]
+        if missing_dataset_keys:
+            raise typer.BadParameter(f"Missing dataset configs: {', '.join(missing_dataset_keys)}")
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    store = ResultStore(settings.runs_dir)
+    batch_sequence = _next_benchmark_batch_sequence(store.runs_dir, requested_model_ids, limit)
+    batch_id = _benchmark_batch_id(batch_sequence, limit)
+    sampled_cases = _load_public_benchmark_cases(
+        dataset_configs.datasets,
+        sample_dir=store.runs_dir / f"{batch_id}-datasets",
+        limit=limit,
+        seed=seed,
+    )
+    typer.echo(f"batch_id={batch_id}")
+    typer.echo("datasets=" + ", ".join(f"{key}:{len(value)}" for key, value in sampled_cases.items()))
+
+    batch_items: list[dict[str, object]] = []
+    for current_model_id in requested_model_ids:
+        model = model_by_id[current_model_id]
+        current_run_id = f"{model.id}-benchmark-{batch_sequence}-{limit}cases"
+        stored = _run_public_benchmark_for_model(
+            model_id=model.id,
+            model_tag=model.model_tag,
+            run_id=current_run_id,
+            mode=mode,
+            cases_by_dataset=sampled_cases,
+            store=store,
+            ollama_base_url=settings.ollama_base_url,
+            timeout_seconds=settings.default_timeout_seconds,
+        )
+        report_path = generate_markdown_report(current_run_id, settings.runs_dir)
+        counts = _status_counts(store.load_request_results(current_run_id))
+        batch_items.append(
+            {
+                "model_id": model.id,
+                "run_id": current_run_id,
+                "status": "completed",
+                "stored": stored,
+                "counts": counts,
+                "report_path": report_path,
+            }
+        )
+        typer.echo(
+            f"{model.id} -> {current_run_id} -> {report_path} -> "
+            f"{_counter_text_for_cli(counts)}"
+        )
+
+    summary_path = _write_public_benchmark_batch_summary(
+        store.runs_dir,
+        batch_id=batch_id,
+        items=batch_items,
+        limit=limit,
+        seed=seed,
+        model_ids=requested_model_ids,
+        dataset_counts={key: len(value) for key, value in sampled_cases.items()},
+    )
+    typer.echo(f"completed={len(batch_items)} failed=0")
+    typer.echo(f"batch_summary={summary_path}")
+
+
 def _run_mileday_smoke_for_model(
     *,
     model_id: str,
@@ -356,6 +483,405 @@ def _run_mileday_smoke_for_model(
         )
         stored += 1
     return stored
+
+
+def _run_public_benchmark_for_model(
+    *,
+    model_id: str,
+    model_tag: str,
+    run_id: str,
+    mode: BenchmarkMode,
+    cases_by_dataset: dict[str, list[PublicBenchmarkCase]],
+    store: ResultStore,
+    ollama_base_url: str,
+    timeout_seconds: int,
+) -> int:
+    all_cases = [
+        case
+        for dataset_key in PUBLIC_BENCHMARK_DATASET_KEYS
+        for case in cases_by_dataset.get(dataset_key, [])
+    ]
+    prompts = [
+        BenchmarkCasePrompt(
+            dataset_id=case.dataset_id,
+            case_id=case.case_id,
+            prompt=case.prompt,
+            parsed_output={
+                "evaluation_family": "public_benchmark",
+                "dataset_key": case.dataset_key,
+                "benchmark_id": case.benchmark_id,
+            },
+        )
+        for case in all_cases
+    ]
+    records = run_benchmark_cases(
+        prompts,
+        BenchmarkRunConfig(
+            run_id=run_id,
+            model_id=model_id,
+            model_tag=model_tag,
+            mode=mode,
+            runtime_options={"temperature": 0},
+            timeout_seconds=timeout_seconds,
+        ),
+        OllamaRuntime(base_url=ollama_base_url),
+        monitor_factory=PerformanceMonitor,
+        completed_resume_keys=set(store.resume_index(run_id)),
+    )
+    case_by_key = {(case.dataset_id, case.case_id): case for case in all_cases}
+    stored = 0
+    for record in measured_records(records):
+        base_result = record.request_result
+        case = case_by_key[(base_result.dataset_id, base_result.case_id)]
+        result = _evaluate_public_benchmark_record(base_result, case, record.response.text)
+        store.store_request_result(result, raw_output=record.response.text)
+        store.append_performance_samples(
+            run_id,
+            [record.performance_summary.model_dump(mode="json")],
+            phase=record.phase.value,
+        )
+        stored += 1
+        if result.status == ResultStatus.FAILED:
+            error_text = (
+                f"{result.error.category.value}: {result.error.message}"
+                if result.error is not None
+                else "unknown failure"
+            )
+            raise RuntimeError(
+                f"Benchmark run stopped after failed result "
+                f"{model_id}/{case.dataset_id}/{case.case_id}: {error_text}"
+            )
+    return stored
+
+
+def _load_public_benchmark_cases(
+    dataset_configs: dict[str, Any],
+    *,
+    sample_dir: Path,
+    limit: int,
+    seed: int,
+) -> dict[str, list[PublicBenchmarkCase]]:
+    rng = random.Random(seed)
+    cases_by_dataset: dict[str, list[PublicBenchmarkCase]] = {}
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    for dataset_key in PUBLIC_BENCHMARK_DATASET_KEYS:
+        loaded = load_processed_dataset_rows(dataset_key, dataset_configs[dataset_key])
+        sampled_rows = rng.sample(loaded.rows, k=min(limit, len(loaded.rows)))
+        sample_path = sample_dir / f"{dataset_key}.jsonl"
+        _write_jsonl(sample_path, sampled_rows)
+        cases_by_dataset[dataset_key] = _load_public_benchmark_cases_from_sample(
+            dataset_key,
+            sample_path,
+        )
+    return cases_by_dataset
+
+
+def _load_public_benchmark_cases_from_sample(
+    dataset_key: str,
+    sample_path: Path,
+) -> list[PublicBenchmarkCase]:
+    dataset_id = PUBLIC_DATASET_IDS[dataset_key]
+    if dataset_key == "kmmlu_pro":
+        return _load_mcq_public_cases(dataset_key, dataset_id, "kmmlu-pro", sample_path)
+    if dataset_key == "kobalt":
+        return _load_mcq_public_cases(dataset_key, dataset_id, "kobalt-700", sample_path)
+    if dataset_key == "click":
+        return _load_mcq_public_cases(dataset_key, dataset_id, "click", sample_path)
+    if dataset_key == "ifeval_ko":
+        return [
+            PublicBenchmarkCase(
+                dataset_key=dataset_key,
+                dataset_id=dataset_id,
+                benchmark_id=case.benchmark_id,
+                case_id=case.case_id,
+                prompt=case.build_prompt(),
+                score_response=case.score_response,
+            )
+            for case in load_ifeval_ko_cases(sample_path, dataset_id=dataset_id)
+        ]
+    raise typer.BadParameter(f"Unsupported public benchmark dataset: {dataset_key}")
+
+
+def _load_mcq_public_cases(
+    dataset_key: str,
+    dataset_id: str,
+    benchmark_id: str,
+    sample_path: Path,
+) -> list[PublicBenchmarkCase]:
+    cases: list[PublicBenchmarkCase] = []
+    for row in _read_jsonl_rows(sample_path):
+        question = _mcq_question_from_processed_row(row, benchmark_id=benchmark_id)
+        cases.append(
+            PublicBenchmarkCase(
+                dataset_key=dataset_key,
+                dataset_id=dataset_id,
+                benchmark_id=benchmark_id,
+                case_id=question.case_id,
+                prompt=_public_mcq_prompt(build_mcq_prompt(question)),
+                score_response=lambda raw_output, item=question: score_mcq_response(item, raw_output),
+            )
+        )
+    return cases
+
+
+def _mcq_question_from_processed_row(row: dict[str, Any], *, benchmark_id: str) -> MCQQuestion:
+    choices = [
+        MCQChoice(label=label, text=str(row[field_name]))
+        for label, field_name in _choice_fields(row)
+    ]
+    return MCQQuestion(
+        benchmark_id=benchmark_id,
+        case_id=str(row["case_id"]),
+        category=str(row["category"]) if row.get("category") not in (None, "") else None,
+        question=str(row["question"]),
+        choices=choices,
+        answer=str(row["answer"]).strip().upper(),
+    )
+
+
+def _choice_fields(row: dict[str, Any]) -> list[tuple[str, str]]:
+    fields: list[tuple[str, str]] = []
+    for label in tuple("ABCDEFGHIJ"):
+        field_name = f"choice_{label.lower()}"
+        if field_name in row and row[field_name] not in (None, ""):
+            fields.append((label, field_name))
+    return fields
+
+
+def _public_mcq_prompt(prompt: str) -> str:
+    return (
+        "다음은 객관식 벤치마크 문제입니다.\n"
+        "반드시 정답 선택지의 알파벳 하나만 출력하세요.\n"
+        "설명, 풀이 과정, 문장, 마침표는 쓰지 마세요.\n"
+        "\n"
+        f"{prompt}"
+    )
+
+
+def _evaluate_public_benchmark_record(
+    base_result: RequestResult,
+    case: PublicBenchmarkCase,
+    raw_output: str,
+) -> RequestResult:
+    if base_result.error is not None:
+        return base_result
+    scored = case.score_response(raw_output)
+    payload = scored.model_dump(mode="json")
+    parsed_output = {
+        **base_result.parsed_output,
+        **payload,
+        "evaluation_family": "public_benchmark",
+        "dataset_key": case.dataset_key,
+        "dataset_id": case.dataset_id,
+        "benchmark_id": case.benchmark_id,
+    }
+    if "is_correct" in payload:
+        parsed_output["score"] = 1.0 if payload.get("is_correct") is True else 0.0
+        parsed_output["accuracy"] = parsed_output["score"]
+    elif "prompt_level_strict" in payload:
+        parsed_output["score"] = 1.0 if payload.get("prompt_level_strict") is True else 0.0
+        parsed_output["prompt_level_strict_accuracy"] = parsed_output["score"]
+        parsed_output["prompt_level_loose_accuracy"] = (
+            1.0 if payload.get("prompt_level_loose") is True else 0.0
+        )
+
+    invalid = bool(payload.get("is_invalid"))
+    return base_result.model_copy(
+        update={
+            "status": ResultStatus.INVALID if invalid else ResultStatus.PASSED,
+            "parsed_output": parsed_output,
+            "error": (
+                EvaluationError(
+                    category=FailureCategory.PARSER_ERROR,
+                    message=str(payload.get("invalid_reason") or "Benchmark response was invalid."),
+                )
+                if invalid
+                else None
+            ),
+        }
+    )
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as file:
+        for row in rows:
+            file.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _read_jsonl_rows(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
+
+
+def _next_benchmark_batch_sequence(runs_dir: Path, model_ids: list[str], limit: int) -> int:
+    highest = 0
+    if not runs_dir.exists():
+        return 1
+    patterns = [
+        re.compile(rf"^{re.escape(model_id)}-benchmark-(?P<sequence>\d+)-{limit}cases$")
+        for model_id in model_ids
+    ]
+    for path in runs_dir.iterdir():
+        if not path.is_dir():
+            continue
+        for pattern in patterns:
+            match = pattern.fullmatch(path.name)
+            if match is not None:
+                highest = max(highest, int(match.group("sequence")))
+                break
+    return highest + 1
+
+
+def _benchmark_batch_id(sequence: int, limit: int) -> str:
+    return f"benchmark-batch-{sequence}-{limit}cases"
+
+
+def _write_public_benchmark_batch_summary(
+    runs_dir: Path,
+    *,
+    batch_id: str,
+    items: list[dict[str, object]],
+    limit: int,
+    seed: int,
+    model_ids: list[str],
+    dataset_counts: dict[str, int],
+) -> Path:
+    path = runs_dir / f"{batch_id}-summary.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    store = ResultStore(runs_dir)
+    model_summaries = [
+        _public_benchmark_model_summary(
+            model_id=str(item["model_id"]),
+            run_id=str(item["run_id"]),
+            results=store.load_request_results(str(item["run_id"])),
+        )
+        for item in items
+    ]
+    lines = [
+        f"# Public Benchmark Batch Summary: {batch_id}",
+        "",
+        "## 실행 조건",
+        "",
+        f"- model ids: {', '.join(model_ids)}",
+        f"- dataset keys: {', '.join(PUBLIC_BENCHMARK_DATASET_KEYS)}",
+        f"- sampling: random",
+        f"- limit per dataset: {limit}",
+        f"- seed: {seed}",
+        f"- dataset counts: {_dict_counter_text(dataset_counts)}",
+        "",
+        "## 모델별 실행 요약",
+        "",
+        "| model | run_id | status | passed | invalid | failed | skipped | weighted score | report |",
+        "|---|---|---|---:|---:|---:|---:|---:|---|",
+    ]
+    for item in items:
+        counts = item.get("counts")
+        count_map = counts if isinstance(counts, dict) else {}
+        summary = next(
+            model_summary
+            for model_summary in model_summaries
+            if model_summary["model_id"] == item["model_id"]
+        )
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _escape_table(str(item.get("model_id", ""))),
+                    _escape_table(str(item.get("run_id", ""))),
+                    _escape_table(str(item.get("status", ""))),
+                    str(count_map.get("passed", 0)),
+                    str(count_map.get("invalid", 0)),
+                    str(count_map.get("failed", 0)),
+                    str(count_map.get("skipped", 0)),
+                    _format_optional_float(summary["weighted_score"]),
+                    f"`{Path(str(item.get('report_path', ''))).as_posix()}`" if item.get("report_path") else "",
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "## 데이터셋별 점수",
+            "",
+            "| model | IFEval-Ko | KoBALT-700 | CLIcK | KMMLU-Pro |",
+            "|---|---:|---:|---:|---:|",
+        ]
+    )
+    for summary in model_summaries:
+        dataset_scores = summary["dataset_scores"]
+        lines.append(
+            f"| {_escape_table(str(summary['model_id']))} | "
+            f"{_format_optional_float(dataset_scores.get('ifeval-ko'))} | "
+            f"{_format_optional_float(dataset_scores.get('kobalt-700'))} | "
+            f"{_format_optional_float(dataset_scores.get('click'))} | "
+            f"{_format_optional_float(dataset_scores.get('kmmlu-pro'))} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## 실패 및 invalid 요약",
+            "",
+        ]
+    )
+    for summary in model_summaries:
+        lines.append(
+            f"- {summary['model_id']}: status={_dict_counter_text(summary['status_counts'])}, "
+            f"errors={_dict_counter_text(summary['error_counts']) if summary['error_counts'] else '없음'}"
+        )
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8", newline="\n")
+    return path
+
+
+def _public_benchmark_model_summary(
+    *,
+    model_id: str,
+    run_id: str,
+    results: list[RequestResult],
+) -> dict[str, Any]:
+    dataset_scores: dict[str, float | None] = {}
+    weights = {
+        "ifeval-ko": 0.40,
+        "kobalt-700": 0.30,
+        "click": 0.15,
+        "kmmlu-pro": 0.15,
+    }
+    for dataset_id in weights:
+        scores = [
+            _public_result_score(result)
+            for result in results
+            if result.dataset_id == dataset_id and _public_result_score(result) is not None
+        ]
+        dataset_scores[dataset_id] = round(sum(scores) / len(scores), 4) if scores else None
+    weighted_parts = [
+        dataset_scores[dataset_id] * weight
+        for dataset_id, weight in weights.items()
+        if dataset_scores[dataset_id] is not None
+    ]
+    error_counts = Counter(
+        result.error.category.value
+        for result in results
+        if result.error is not None
+    )
+    return {
+        "model_id": model_id,
+        "run_id": run_id,
+        "dataset_scores": dataset_scores,
+        "weighted_score": round(sum(weighted_parts), 4) if len(weighted_parts) == len(weights) else None,
+        "status_counts": Counter(result.status.value for result in results),
+        "error_counts": error_counts,
+    }
+
+
+def _public_result_score(result: RequestResult) -> float | None:
+    value = result.parsed_output.get("score")
+    if isinstance(value, int | float):
+        return float(value)
+    return None
 
 
 def _parse_model_ids(raw_model_ids: str) -> list[str]:
