@@ -1,29 +1,29 @@
-# ADR-0004: Use Deterministic Schedule Validation
+# ADR-0004: 결정적 일정 검증을 사용
 
-## Status
+## 상태
 
-accepted
+승인됨
 
-## Context
+## 배경
 
-MileDay schedule generation must satisfy hard constraints such as date format, deadlines, recurrence, and milestone count.
+MileDay 일정 생성은 날짜 형식, 마감일, 반복, 마일스톤 수와 같은 엄격한 제약 조건을 만족해야 한다.
 
-## Decision
+## 결정
 
-Use deterministic validators for hard schedule constraints before optional semantic judging.
+선택적 의미 평가를 수행하기 전에 엄격한 일정 제약 조건에 대해 결정적 검증기를 사용한다.
 
-## Consequences
+## 영향
 
-### Positive
+### 긍정적 영향
 
-- Hard failures are explainable and reproducible.
-- Semantic scores cannot hide invalid schedules.
+- 엄격한 제약 조건 위반을 설명하고 재현할 수 있다.
+- 의미 점수가 유효하지 않은 일정을 가릴 수 없다.
 
-### Negative
+### 부정적 영향
 
-- Validators must be updated when MileDay scheduling rules change.
+- MileDay 일정 규칙이 변경되면 검증기도 함께 업데이트해야 한다.
 
-## Alternatives Considered
+## 검토한 대안
 
-- Semantic-only judging
-- Manual review only
+- 의미 평가만 사용
+- 수동 검토만 사용

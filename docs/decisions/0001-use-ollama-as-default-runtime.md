@@ -1,32 +1,32 @@
-# ADR-0001: Use Ollama as Default Runtime
+# ADR-0001: Ollama를 기본 런타임으로 사용
 
-## Status
+## 상태
 
-accepted
+승인됨
 
-## Context
+## 배경
 
-The initial harness must run local LLM candidates on a developer workstation without production serving infrastructure.
+초기 하네스는 프로덕션 서빙 인프라 없이 개발자 워크스테이션에서 로컬 LLM 후보를 실행할 수 있어야 한다.
 
-## Decision
+## 결정
 
-Use Ollama as the default runtime adapter for initial model execution.
+초기 모델 실행을 위한 기본 런타임 어댑터로 Ollama를 사용한다.
 
-## Consequences
+## 영향
 
-### Positive
+### 긍정적 영향
 
-- Simple local setup for smoke tests.
-- Clear model installation check through Ollama model tags.
-- Streaming and timing metadata can be captured from one runtime boundary.
+- 스모크 테스트를 위한 로컬 설정이 단순하다.
+- Ollama 모델 태그를 통해 모델 설치 여부를 명확히 확인할 수 있다.
+- 스트리밍 및 시간 측정 메타데이터를 하나의 런타임 경계에서 수집할 수 있다.
 
-### Negative
+### 부정적 영향
 
-- Results depend on local Ollama version and installed model tags.
-- GPU and quantization behavior may differ from other runtimes.
+- 결과가 로컬 Ollama 버전과 설치된 모델 태그에 의존한다.
+- GPU 및 양자화 동작이 다른 런타임과 다를 수 있다.
 
-## Alternatives Considered
+## 검토한 대안
 
-- llama.cpp directly
+- llama.cpp 직접 사용
 - vLLM
-- Cloud-hosted inference APIs
+- 클라우드 호스팅 추론 API

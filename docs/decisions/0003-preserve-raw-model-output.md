@@ -1,30 +1,30 @@
-# ADR-0003: Preserve Raw Model Output
+# ADR-0003: 원본 모델 출력을 보존
 
-## Status
+## 상태
 
-accepted
+승인됨
 
-## Context
+## 배경
 
-Model outputs may be invalid, ambiguous, unsafe, or difficult to parse. Losing raw output makes later debugging and audit impossible.
+모델 출력은 유효하지 않거나, 모호하거나, 안전하지 않거나, 파싱하기 어려울 수 있다. 원본 출력을 잃으면 이후 디버깅과 감사가 불가능해진다.
 
-## Decision
+## 결정
 
-Every harness run must preserve raw model output before parsing, validation, or scoring.
+모든 하네스 실행은 파싱, 검증, 채점 전에 원본 모델 출력을 보존해야 한다.
 
-## Consequences
+## 영향
 
-### Positive
+### 긍정적 영향
 
-- Failures can be reproduced and inspected.
-- Parser changes can be evaluated against previous outputs.
+- 실패를 재현하고 검사할 수 있다.
+- 파서 변경 사항을 이전 출력에 대해 평가할 수 있다.
 
-### Negative
+### 부정적 영향
 
-- Artifact storage grows with benchmark size.
-- Raw outputs may contain sensitive prompt content and need careful handling.
+- 벤치마크 규모가 커질수록 아티팩트 저장 용량도 증가한다.
+- 원본 출력에는 민감한 프롬프트 내용이 포함될 수 있으므로 신중하게 다뤄야 한다.
 
-## Alternatives Considered
+## 검토한 대안
 
-- Store only parsed JSON
-- Store only aggregate scores
+- 파싱된 JSON만 저장
+- 집계 점수만 저장

@@ -204,6 +204,7 @@ MileDay/
 - `docs/data_flow.md`: 데이터 흐름
 - `docs/error_logging.md`: 에러 및 로깅 정책
 - `docs/troubleshooting.md`: 문제 해결 가이드
+- `docs/harness_guide.md`: 로컬 LLM 평가 하네스 실행, 리포트, LLM-as-Judge, 트러블 슈팅 가이드
 - `docs/commit_guide.md`: 커밋 가이드
 
 ## 라이선스

@@ -1,32 +1,32 @@
-# ADR-0005: Use BMAD Lite with Codex Harness
+# ADR-0005: Codex 하네스에 BMAD Lite 사용
 
-## Status
+## 상태
 
-accepted
+승인됨
 
-## Context
+## 배경
 
-The full BMAD process is heavier than needed for this repository, but Story-level planning, evidence, and status tracking are valuable for harness work.
+전체 BMAD 프로세스는 이 저장소에 필요한 수준보다 무겁지만, Story 단위 계획, 증거, 상태 추적은 하네스 작업에 가치가 있다.
 
-## Decision
+## 결정
 
-Adopt BMAD Lite with Product Brief, PRD, Architecture, Epics, Stories, sprint status, completion reports, and Codex skill guidance.
+Product Brief, PRD, Architecture, Epics, Stories, sprint status, completion reports, Codex skill guidance를 포함하는 BMAD Lite를 채택한다.
 
-## Consequences
+## 영향
 
-### Positive
+### 긍정적 영향
 
-- Codex work can proceed Story by Story with explicit Acceptance Criteria.
-- Completion evidence is consistent and auditable.
-- Planning docs remain lightweight.
+- Codex 작업을 명시적인 Acceptance Criteria에 따라 Story 단위로 진행할 수 있다.
+- 완료 증거가 일관되고 감사 가능하다.
+- 계획 문서를 가볍게 유지할 수 있다.
 
-### Negative
+### 부정적 영향
 
-- More documents must be maintained.
-- The harness workflow is separate from existing MileDay app docs.
+- 유지해야 할 문서가 늘어난다.
+- 하네스 워크플로는 기존 MileDay 앱 문서와 분리된다.
 
-## Alternatives Considered
+## 검토한 대안
 
-- Full BMAD installation
-- Ad hoc task notes
-- Code-only implementation
+- 전체 BMAD 설치
+- 임시 작업 노트
+- 코드만 구현

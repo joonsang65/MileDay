@@ -1,29 +1,29 @@
-# ADR-0002: Separate Official and Generation Evaluation
+# ADR-0002: 공식 평가와 생성 평가를 분리
 
-## Status
+## 상태
 
-accepted
+승인됨
 
-## Context
+## 배경
 
-Public benchmarks and MileDay-specific generation tasks measure different qualities and require different validation methods.
+공개 벤치마크와 MileDay 전용 생성 작업은 서로 다른 품질을 측정하며, 필요한 검증 방식도 다르다.
 
-## Decision
+## 결정
 
-Keep official benchmark adapters separate from MileDay generation evaluation.
+공식 벤치마크 어댑터와 MileDay 생성 평가를 분리해서 유지한다.
 
-## Consequences
+## 영향
 
-### Positive
+### 긍정적 영향
 
-- Benchmark scores remain traceable to benchmark-specific rules.
-- Product-specific schedule validation can evolve independently.
+- 벤치마크 점수를 벤치마크별 규칙에 따라 추적할 수 있다.
+- 제품 전용 일정 검증을 독립적으로 발전시킬 수 있다.
 
-### Negative
+### 부정적 영향
 
-- Final model recommendation must combine multiple score families.
+- 최종 모델 추천은 여러 점수 계열을 조합해야 한다.
 
-## Alternatives Considered
+## 검토한 대안
 
-- One shared evaluator for every dataset
-- Only product-specific prompts without public benchmarks
+- 모든 데이터셋에 하나의 공통 평가기 사용
+- 공개 벤치마크 없이 제품 전용 프롬프트만 사용

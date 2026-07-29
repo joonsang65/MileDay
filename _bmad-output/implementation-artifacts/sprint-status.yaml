@@ -1,5 +1,5 @@
 project: local-llm-evaluation
-updated_at: "2026-07-21"
+updated_at: "2026-07-27"
 
 epics:
   epic_1:
@@ -23,27 +23,27 @@ epics:
       EVAL-006: done
       EVAL-007: done
       EVAL-008: done
-      EVAL-009: backlog
+      EVAL-009: done
 
   epic_4:
     title: MileDay test set evaluation
     status: planned
     stories:
-      EVAL-010: backlog
-      EVAL-011: backlog
-      EVAL-012: backlog
+      EVAL-010: done
+      EVAL-011: done
+      EVAL-012: done
 
   epic_5:
     title: System performance
     status: planned
     stories:
       EVAL-004: done
-      EVAL-013: backlog
+      EVAL-013: done
 
   epic_6:
     title: Result aggregation and reporting
     status: planned
     stories:
-      EVAL-014: backlog
-      EVAL-015: backlog
-      EVAL-016: backlog
+      EVAL-014: done
+      EVAL-015: done
+      EVAL-016: done
