@@ -1,9 +1,14 @@
+import json
+
 import pytest
 
+import harness.dataset_processor as dataset_processor
+from harness.dataset_registry import DatasetConfig
 from harness.dataset_processor import (
     DatasetProcessingError,
     _answer_from_choice_text,
     _answer_from_one_based_value,
+    load_prepared_dataset_rows,
     _parse_labeled_choices,
 )
 from harness.schemas import FailureCategory
@@ -37,3 +42,29 @@ def test_parse_labeled_choices_reads_a_to_j_lines():
     choices = _parse_labeled_choices("Question\n\nA: first\nB: second\nC: third\n", 1)
 
     assert choices == {"A": "first", "B": "second", "C": "third"}
+
+
+def test_load_prepared_dataset_rows_reads_processed_jsonl(monkeypatch, tmp_path):
+    monkeypatch.setattr(dataset_processor, "BASE_DIR", tmp_path)
+    processed_path = tmp_path / "datasets" / "kobalt-700" / "rev-1" / "processed" / "data.jsonl"
+    processed_path.parent.mkdir(parents=True)
+    processed_path.write_text(
+        json.dumps({"case_id": "case-1", "question": "Q", "answer": "A"}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    config = DatasetConfig(
+        dataset_id="snunlp/KoBALT-700",
+        source_url="https://example.test/kobalt",
+        official_repository="https://example.test/repo",
+        revision="rev-1",
+        config="kobalt_v1",
+        split="raw",
+        license="cc-by-nc-4.0",
+        commercial_use_verified=False,
+        fields={"question": "Question", "answer": "Answer"},
+    )
+
+    loaded = load_prepared_dataset_rows("kobalt", config)
+
+    assert loaded.source_path == processed_path
+    assert loaded.rows == [{"case_id": "case-1", "question": "Q", "answer": "A"}]

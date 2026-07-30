@@ -1,7 +1,16 @@
 from typer.testing import CliRunner
 
 from harness.benchmarks.mcq import MCQCaseResult
-from harness.cli import PublicBenchmarkCase, _evaluate_mileday_record, _mileday_generation_prompt, app
+from harness.cli import (
+    THIRD_BENCHMARK_SYSTEM_PROMPT,
+    PublicBenchmarkCase,
+    _evaluate_mileday_record,
+    _load_third_benchmark_cases,
+    _mileday_generation_prompt,
+    app,
+)
+from harness.dataset_processor import ProcessedDataset, ProcessedDatasetRows
+from harness.dataset_registry import DatasetConfig
 from harness.mileday.dataset import load_mileday_generation_cases
 from harness.mileday.explanation_judge import ExplanationJudgeResult
 from harness.runtime.base import RuntimeResponse
@@ -267,6 +276,150 @@ def test_run_benchmark_uses_comma_models_and_writes_reports(monkeypatch, tmp_pat
         "ingu627/exaone4.0:1.2b",
         "granite4.1:3b",
     ]
+
+
+def test_run_third_benchmark_uses_fixed_models_datasets_and_system_prompt(monkeypatch, tmp_path):
+    monkeypatch.setenv("HARNESS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("HARNESS_RUNS_DIR", str(tmp_path / "artifacts" / "runs"))
+    runtimes = []
+
+    def score_response(raw_output):
+        return MCQCaseResult(
+            benchmark_id="kobalt-700",
+            case_id="case-1",
+            category="reasoning",
+            correct_answer="A",
+            raw_output=raw_output,
+            parsed_answer=raw_output.strip(),
+            is_correct=raw_output.strip() == "A",
+            is_invalid=False,
+        )
+
+    def fake_load_cases(dataset_configs, *, snapshot_dir):
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "ifeval_ko": [],
+            "kobalt": [
+                PublicBenchmarkCase(
+                    dataset_key="kobalt",
+                    dataset_id="kobalt-700",
+                    benchmark_id="kobalt-700",
+                    case_id="case-1",
+                    prompt="question",
+                    score_response=score_response,
+                )
+            ],
+        }
+
+    class MockOllamaRuntime:
+        def __init__(self, base_url):
+            self.base_url = base_url
+            self.requests = []
+            runtimes.append(self)
+
+        def stream(self, request):
+            return iter(())
+
+        def generate(self, request):
+            self.requests.append(request)
+            return RuntimeResponse(
+                model_tag=request.model_tag,
+                text="A",
+                metrics=RuntimeMetrics(ttft_ms=1, latency_ms=2, tokens_per_second=3),
+            )
+
+    monkeypatch.setattr("harness.cli._load_third_benchmark_cases", fake_load_cases)
+    monkeypatch.setattr("harness.cli.OllamaRuntime", MockOllamaRuntime)
+
+    result = CliRunner().invoke(app, ["run-third-benchmark"])
+
+    assert result.exit_code == 0
+    assert "batch_id=third-benchmark-batch-1" in result.stdout
+    assert "models=candidate-3, candidate-5" in result.stdout
+    assert "datasets=ifeval_ko:0, kobalt:1" in result.stdout
+    assert "sampling=none" in result.stdout
+    assert "candidate-3 -> candidate-3-third-benchmark-1" in result.stdout
+    assert "candidate-5 -> candidate-5-third-benchmark-1" in result.stdout
+    assert [runtime.requests[0].model_tag for runtime in runtimes] == [
+        "granite4.1:3b",
+        "ministral-3:3b",
+    ]
+    assert all(runtime.requests[0].system == THIRD_BENCHMARK_SYSTEM_PROMPT for runtime in runtimes)
+    summary_path = tmp_path / "artifacts" / "runs" / "third-benchmark-batch-1-summary.md"
+    assert summary_path.exists()
+    summary_text = summary_path.read_text(encoding="utf-8")
+    assert "3차 형식 제약·추론 안정성 테스트" in summary_text
+    assert "IFEval-Ko=60%, KoBALT-700=40%" in summary_text
+
+
+def test_load_third_benchmark_cases_rebuilds_full_processed_datasets(monkeypatch, tmp_path):
+    prepared = []
+    loaded = []
+
+    config = DatasetConfig(
+        dataset_id="dataset",
+        source_url="https://example.test/source",
+        official_repository="https://example.test/repo",
+        revision="rev-1",
+        config="default",
+        split="train",
+        license="test",
+        commercial_use_verified=False,
+        fields={"question": "question"},
+    )
+
+    def fake_prepare_dataset(dataset_key, dataset, *, sample_limit=None):
+        prepared.append((dataset_key, sample_limit))
+        return ProcessedDataset(
+            dataset_key=dataset_key,
+            source_path=tmp_path / "source",
+            processed_path=tmp_path / "processed" / dataset_key / "data.jsonl",
+            row_count=1,
+        )
+
+    def fake_load_prepared_dataset_rows(dataset_key, dataset):
+        loaded.append(dataset_key)
+        if dataset_key == "ifeval_ko":
+            return ProcessedDatasetRows(
+                dataset_key=dataset_key,
+                source_path=tmp_path / "ifeval_ko.jsonl",
+                rows=[
+                        {
+                            "benchmark_id": "ifeval-ko",
+                            "dataset_id": "ifeval-ko",
+                            "case_id": "ifeval-1",
+                            "prompt": "지시를 따르세요.",
+                            "instruction_ids": ["keywords:existence"],
+                            "kwargs": [{"keywords": ["지시"]}],
+                        }
+                ],
+            )
+        return ProcessedDatasetRows(
+            dataset_key=dataset_key,
+            source_path=tmp_path / "kobalt.jsonl",
+            rows=[
+                {
+                    "case_id": "kobalt-1",
+                    "question": "Q",
+                    "choice_a": "A1",
+                    "choice_b": "B1",
+                    "answer": "A",
+                    "category": "reasoning",
+                }
+            ],
+        )
+
+    monkeypatch.setattr("harness.cli.prepare_dataset", fake_prepare_dataset)
+    monkeypatch.setattr("harness.cli.load_prepared_dataset_rows", fake_load_prepared_dataset_rows)
+
+    cases = _load_third_benchmark_cases(
+        {"ifeval_ko": config, "kobalt": config},
+        snapshot_dir=tmp_path / "snapshots",
+    )
+
+    assert prepared == [("ifeval_ko", None), ("kobalt", None)]
+    assert loaded == ["ifeval_ko", "kobalt"]
+    assert {key: len(value) for key, value in cases.items()} == {"ifeval_ko": 1, "kobalt": 1}
 
 
 def test_mileday_prompt_enforces_korean_json_contract_and_required_fields():

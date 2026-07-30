@@ -38,6 +38,7 @@ class BenchmarkRunConfig(BaseModel):
     model_tag: str
     mode: BenchmarkMode = BenchmarkMode.COLD
     warmup_iterations: int = Field(default=1, ge=0)
+    system: str | None = None
     response_format: str | dict[str, object] | None = None
     runtime_options: dict[str, object] = Field(default_factory=dict)
     timeout_seconds: int = Field(default=120, gt=0)
@@ -58,6 +59,7 @@ def run_benchmark_cases(
     *,
     monitor_factory: Callable[[], PerformanceMonitor],
     completed_resume_keys: set[tuple[str, str, str, str]] | None = None,
+    progress_callback: Callable[[BenchmarkExecutionRecord], None] | None = None,
 ) -> list[BenchmarkExecutionRecord]:
     records: list[BenchmarkExecutionRecord] = []
     completed = completed_resume_keys or set()
@@ -67,10 +69,19 @@ def run_benchmark_cases(
             continue
         if config.mode == BenchmarkMode.WARM:
             for _ in range(config.warmup_iterations):
-                records.append(_execute_case(case, config, runtime, monitor_factory, ExecutionPhase.WARMUP))
-            records.append(_execute_case(case, config, runtime, monitor_factory, ExecutionPhase.WARM_MEASURED))
+                record = _execute_case(case, config, runtime, monitor_factory, ExecutionPhase.WARMUP)
+                records.append(record)
+                if progress_callback is not None:
+                    progress_callback(record)
+            record = _execute_case(case, config, runtime, monitor_factory, ExecutionPhase.WARM_MEASURED)
+            records.append(record)
+            if progress_callback is not None:
+                progress_callback(record)
         else:
-            records.append(_execute_case(case, config, runtime, monitor_factory, ExecutionPhase.COLD_MEASURED))
+            record = _execute_case(case, config, runtime, monitor_factory, ExecutionPhase.COLD_MEASURED)
+            records.append(record)
+            if progress_callback is not None:
+                progress_callback(record)
     return records
 
 
@@ -90,6 +101,7 @@ def _execute_case(
         RuntimeRequest(
             model_tag=config.model_tag,
             prompt=case.prompt,
+            system=config.system,
             response_format=config.response_format,
             options=config.runtime_options,
             timeout_seconds=config.timeout_seconds,

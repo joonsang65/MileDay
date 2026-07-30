@@ -124,6 +124,7 @@ def test_run_config_passes_optional_response_format_and_runtime_options():
             run_id="run-1",
             model_id="candidate-1",
             model_tag="local",
+            system="Follow instructions exactly.",
             response_format="json",
             runtime_options={"temperature": 0},
         ),
@@ -131,5 +132,26 @@ def test_run_config_passes_optional_response_format_and_runtime_options():
         monitor_factory=_monitor,
     )
 
+    assert runtime.requests[0].system == "Follow instructions exactly."
     assert runtime.requests[0].response_format == "json"
     assert runtime.requests[0].options == {"temperature": 0}
+
+
+def test_progress_callback_receives_each_execution_record():
+    phases = []
+
+    run_benchmark_cases(
+        [_case()],
+        BenchmarkRunConfig(
+            run_id="run-1",
+            model_id="candidate-1",
+            model_tag="local",
+            mode=BenchmarkMode.WARM,
+            warmup_iterations=1,
+        ),
+        MockRuntime(),
+        monitor_factory=_monitor,
+        progress_callback=lambda record: phases.append(record.phase),
+    )
+
+    assert phases == [ExecutionPhase.WARMUP, ExecutionPhase.WARM_MEASURED]

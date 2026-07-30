@@ -132,6 +132,20 @@ def load_processed_dataset_rows(
     )
 
 
+def load_prepared_dataset_rows(
+    dataset_key: str,
+    dataset: DatasetConfig,
+) -> ProcessedDatasetRows:
+    """Load rows from an existing processed/data.jsonl artifact."""
+
+    path = _processed_file(dataset_key, dataset)
+    return ProcessedDatasetRows(
+        dataset_key=dataset_key,
+        source_path=path,
+        rows=_read_jsonl(path),
+    )
+
+
 def _prepare_kmmlu_pro(
     dataset_key: str,
     dataset: DatasetConfig,

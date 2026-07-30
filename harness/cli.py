@@ -12,10 +12,21 @@ from typing import Annotated, Any, Callable
 import typer
 from pydantic import ValidationError
 
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover - optional CLI enhancement
+    tqdm = None
+
 from harness.benchmarks.ifeval_ko import load_ifeval_ko_cases
 from harness.benchmarks.mcq import MCQChoice, MCQQuestion, build_mcq_prompt, score_mcq_response
 from harness.config import load_settings
-from harness.dataset_processor import DatasetProcessingError, load_processed_dataset_rows, prepare_all_datasets
+from harness.dataset_processor import (
+    DatasetProcessingError,
+    load_prepared_dataset_rows,
+    load_processed_dataset_rows,
+    prepare_all_datasets,
+    prepare_dataset,
+)
 from harness.dataset_registry import DEFAULT_DATASET_REGISTRY_PATH, load_dataset_registry
 from harness.mileday.constraints import validate_schedule_output
 from harness.mileday.dataset import MileDayGenerationCase, load_mileday_generation_cases
@@ -50,6 +61,21 @@ from harness.schemas import EvaluationError, FailureCategory, RequestResult, Res
 app = typer.Typer(help="Local LLM evaluation harness.")
 FENCED_JSON_PATTERN = re.compile(r"```(?:json)?\s*(?P<json>.*?)\s*```", re.IGNORECASE | re.DOTALL)
 PUBLIC_BENCHMARK_DATASET_KEYS = ("ifeval_ko", "kobalt", "click", "kmmlu_pro")
+THIRD_BENCHMARK_MODEL_IDS = ("candidate-3", "candidate-5")
+THIRD_BENCHMARK_DATASET_KEYS = ("ifeval_ko", "kobalt")
+THIRD_BENCHMARK_WEIGHTS = {
+    "ifeval-ko": 0.60,
+    "kobalt-700": 0.40,
+}
+THIRD_BENCHMARK_SYSTEM_PROMPT = (
+    "당신은 한국어 평가 데이터셋에 응답하는 로컬 LLM입니다.\n\n"
+    "반드시 사용자의 지시를 최우선으로 따르세요.\n"
+    "숨은 사고 과정, 풀이 과정, 자체 검토 과정, 메타 설명을 출력하지 마세요.\n"
+    "최종 답변만 출력하세요.\n\n"
+    "IFEval-Ko 문제에서는 사용자가 요구한 형식, 길이, 키워드, 금지어, 반복, 종료 조건을 정확히 따르세요.\n"
+    "KoBALT-700 객관식 문제에서는 A, B, C, D, E, F, G, H, I, J 중 정답 하나만 출력하세요.\n"
+    "정답을 모르는 경우에도 설명하지 말고 가장 가능성 높은 선택지 하나만 출력하세요."
+)
 PUBLIC_DATASET_IDS = {
     "ifeval_ko": "ifeval-ko",
     "kobalt": "kobalt-700",
@@ -429,6 +455,99 @@ def run_benchmark(
     typer.echo(f"batch_summary={summary_path}")
 
 
+@app.command("run-third-benchmark")
+def run_third_benchmark(
+    registry: Annotated[
+        Path,
+        typer.Option("--registry", help="Model registry YAML path."),
+    ] = DEFAULT_MODEL_REGISTRY_PATH,
+    dataset_registry: Annotated[
+        Path,
+        typer.Option("--dataset-registry", help="Dataset registry YAML path."),
+    ] = DEFAULT_DATASET_REGISTRY_PATH,
+    mode: Annotated[
+        BenchmarkMode,
+        typer.Option("--mode", help="cold or warm execution mode."),
+    ] = BenchmarkMode.COLD,
+) -> None:
+    """Run the fixed third-stage benchmark for candidate-3 and candidate-5."""
+
+    settings = load_settings()
+    try:
+        model_registry = load_model_registry(registry)
+        dataset_configs = load_dataset_registry(dataset_registry)
+        model_by_id = {item.id: item for item in model_registry.models}
+        missing_model_ids = [item for item in THIRD_BENCHMARK_MODEL_IDS if item not in model_by_id]
+        if missing_model_ids:
+            raise typer.BadParameter(f"Unknown model id: {', '.join(missing_model_ids)}")
+        missing_dataset_keys = [
+            dataset_key
+            for dataset_key in THIRD_BENCHMARK_DATASET_KEYS
+            if dataset_key not in dataset_configs.datasets
+        ]
+        if missing_dataset_keys:
+            raise typer.BadParameter(f"Missing dataset configs: {', '.join(missing_dataset_keys)}")
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    store = ResultStore(settings.runs_dir)
+    batch_sequence = _next_third_benchmark_batch_sequence(store.runs_dir)
+    batch_id = _third_benchmark_batch_id(batch_sequence)
+    cases_by_dataset = _load_third_benchmark_cases(
+        dataset_configs.datasets,
+        snapshot_dir=store.runs_dir / f"{batch_id}-datasets",
+    )
+    dataset_counts = {key: len(value) for key, value in cases_by_dataset.items()}
+    typer.echo(f"batch_id={batch_id}")
+    typer.echo("models=" + ", ".join(THIRD_BENCHMARK_MODEL_IDS))
+    typer.echo("datasets=" + ", ".join(f"{key}:{value}" for key, value in dataset_counts.items()))
+    typer.echo("sampling=none")
+    typer.echo("weights=ifeval-ko:0.60,kobalt-700:0.40")
+
+    batch_items: list[dict[str, object]] = []
+    for current_model_id in THIRD_BENCHMARK_MODEL_IDS:
+        model = model_by_id[current_model_id]
+        current_run_id = f"{model.id}-third-benchmark-{batch_sequence}"
+        stored = _run_public_benchmark_for_model(
+            model_id=model.id,
+            model_tag=model.model_tag,
+            run_id=current_run_id,
+            mode=mode,
+            cases_by_dataset=cases_by_dataset,
+            store=store,
+            ollama_base_url=settings.ollama_base_url,
+            timeout_seconds=settings.default_timeout_seconds,
+            system_prompt=THIRD_BENCHMARK_SYSTEM_PROMPT,
+            dataset_order=THIRD_BENCHMARK_DATASET_KEYS,
+            progress_label="third benchmark",
+        )
+        report_path = generate_markdown_report(current_run_id, settings.runs_dir)
+        counts = _status_counts(store.load_request_results(current_run_id))
+        batch_items.append(
+            {
+                "model_id": model.id,
+                "run_id": current_run_id,
+                "status": "completed",
+                "stored": stored,
+                "counts": counts,
+                "report_path": report_path,
+            }
+        )
+        typer.echo(
+            f"{model.id} -> {current_run_id} -> {report_path} -> "
+            f"{_counter_text_for_cli(counts)}"
+        )
+
+    summary_path = _write_third_benchmark_batch_summary(
+        store.runs_dir,
+        batch_id=batch_id,
+        items=batch_items,
+        dataset_counts=dataset_counts,
+    )
+    typer.echo(f"completed={len(batch_items)} failed=0")
+    typer.echo(f"batch_summary={summary_path}")
+
+
 def _run_mileday_smoke_for_model(
     *,
     model_id: str,
@@ -450,20 +569,29 @@ def _run_mileday_smoke_for_model(
         )
         for case in cases
     ]
-    records = run_benchmark_cases(
-        prompts,
-        BenchmarkRunConfig(
-            run_id=run_id,
-            model_id=model_id,
-            model_tag=model_tag,
-            mode=mode,
-            runtime_options={"temperature": 0},
-            timeout_seconds=timeout_seconds,
-        ),
-        OllamaRuntime(base_url=ollama_base_url),
-        monitor_factory=PerformanceMonitor,
-        completed_resume_keys=set(store.resume_index(run_id)),
+    config = BenchmarkRunConfig(
+        run_id=run_id,
+        model_id=model_id,
+        model_tag=model_tag,
+        mode=mode,
+        runtime_options={"temperature": 0},
+        timeout_seconds=timeout_seconds,
     )
+    progress = _progress_bar(
+        total=_progress_total(len(prompts), config),
+        desc=f"{model_id} MileDay",
+    )
+    try:
+        records = run_benchmark_cases(
+            prompts,
+            config,
+            OllamaRuntime(base_url=ollama_base_url),
+            monitor_factory=PerformanceMonitor,
+            completed_resume_keys=set(store.resume_index(run_id)),
+            progress_callback=_progress_update(progress),
+        )
+    finally:
+        _progress_close(progress)
     case_by_id = {case.case_id: case for case in cases}
     stored = 0
     for record in measured_records(records):
@@ -495,62 +623,74 @@ def _run_public_benchmark_for_model(
     store: ResultStore,
     ollama_base_url: str,
     timeout_seconds: int,
+    system_prompt: str | None = None,
+    dataset_order: tuple[str, ...] = PUBLIC_BENCHMARK_DATASET_KEYS,
+    progress_label: str = "benchmark",
 ) -> int:
-    all_cases = [
-        case
-        for dataset_key in PUBLIC_BENCHMARK_DATASET_KEYS
-        for case in cases_by_dataset.get(dataset_key, [])
-    ]
-    prompts = [
-        BenchmarkCasePrompt(
-            dataset_id=case.dataset_id,
-            case_id=case.case_id,
-            prompt=case.prompt,
-            parsed_output={
-                "evaluation_family": "public_benchmark",
-                "dataset_key": case.dataset_key,
-                "benchmark_id": case.benchmark_id,
-            },
-        )
-        for case in all_cases
-    ]
-    records = run_benchmark_cases(
-        prompts,
-        BenchmarkRunConfig(
-            run_id=run_id,
-            model_id=model_id,
-            model_tag=model_tag,
-            mode=mode,
-            runtime_options={"temperature": 0},
-            timeout_seconds=timeout_seconds,
-        ),
-        OllamaRuntime(base_url=ollama_base_url),
-        monitor_factory=PerformanceMonitor,
-        completed_resume_keys=set(store.resume_index(run_id)),
+    config = BenchmarkRunConfig(
+        run_id=run_id,
+        model_id=model_id,
+        model_tag=model_tag,
+        mode=mode,
+        system=system_prompt,
+        runtime_options={"temperature": 0},
+        timeout_seconds=timeout_seconds,
     )
-    case_by_key = {(case.dataset_id, case.case_id): case for case in all_cases}
     stored = 0
-    for record in measured_records(records):
-        base_result = record.request_result
-        case = case_by_key[(base_result.dataset_id, base_result.case_id)]
-        result = _evaluate_public_benchmark_record(base_result, case, record.response.text)
-        store.store_request_result(result, raw_output=record.response.text)
-        store.append_performance_samples(
-            run_id,
-            [record.performance_summary.model_dump(mode="json")],
-            phase=record.phase.value,
+    for dataset_key in dataset_order:
+        dataset_cases = cases_by_dataset.get(dataset_key, [])
+        if not dataset_cases:
+            continue
+        prompts = [
+            BenchmarkCasePrompt(
+                dataset_id=case.dataset_id,
+                case_id=case.case_id,
+                prompt=case.prompt,
+                parsed_output={
+                    "evaluation_family": "public_benchmark",
+                    "dataset_key": case.dataset_key,
+                    "benchmark_id": case.benchmark_id,
+                },
+            )
+            for case in dataset_cases
+        ]
+        progress = _progress_bar(
+            total=_progress_total(len(prompts), config),
+            desc=f"{model_id} {dataset_key} {progress_label}",
         )
-        stored += 1
-        if result.status == ResultStatus.FAILED:
-            error_text = (
-                f"{result.error.category.value}: {result.error.message}"
-                if result.error is not None
-                else "unknown failure"
+        try:
+            records = run_benchmark_cases(
+                prompts,
+                config,
+                OllamaRuntime(base_url=ollama_base_url),
+                monitor_factory=PerformanceMonitor,
+                completed_resume_keys=set(store.resume_index(run_id)),
+                progress_callback=_progress_update(progress),
             )
-            raise RuntimeError(
-                f"Benchmark run stopped after failed result "
-                f"{model_id}/{case.dataset_id}/{case.case_id}: {error_text}"
+        finally:
+            _progress_close(progress)
+        case_by_key = {(case.dataset_id, case.case_id): case for case in dataset_cases}
+        for record in measured_records(records):
+            base_result = record.request_result
+            case = case_by_key[(base_result.dataset_id, base_result.case_id)]
+            result = _evaluate_public_benchmark_record(base_result, case, record.response.text)
+            store.store_request_result(result, raw_output=record.response.text)
+            store.append_performance_samples(
+                run_id,
+                [record.performance_summary.model_dump(mode="json")],
+                phase=record.phase.value,
             )
+            stored += 1
+            if result.status == ResultStatus.FAILED:
+                error_text = (
+                    f"{result.error.category.value}: {result.error.message}"
+                    if result.error is not None
+                    else "unknown failure"
+                )
+                raise RuntimeError(
+                    f"Benchmark run stopped after failed result "
+                    f"{model_id}/{case.dataset_id}/{case.case_id}: {error_text}"
+                )
     return stored
 
 
@@ -572,6 +712,25 @@ def _load_public_benchmark_cases(
         cases_by_dataset[dataset_key] = _load_public_benchmark_cases_from_sample(
             dataset_key,
             sample_path,
+        )
+    return cases_by_dataset
+
+
+def _load_third_benchmark_cases(
+    dataset_configs: dict[str, Any],
+    *,
+    snapshot_dir: Path,
+) -> dict[str, list[PublicBenchmarkCase]]:
+    cases_by_dataset: dict[str, list[PublicBenchmarkCase]] = {}
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    for dataset_key in THIRD_BENCHMARK_DATASET_KEYS:
+        prepare_dataset(dataset_key, dataset_configs[dataset_key], sample_limit=None)
+        loaded = load_prepared_dataset_rows(dataset_key, dataset_configs[dataset_key])
+        snapshot_path = snapshot_dir / f"{dataset_key}.jsonl"
+        _write_jsonl(snapshot_path, loaded.rows)
+        cases_by_dataset[dataset_key] = _load_public_benchmark_cases_from_sample(
+            dataset_key,
+            snapshot_path,
         )
     return cases_by_dataset
 
@@ -736,8 +895,31 @@ def _next_benchmark_batch_sequence(runs_dir: Path, model_ids: list[str], limit: 
     return highest + 1
 
 
+def _next_third_benchmark_batch_sequence(runs_dir: Path) -> int:
+    highest = 0
+    if not runs_dir.exists():
+        return 1
+    patterns = [
+        re.compile(rf"^{re.escape(model_id)}-third-benchmark-(?P<sequence>\d+)$")
+        for model_id in THIRD_BENCHMARK_MODEL_IDS
+    ]
+    for path in runs_dir.iterdir():
+        if not path.is_dir():
+            continue
+        for pattern in patterns:
+            match = pattern.fullmatch(path.name)
+            if match is not None:
+                highest = max(highest, int(match.group("sequence")))
+                break
+    return highest + 1
+
+
 def _benchmark_batch_id(sequence: int, limit: int) -> str:
     return f"benchmark-batch-{sequence}-{limit}cases"
+
+
+def _third_benchmark_batch_id(sequence: int) -> str:
+    return f"third-benchmark-batch-{sequence}"
 
 
 def _write_public_benchmark_batch_summary(
@@ -837,20 +1019,132 @@ def _write_public_benchmark_batch_summary(
     return path
 
 
+def _write_third_benchmark_batch_summary(
+    runs_dir: Path,
+    *,
+    batch_id: str,
+    items: list[dict[str, object]],
+    dataset_counts: dict[str, int],
+) -> Path:
+    path = runs_dir / f"{batch_id}-summary.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    store = ResultStore(runs_dir)
+    model_summaries = [
+        _public_benchmark_model_summary(
+            model_id=str(item["model_id"]),
+            run_id=str(item["run_id"]),
+            results=store.load_request_results(str(item["run_id"])),
+            weights=THIRD_BENCHMARK_WEIGHTS,
+        )
+        for item in items
+    ]
+    winner = _third_benchmark_winner(model_summaries)
+    lines = [
+        f"# 3차 형식 제약·추론 안정성 테스트 Summary: {batch_id}",
+        "",
+        "## 실행 조건",
+        "",
+        f"- model ids: {', '.join(THIRD_BENCHMARK_MODEL_IDS)}",
+        f"- dataset keys: {', '.join(THIRD_BENCHMARK_DATASET_KEYS)}",
+        "- sampling: none",
+        "- dataset 기준: processed data 전체",
+        "- system prompt: candidate-3와 candidate-5에 동일 적용",
+        "- weights: IFEval-Ko=60%, KoBALT-700=40%",
+        f"- dataset counts: {_dict_counter_text(dataset_counts)}",
+        "",
+        "## System Prompt",
+        "",
+        "```text",
+        THIRD_BENCHMARK_SYSTEM_PROMPT,
+        "```",
+        "",
+        "## 모델별 실행 요약",
+        "",
+        "| model | run_id | status | passed | invalid | failed | skipped | weighted score | IFEval-Ko | KoBALT-700 | report |",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    for item in items:
+        counts = item.get("counts")
+        count_map = counts if isinstance(counts, dict) else {}
+        summary = next(
+            model_summary
+            for model_summary in model_summaries
+            if model_summary["model_id"] == item["model_id"]
+        )
+        dataset_scores = summary["dataset_scores"]
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _escape_table(str(item.get("model_id", ""))),
+                    _escape_table(str(item.get("run_id", ""))),
+                    _escape_table(str(item.get("status", ""))),
+                    str(count_map.get("passed", 0)),
+                    str(count_map.get("invalid", 0)),
+                    str(count_map.get("failed", 0)),
+                    str(count_map.get("skipped", 0)),
+                    _format_optional_float(summary["weighted_score"]),
+                    _format_optional_float(dataset_scores.get("ifeval-ko")),
+                    _format_optional_float(dataset_scores.get("kobalt-700")),
+                    f"`{Path(str(item.get('report_path', ''))).as_posix()}`" if item.get("report_path") else "",
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "## 판단 기준",
+            "",
+            "- `failed=0`이어야 운영 후보로 유지한다.",
+            "- `invalid rate < 5%`를 기본 통과 기준으로 둔다.",
+            "- IFEval-Ko 60%, KoBALT-700 40% weighted score 1위 모델을 우선한다.",
+            "- weighted score 차이가 0.03 미만이면 IFEval-Ko 점수가 높은 모델을 우선한다.",
+            "- 품질 지표가 유사하면 평균 latency와 p95 latency가 낮은 모델을 우선한다.",
+            "",
+            "## 실패 및 invalid 요약",
+            "",
+        ]
+    )
+    for summary in model_summaries:
+        lines.append(
+            f"- {summary['model_id']}: status={_dict_counter_text(summary['status_counts'])}, "
+            f"errors={_dict_counter_text(summary['error_counts']) if summary['error_counts'] else '없음'}, "
+            f"invalid_rate={_format_rate_from_counts(summary['status_counts'].get('invalid', 0), sum(summary['status_counts'].values()))}"
+        )
+    lines.extend(
+        [
+            "",
+            "## 최종 후보 판단",
+            "",
+        ]
+    )
+    if winner is None:
+        lines.append("3차 판단 기준을 만족하는 모델이 없다. system prompt 또는 parser 정책을 먼저 재검토한다.")
+    else:
+        lines.append(
+            f"`{winner['model_id']}`가 3차 판단 기준을 만족하는 우선 후보이다. "
+            f"weighted score는 {_format_optional_float(winner['weighted_score'])}이다."
+        )
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8", newline="\n")
+    return path
+
+
 def _public_benchmark_model_summary(
     *,
     model_id: str,
     run_id: str,
     results: list[RequestResult],
+    weights: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     dataset_scores: dict[str, float | None] = {}
-    weights = {
+    active_weights = weights or {
         "ifeval-ko": 0.40,
         "kobalt-700": 0.30,
         "click": 0.15,
         "kmmlu-pro": 0.15,
     }
-    for dataset_id in weights:
+    for dataset_id in active_weights:
         scores = [
             _public_result_score(result)
             for result in results
@@ -859,7 +1153,7 @@ def _public_benchmark_model_summary(
         dataset_scores[dataset_id] = round(sum(scores) / len(scores), 4) if scores else None
     weighted_parts = [
         dataset_scores[dataset_id] * weight
-        for dataset_id, weight in weights.items()
+        for dataset_id, weight in active_weights.items()
         if dataset_scores[dataset_id] is not None
     ]
     error_counts = Counter(
@@ -871,10 +1165,32 @@ def _public_benchmark_model_summary(
         "model_id": model_id,
         "run_id": run_id,
         "dataset_scores": dataset_scores,
-        "weighted_score": round(sum(weighted_parts), 4) if len(weighted_parts) == len(weights) else None,
+        "weighted_score": round(sum(weighted_parts), 4) if len(weighted_parts) == len(active_weights) else None,
         "status_counts": Counter(result.status.value for result in results),
         "error_counts": error_counts,
     }
+
+
+def _third_benchmark_winner(model_summaries: list[dict[str, Any]]) -> dict[str, Any] | None:
+    eligible = []
+    for summary in model_summaries:
+        status_counts = summary["status_counts"]
+        total = sum(status_counts.values())
+        failed = status_counts.get(ResultStatus.FAILED.value, 0)
+        invalid = status_counts.get(ResultStatus.INVALID.value, 0)
+        invalid_rate = invalid / total if total else 1.0
+        if failed == 0 and invalid_rate < 0.05 and summary["weighted_score"] is not None:
+            eligible.append(summary)
+    if not eligible:
+        return None
+    eligible.sort(
+        key=lambda summary: (
+            summary["weighted_score"],
+            summary["dataset_scores"].get("ifeval-ko") or 0.0,
+        ),
+        reverse=True,
+    )
+    return eligible[0]
 
 
 def _public_result_score(result: RequestResult) -> float | None:
@@ -882,6 +1198,37 @@ def _public_result_score(result: RequestResult) -> float | None:
     if isinstance(value, int | float):
         return float(value)
     return None
+
+
+def _format_rate_from_counts(numerator: int, denominator: int) -> str:
+    if denominator <= 0:
+        return "없음"
+    return f"{numerator / denominator:.1%}"
+
+
+def _progress_total(case_count: int, config: BenchmarkRunConfig) -> int:
+    if config.mode == BenchmarkMode.WARM:
+        return case_count * (config.warmup_iterations + 1)
+    return case_count
+
+
+def _progress_bar(*, total: int, desc: str):
+    if tqdm is None or total <= 0:
+        return None
+    return tqdm(total=total, desc=desc, unit="case", dynamic_ncols=True)
+
+
+def _progress_update(progress):
+    def update(_record) -> None:
+        if progress is not None:
+            progress.update(1)
+
+    return update
+
+
+def _progress_close(progress) -> None:
+    if progress is not None:
+        progress.close()
 
 
 def _parse_model_ids(raw_model_ids: str) -> list[str]:
