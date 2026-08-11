@@ -48,7 +48,7 @@ def test_report_covers_complete_results_with_separated_families_and_raw_links(tm
     text = path.read_text(encoding="utf-8")
 
     assert path.name == "report.md"
-    assert "공개 benchmark 결과: 1" in text
+    assert "기타 결과: 1" in text
     assert "MileDay 생성 결과: 1" in text
     assert "Raw Artifact 참조" in text
     assert "raw output" not in text

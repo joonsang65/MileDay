@@ -26,14 +26,12 @@ class ReportInput:
 def generate_markdown_report(
     run_id: str,
     runs_dir: str | Path = Path("artifacts") / "runs",
-    *,
-    include_recommendation: bool = False,
 ) -> Path:
     """저장된 run artifact에서 deterministic Markdown 리포트를 생성합니다."""
 
     store = ResultStore(runs_dir)
     report_input = load_report_input(run_id, store)
-    text = render_markdown_report(report_input, include_recommendation=include_recommendation)
+    text = render_markdown_report(report_input)
     path = report_input.run_dir / "report.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8", newline="\n")
@@ -49,11 +47,7 @@ def load_report_input(run_id: str, store: ResultStore) -> ReportInput:
     )
 
 
-def render_markdown_report(
-    report_input: ReportInput,
-    *,
-    include_recommendation: bool = False,
-) -> str:
+def render_markdown_report(report_input: ReportInput) -> str:
     lines: list[str] = [
         f"# Harness 리포트: {report_input.run_id}",
         "",
@@ -83,23 +77,18 @@ def render_markdown_report(
         lines.extend(_metrics_summary(report_input.results, report_input.performance_samples))
         lines.extend(_raw_artifact_references(report_input.results))
 
-    if include_recommendation:
-        from harness.recommendation import render_recommendation_markdown, summarize_recommendation
-
-        lines.extend(render_recommendation_markdown(summarize_recommendation(report_input.run_id, report_input.run_dir.parent)))
-
     return "\n".join(lines).rstrip() + "\n"
 
 
 def dataset_family(dataset_id: str, parsed_output: dict[str, Any] | None = None) -> str:
     parsed = parsed_output or {}
     explicit = parsed.get("evaluation_family") or parsed.get("family")
-    if explicit in {"public_benchmark", "mileday_generation", "mileday_multiturn"}:
+    if explicit in {"mileday_generation", "mileday_multiturn", "other"}:
         return str(explicit)
     lowered = dataset_id.lower()
     if lowered.startswith("mileday") or "mileday" in lowered or "validation" in parsed or "rubric" in parsed:
         return "mileday_generation"
-    return "public_benchmark"
+    return "other"
 
 
 def _execution_summary(results: Iterable[RequestResult]) -> list[str]:
@@ -111,7 +100,7 @@ def _execution_summary(results: Iterable[RequestResult]) -> list[str]:
         "",
         f"- 전체 request result: {len(result_list)}",
         f"- 상태별 개수: {_counter_text(status_counts)}",
-        f"- 공개 benchmark 결과: {family_counts.get('public_benchmark', 0)}",
+        f"- 기타 결과: {family_counts.get('other', 0)}",
         f"- MileDay 생성 결과: {family_counts.get('mileday_generation', 0)}",
         "",
     ]
@@ -125,13 +114,13 @@ def _model_summary(results: Iterable[RequestResult]) -> list[str]:
     lines = [
         "## 모델 요약",
         "",
-        "| 모델 | 결과 수 | passed | invalid | failed | skipped | 공개 점수 | MileDay 유효율 | MileDay semantic | 평균 latency ms | 평균 TTFT ms | 평균 tok/s |",
+        "| 모델 | 결과 수 | passed | invalid | failed | skipped | 기타 점수 | MileDay 유효율 | MileDay semantic | 평균 latency ms | 평균 TTFT ms | 평균 tok/s |",
         "|---|---:|---:|---:|---:|---:|---|---|---|---|---|---|",
     ]
     for model_id in sorted(by_model):
         group = by_model[model_id]
         counts = Counter(result.status.value for result in group)
-        public_scores = [_public_score(result) for result in group if dataset_family(result.dataset_id, result.parsed_output) == "public_benchmark"]
+        other_scores = [_generic_score(result) for result in group if dataset_family(result.dataset_id, result.parsed_output) == "other"]
         mileday_results = [result for result in group if dataset_family(result.dataset_id, result.parsed_output) == "mileday_generation"]
         semantic_scores = [_semantic_score(result) for result in mileday_results]
         lines.append(
@@ -144,7 +133,7 @@ def _model_summary(results: Iterable[RequestResult]) -> list[str]:
                     str(counts.get(ResultStatus.INVALID.value, 0)),
                     str(counts.get(ResultStatus.FAILED.value, 0)),
                     str(counts.get(ResultStatus.SKIPPED.value, 0)),
-                    _format_optional_mean(public_scores),
+                    _format_optional_mean(other_scores),
                     _format_rate(sum(1 for result in mileday_results if result.status == ResultStatus.PASSED), len(mileday_results)),
                     _format_optional_mean(semantic_scores),
                     _format_optional_mean(result.metrics.latency_ms for result in group),
@@ -173,8 +162,8 @@ def _dataset_summary(results: Iterable[RequestResult]) -> list[str]:
         group = by_dataset[dataset_id]
         counts = Counter(result.status.value for result in group)
         family = dataset_family(dataset_id, group[0].parsed_output if group else {})
-        if family == "public_benchmark":
-            score = _format_optional_mean(_public_score(result) for result in group)
+        if family == "other":
+            score = _format_optional_mean(_generic_score(result) for result in group)
         else:
             score = _format_rate(sum(1 for result in group if result.status == ResultStatus.PASSED), len(group))
         lines.append(
@@ -252,7 +241,7 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def _public_score(result: RequestResult) -> float | None:
+def _generic_score(result: RequestResult) -> float | None:
     parsed = result.parsed_output
     for key in ("score", "accuracy", "strict_accuracy", "prompt_level_strict_accuracy"):
         value = parsed.get(key)
