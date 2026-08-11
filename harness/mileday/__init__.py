@@ -1,10 +1,15 @@
 from harness.mileday.dataset import (
     DEFAULT_DATASET_ID,
+    MULTITURN_DATASET_ID,
     MileDayDatasetError,
     MileDayGenerationCase,
     MileDayGenerationExpected,
     MileDayGenerationInput,
+    MileDayMultiTurnCase,
+    MileDayMultiTurnExpected,
+    MileDayMultiTurnInput,
     load_mileday_generation_cases,
+    load_mileday_multiturn_cases,
 )
 from harness.mileday.constraints import (
     ScheduleFailureCode,
@@ -21,10 +26,14 @@ from harness.mileday.rubric import (
 
 __all__ = [
     "DEFAULT_DATASET_ID",
+    "MULTITURN_DATASET_ID",
     "MileDayDatasetError",
     "MileDayGenerationCase",
     "MileDayGenerationExpected",
     "MileDayGenerationInput",
+    "MileDayMultiTurnCase",
+    "MileDayMultiTurnExpected",
+    "MileDayMultiTurnInput",
     "RUBRIC_DOCUMENTATION",
     "RubricDimensionScore",
     "ScheduleFailureCode",
@@ -33,5 +42,6 @@ __all__ = [
     "SemanticRubricResult",
     "evaluate_semantic_rubric",
     "load_mileday_generation_cases",
+    "load_mileday_multiturn_cases",
     "validate_schedule_output",
 ]

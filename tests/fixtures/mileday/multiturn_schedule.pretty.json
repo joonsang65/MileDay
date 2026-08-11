@@ -1,0 +1,4329 @@
+[
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-001",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "중간고사 준비",
+        "deadline": "2026-09-20",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#4F46E5"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-20까지 중간고사 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "두 번째 주 일정 중 하나만 작업명을 더 구체적으로 바꿔줘. 다른 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마지막 일정만 점검 위주로 바꾸고 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-20"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "basic_creation",
+      "user_segment": "student",
+      "domain": "academic",
+      "tags": [
+        "basic_creation",
+        "student",
+        "academic",
+        "subset_slots",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-002",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "포트폴리오 개선",
+        "deadline": "2026-10-21",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#2563EB"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-21까지 포트폴리오 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "두 번째 주 일정 중 하나만 작업명을 더 구체적으로 바꿔줘. 다른 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마지막 일정만 점검 위주로 바꾸고 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-21"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "basic_creation",
+      "user_segment": "student",
+      "domain": "career",
+      "tags": [
+        "basic_creation",
+        "student",
+        "career",
+        "rename_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-003",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "독서 기록 만들기",
+        "deadline": "2026-11-22",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#059669"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "21:00",
+          "end_time": "23:00"
+        },
+        {
+          "day_of_week": "friday",
+          "start_time": "19:30",
+          "end_time": "21:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "14:00",
+          "end_time": "16:00"
+        }
+      ],
+      "existing_schedule": [
+        {
+          "id": "fixture-ms-003-done",
+          "fixture_milestone_id": "fixture-ms-completed-001",
+          "goal_id": "fixture-goal-003",
+          "title": "완료된 사전 준비",
+          "color": "#059669",
+          "scheduled_date": "2026-08-05",
+          "is_completed": true
+        }
+      ]
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-11-22까지 독서 기록 만들기 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "두 번째 주 일정 중 하나만 작업명을 더 구체적으로 바꿔줘. 다른 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "soften"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마지막 일정만 점검 위주로 바꾸고 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-11-22"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "basic_creation",
+      "user_segment": "student",
+      "domain": "self_development",
+      "tags": [
+        "basic_creation",
+        "student",
+        "self_development",
+        "soften_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-004",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "수면 루틴 개선",
+        "deadline": "2026-12-23",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#D97706"
+      },
+      "availability": [
+        {
+          "day_of_week": "wednesday",
+          "start_time": "07:30",
+          "end_time": "08:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "15:00",
+          "end_time": "17:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-12-23까지 수면 루틴 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "두 번째 주 일정 중 하나만 작업명을 더 구체적으로 바꿔줘. 다른 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "add"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마지막 일정만 점검 위주로 바꾸고 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-12-23"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 1,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "basic_creation",
+      "user_segment": "student",
+      "domain": "health",
+      "tags": [
+        "basic_creation",
+        "student",
+        "health",
+        "single_add",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-005",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "자취 식단 준비",
+        "deadline": "2026-09-24",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#7C3AED"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-24까지 자취 식단 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "두 번째 주 일정 중 하나만 작업명을 더 구체적으로 바꿔줘. 다른 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "remove"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마지막 일정만 점검 위주로 바꾸고 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-24"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 1,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "basic_creation",
+      "user_segment": "student",
+      "domain": "life",
+      "tags": [
+        "basic_creation",
+        "student",
+        "life",
+        "single_remove",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-006",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "중간고사 준비",
+        "deadline": "2026-10-25",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#DC2626"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-25까지 중간고사 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "두 번째 주 일정 중 하나만 작업명을 더 구체적으로 바꿔줘. 다른 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마지막 일정만 점검 위주로 바꾸고 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-25"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "basic_creation",
+      "user_segment": "student",
+      "domain": "academic",
+      "tags": [
+        "basic_creation",
+        "student",
+        "academic",
+        "reschedule_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-007",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "포트폴리오 개선",
+        "deadline": "2026-11-26",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#4F46E5"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "21:00",
+          "end_time": "23:00"
+        },
+        {
+          "day_of_week": "friday",
+          "start_time": "19:30",
+          "end_time": "21:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "14:00",
+          "end_time": "16:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-11-26까지 포트폴리오 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "수요일 또는 평일 일정만 강도를 낮춰줘. 주말 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "이번에는 날짜와 시간은 바꾸지 말고 작업명만 다시 정리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-11-26"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": true,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "target_not_found"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "partial_update",
+      "user_segment": "student",
+      "domain": "career",
+      "tags": [
+        "partial_update",
+        "student",
+        "career",
+        "target_not_found",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-008",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "독서 기록 만들기",
+        "deadline": "2026-12-27",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#2563EB"
+      },
+      "availability": [
+        {
+          "day_of_week": "wednesday",
+          "start_time": "07:30",
+          "end_time": "08:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "15:00",
+          "end_time": "17:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": [
+        {
+          "id": "fixture-ms-008-done",
+          "fixture_milestone_id": "fixture-ms-completed-001",
+          "goal_id": "fixture-goal-008",
+          "title": "완료된 사전 준비",
+          "color": "#2563EB",
+          "scheduled_date": "2026-08-05",
+          "is_completed": true
+        }
+      ]
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-12-27까지 독서 기록 만들기 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "수요일 또는 평일 일정만 강도를 낮춰줘. 주말 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "이번에는 날짜와 시간은 바꾸지 말고 작업명만 다시 정리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-12-27"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [
+          "fixture-ms-completed-001"
+        ],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "completed_milestone_protection"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "partial_update",
+      "user_segment": "student",
+      "domain": "self_development",
+      "tags": [
+        "partial_update",
+        "student",
+        "self_development",
+        "completed_milestone_protection",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-009",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "수면 루틴 개선",
+        "deadline": "2026-09-20",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#059669"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-20까지 수면 루틴 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "수요일 또는 평일 일정만 강도를 낮춰줘. 주말 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "이번에는 날짜와 시간은 바꾸지 말고 작업명만 다시 정리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-20"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": true,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "availability_violation"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "partial_update",
+      "user_segment": "student",
+      "domain": "health",
+      "tags": [
+        "partial_update",
+        "student",
+        "health",
+        "availability_violation",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-010",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "자취 식단 준비",
+        "deadline": "2026-10-21",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#D97706"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-21까지 자취 식단 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "수요일 또는 평일 일정만 강도를 낮춰줘. 주말 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "이번에는 날짜와 시간은 바꾸지 말고 작업명만 다시 정리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-21"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": true,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "deadline_violation"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "partial_update",
+      "user_segment": "student",
+      "domain": "life",
+      "tags": [
+        "partial_update",
+        "student",
+        "life",
+        "deadline_violation",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-011",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "중간고사 준비",
+        "deadline": "2026-11-22",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#7C3AED"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "21:00",
+          "end_time": "23:00"
+        },
+        {
+          "day_of_week": "friday",
+          "start_time": "19:30",
+          "end_time": "21:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "14:00",
+          "end_time": "16:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-11-22까지 중간고사 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "수요일 또는 평일 일정만 강도를 낮춰줘. 주말 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "이번에는 날짜와 시간은 바꾸지 말고 작업명만 다시 정리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-11-22"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": true,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": []
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "partial_update",
+      "user_segment": "student",
+      "domain": "academic",
+      "tags": [
+        "partial_update",
+        "student",
+        "academic",
+        "ambiguous_target",
+        "ambiguous_request"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-012",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "포트폴리오 개선",
+        "deadline": "2026-12-23",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#DC2626"
+      },
+      "availability": [
+        {
+          "day_of_week": "wednesday",
+          "start_time": "07:30",
+          "end_time": "08:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "15:00",
+          "end_time": "17:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-12-23까지 포트폴리오 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "수요일 또는 평일 일정만 강도를 낮춰줘. 주말 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "이번에는 날짜와 시간은 바꾸지 말고 작업명만 다시 정리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-12-23"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": []
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "partial_update",
+      "user_segment": "student",
+      "domain": "career",
+      "tags": [
+        "partial_update",
+        "student",
+        "career",
+        "ambiguous_request"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-013",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "독서 기록 만들기",
+        "deadline": "2026-09-24",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#4F46E5"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": [
+        {
+          "id": "fixture-ms-013-done",
+          "fixture_milestone_id": "fixture-ms-completed-001",
+          "goal_id": "fixture-goal-013",
+          "title": "완료된 사전 준비",
+          "color": "#4F46E5",
+          "scheduled_date": "2026-08-05",
+          "is_completed": true
+        }
+      ]
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-24까지 독서 기록 만들기 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "수요일 또는 평일 일정만 강도를 낮춰줘. 주말 일정은 그대로 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "이번에는 날짜와 시간은 바꾸지 말고 작업명만 다시 정리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-24"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "partial_update",
+      "user_segment": "student",
+      "domain": "self_development",
+      "tags": [
+        "partial_update",
+        "student",
+        "self_development",
+        "subset_slots",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-014",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "수면 루틴 개선",
+        "deadline": "2026-10-25",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#2563EB"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-25까지 수면 루틴 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "가능한 일정 하나를 추가하거나, 부담이 큰 일정 하나만 제외해줘. 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "아까 추가하거나 제외한 부분만 유지하고, 다른 일정은 건드리지 마.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-25"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "add_remove",
+      "user_segment": "student",
+      "domain": "health",
+      "tags": [
+        "add_remove",
+        "student",
+        "health",
+        "rename_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-015",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "자취 식단 준비",
+        "deadline": "2026-11-26",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#059669"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "21:00",
+          "end_time": "23:00"
+        },
+        {
+          "day_of_week": "friday",
+          "start_time": "19:30",
+          "end_time": "21:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "14:00",
+          "end_time": "16:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-11-26까지 자취 식단 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "가능한 일정 하나를 추가하거나, 부담이 큰 일정 하나만 제외해줘. 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "soften"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "아까 추가하거나 제외한 부분만 유지하고, 다른 일정은 건드리지 마.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-11-26"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "add_remove",
+      "user_segment": "student",
+      "domain": "life",
+      "tags": [
+        "add_remove",
+        "student",
+        "life",
+        "soften_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-016",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "중간고사 준비",
+        "deadline": "2026-12-27",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#D97706"
+      },
+      "availability": [
+        {
+          "day_of_week": "wednesday",
+          "start_time": "07:30",
+          "end_time": "08:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "15:00",
+          "end_time": "17:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-12-27까지 중간고사 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "가능한 일정 하나를 추가하거나, 부담이 큰 일정 하나만 제외해줘. 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "add"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "아까 추가하거나 제외한 부분만 유지하고, 다른 일정은 건드리지 마.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-12-27"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 1,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "add_remove",
+      "user_segment": "early_career",
+      "domain": "academic",
+      "tags": [
+        "add_remove",
+        "early_career",
+        "academic",
+        "single_add",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-017",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "포트폴리오 개선",
+        "deadline": "2026-09-20",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#7C3AED"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-20까지 포트폴리오 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "가능한 일정 하나를 추가하거나, 부담이 큰 일정 하나만 제외해줘. 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "remove"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "아까 추가하거나 제외한 부분만 유지하고, 다른 일정은 건드리지 마.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-20"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 1,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "add_remove",
+      "user_segment": "early_career",
+      "domain": "career",
+      "tags": [
+        "add_remove",
+        "early_career",
+        "career",
+        "single_remove",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-018",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "독서 기록 만들기",
+        "deadline": "2026-10-21",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#DC2626"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": [
+        {
+          "id": "fixture-ms-018-done",
+          "fixture_milestone_id": "fixture-ms-completed-001",
+          "goal_id": "fixture-goal-018",
+          "title": "완료된 사전 준비",
+          "color": "#DC2626",
+          "scheduled_date": "2026-08-05",
+          "is_completed": true
+        }
+      ]
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-21까지 독서 기록 만들기 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "가능한 일정 하나를 추가하거나, 부담이 큰 일정 하나만 제외해줘. 나머지는 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "아까 추가하거나 제외한 부분만 유지하고, 다른 일정은 건드리지 마.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-21"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "add_remove",
+      "user_segment": "early_career",
+      "domain": "self_development",
+      "tags": [
+        "add_remove",
+        "early_career",
+        "self_development",
+        "reschedule_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-019",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "수면 루틴 개선",
+        "deadline": "2026-11-22",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#4F46E5"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "21:00",
+          "end_time": "23:00"
+        },
+        {
+          "day_of_week": "friday",
+          "start_time": "19:30",
+          "end_time": "21:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "14:00",
+          "end_time": "16:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-11-22까지 수면 루틴 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "이전 계획에 없는 마지막 발표 리허설을 토요일 오후로 바꿔줘. 다른 일정은 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마감일 이후로 하나 옮겨도 되는지 물어본다면, 불가능하면 기존 계획을 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-11-22"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": true,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "target_not_found"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "conflict",
+      "user_segment": "early_career",
+      "domain": "health",
+      "tags": [
+        "conflict",
+        "early_career",
+        "health",
+        "target_not_found",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-020",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "자취 식단 준비",
+        "deadline": "2026-12-23",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#2563EB"
+      },
+      "availability": [
+        {
+          "day_of_week": "wednesday",
+          "start_time": "07:30",
+          "end_time": "08:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "15:00",
+          "end_time": "17:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": [
+        {
+          "id": "fixture-ms-020-done",
+          "fixture_milestone_id": "fixture-ms-completed-001",
+          "goal_id": "fixture-goal-020",
+          "title": "완료된 사전 준비",
+          "color": "#2563EB",
+          "scheduled_date": "2026-08-05",
+          "is_completed": true
+        }
+      ]
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-12-23까지 자취 식단 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "이전 계획에 없는 마지막 발표 리허설을 토요일 오후로 바꿔줘. 다른 일정은 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마감일 이후로 하나 옮겨도 되는지 물어본다면, 불가능하면 기존 계획을 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-12-23"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [
+          "fixture-ms-completed-001"
+        ],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "completed_milestone_protection"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "conflict",
+      "user_segment": "early_career",
+      "domain": "life",
+      "tags": [
+        "conflict",
+        "early_career",
+        "life",
+        "completed_milestone_protection",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-021",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "중간고사 준비",
+        "deadline": "2026-09-24",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#059669"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-24까지 중간고사 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "이전 계획에 없는 마지막 발표 리허설을 토요일 오후로 바꿔줘. 다른 일정은 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마감일 이후로 하나 옮겨도 되는지 물어본다면, 불가능하면 기존 계획을 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-24"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": true,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "availability_violation"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "conflict",
+      "user_segment": "early_career",
+      "domain": "academic",
+      "tags": [
+        "conflict",
+        "early_career",
+        "academic",
+        "availability_violation",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-022",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "포트폴리오 개선",
+        "deadline": "2026-10-25",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#D97706"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-25까지 포트폴리오 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "이전 계획에 없는 마지막 발표 리허설을 토요일 오후로 바꿔줘. 다른 일정은 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마감일 이후로 하나 옮겨도 되는지 물어본다면, 불가능하면 기존 계획을 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-25"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": true,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "deadline_violation"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "conflict",
+      "user_segment": "early_career",
+      "domain": "career",
+      "tags": [
+        "conflict",
+        "early_career",
+        "career",
+        "deadline_violation",
+        "negative"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-023",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "독서 기록 만들기",
+        "deadline": "2026-11-26",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#7C3AED"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "21:00",
+          "end_time": "23:00"
+        },
+        {
+          "day_of_week": "friday",
+          "start_time": "19:30",
+          "end_time": "21:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "14:00",
+          "end_time": "16:00"
+        }
+      ],
+      "existing_schedule": [
+        {
+          "id": "fixture-ms-023-done",
+          "fixture_milestone_id": "fixture-ms-completed-001",
+          "goal_id": "fixture-goal-023",
+          "title": "완료된 사전 준비",
+          "color": "#7C3AED",
+          "scheduled_date": "2026-08-05",
+          "is_completed": true
+        }
+      ]
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-11-26까지 독서 기록 만들기 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "이전 계획에 없는 마지막 발표 리허설을 토요일 오후로 바꿔줘. 다른 일정은 그대로 둬.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "마감일 이후로 하나 옮겨도 되는지 물어본다면, 불가능하면 기존 계획을 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "none"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-11-26"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": true,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": []
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "conflict",
+      "user_segment": "early_career",
+      "domain": "self_development",
+      "tags": [
+        "conflict",
+        "early_career",
+        "self_development",
+        "ambiguous_target",
+        "ambiguous_request"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-024",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "수면 루틴 개선",
+        "deadline": "2026-12-27",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#DC2626"
+      },
+      "availability": [
+        {
+          "day_of_week": "wednesday",
+          "start_time": "07:30",
+          "end_time": "08:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "15:00",
+          "end_time": "17:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-12-27까지 수면 루틴 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "완료된 기존 일정은 건드리지 말고, 남은 일정 중 하나만 이름을 바꿔줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "완료된 일정과 언급하지 않은 일정이 그대로인지 다시 확인해서 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-12-27"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": []
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "state_preservation",
+      "user_segment": "early_career",
+      "domain": "health",
+      "tags": [
+        "state_preservation",
+        "early_career",
+        "health",
+        "ambiguous_request"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-025",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "자취 식단 준비",
+        "deadline": "2026-09-20",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#4F46E5"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-20까지 자취 식단 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "완료된 기존 일정은 건드리지 말고, 남은 일정 중 하나만 이름을 바꿔줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "완료된 일정과 언급하지 않은 일정이 그대로인지 다시 확인해서 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-20"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "state_preservation",
+      "user_segment": "early_career",
+      "domain": "life",
+      "tags": [
+        "state_preservation",
+        "early_career",
+        "life",
+        "subset_slots",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-026",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "중간고사 준비",
+        "deadline": "2026-10-21",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#2563EB"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-21까지 중간고사 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "완료된 기존 일정은 건드리지 말고, 남은 일정 중 하나만 이름을 바꿔줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "완료된 일정과 언급하지 않은 일정이 그대로인지 다시 확인해서 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-21"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "state_preservation",
+      "user_segment": "early_career",
+      "domain": "academic",
+      "tags": [
+        "state_preservation",
+        "early_career",
+        "academic",
+        "rename_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-027",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "포트폴리오 개선",
+        "deadline": "2026-11-22",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#059669"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "21:00",
+          "end_time": "23:00"
+        },
+        {
+          "day_of_week": "friday",
+          "start_time": "19:30",
+          "end_time": "21:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "14:00",
+          "end_time": "16:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-11-22까지 포트폴리오 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "완료된 기존 일정은 건드리지 말고, 남은 일정 중 하나만 이름을 바꿔줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "soften"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "완료된 일정과 언급하지 않은 일정이 그대로인지 다시 확인해서 유지해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-11-22"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "state_preservation",
+      "user_segment": "early_career",
+      "domain": "career",
+      "tags": [
+        "state_preservation",
+        "early_career",
+        "career",
+        "soften_only",
+        "preserve_unmentioned"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-028",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "독서 기록 만들기",
+        "deadline": "2026-12-23",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#D97706"
+      },
+      "availability": [
+        {
+          "day_of_week": "wednesday",
+          "start_time": "07:30",
+          "end_time": "08:30"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "15:00",
+          "end_time": "17:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": [
+        {
+          "id": "fixture-ms-028-done",
+          "fixture_milestone_id": "fixture-ms-completed-001",
+          "goal_id": "fixture-goal-028",
+          "title": "완료된 사전 준비",
+          "color": "#D97706",
+          "scheduled_date": "2026-08-05",
+          "is_completed": true
+        }
+      ]
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-12-23까지 독서 기록 만들기 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "일정이 좀 애매해. 무리하지 않는 방향으로 조정해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "add"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "대상이 여러 개면 임의로 고르지 말고 확인이 필요하다고 처리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-12-23"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 1,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "ambiguous",
+      "user_segment": "early_career",
+      "domain": "self_development",
+      "tags": [
+        "ambiguous",
+        "early_career",
+        "self_development",
+        "single_add",
+        "preserve_unmentioned",
+        "ambiguous_request"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-029",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "수면 루틴 개선",
+        "deadline": "2026-09-24",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#7C3AED"
+      },
+      "availability": [
+        {
+          "day_of_week": "monday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "wednesday",
+          "start_time": "19:00",
+          "end_time": "21:00"
+        },
+        {
+          "day_of_week": "saturday",
+          "start_time": "10:00",
+          "end_time": "12:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-09-24까지 수면 루틴 개선 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "일정이 좀 애매해. 무리하지 않는 방향으로 조정해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "remove"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "대상이 여러 개면 임의로 고르지 말고 확인이 필요하다고 처리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-09-24"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 1,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "ambiguous",
+      "user_segment": "early_career",
+      "domain": "health",
+      "tags": [
+        "ambiguous",
+        "early_career",
+        "health",
+        "single_remove",
+        "preserve_unmentioned",
+        "ambiguous_request"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  },
+  {
+    "dataset_id": "mileday-multiturn-schedule",
+    "case_id": "multiturn-030",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "input": {
+      "initial_goal": {
+        "title": "자취 식단 준비",
+        "deadline": "2026-10-25",
+        "is_recurring": false,
+        "recurrence_type": null,
+        "color": "#DC2626"
+      },
+      "availability": [
+        {
+          "day_of_week": "tuesday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "thursday",
+          "start_time": "20:00",
+          "end_time": "22:00"
+        },
+        {
+          "day_of_week": "sunday",
+          "start_time": "09:00",
+          "end_time": "11:00"
+        }
+      ],
+      "existing_schedule": []
+    },
+    "turns": [
+      {
+        "turn_id": 1,
+        "role": "user",
+        "content": "2026-10-25까지 자취 식단 준비 일정을 만들고 싶어. 가능한 시간 안에서 3~6개 정도로 계획해줘.",
+        "expected_action": "create",
+        "expected_operation": null
+      },
+      {
+        "turn_id": 2,
+        "role": "user",
+        "content": "일정이 좀 애매해. 무리하지 않는 방향으로 조정해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      },
+      {
+        "turn_id": 3,
+        "role": "user",
+        "content": "대상이 여러 개면 임의로 고르지 말고 확인이 필요하다고 처리해줘.",
+        "expected_action": "partial_update",
+        "expected_operation": "rename"
+      }
+    ],
+    "expected": {
+      "response_sections": [
+        "SCHEDULE_INTENT"
+      ],
+      "required_json_fields": [
+        "action",
+        "intent",
+        "plan_items",
+        "requires_confirmation"
+      ],
+      "db_goal_fields": [
+        "title",
+        "deadline",
+        "is_recurring",
+        "recurrence_type",
+        "color"
+      ],
+      "db_milestone_fields": [
+        "title",
+        "color",
+        "scheduled_date"
+      ],
+      "non_db_schedule_slot_fields": [
+        "slot_id",
+        "task"
+      ],
+      "allowed_actions": [
+        "create",
+        "partial_update",
+        "no_op",
+        "clarify"
+      ],
+      "partial_update_only": true,
+      "requires_judge": true,
+      "constraints": {
+        "must_respect_availability": true,
+        "must_preserve_unmentioned_milestones": true,
+        "must_require_user_confirmation": true,
+        "min_milestones": 3,
+        "max_milestones": 7,
+        "latest_allowed_date": "2026-10-25"
+      },
+      "effect": {
+        "target_milestone_ids": [],
+        "preserved_milestone_ids": [],
+        "protected_milestone_ids": [],
+        "allowed_changed_fields": [
+          "task_text"
+        ],
+        "forbidden_changed_fields": [
+          "scheduled_date",
+          "time_slot"
+        ],
+        "expected_added_count": 0,
+        "expected_removed_count": 0,
+        "expected_no_op": false,
+        "expected_clarification": false,
+        "preserve_unmentioned": true,
+        "safety_gate_tags": [
+          "preserve_unmentioned"
+        ]
+      },
+      "judge_rubric": [
+        "현재 사용자 요청이 이전 일정 상태에 맞게 반영됐는지 평가한다.",
+        "부분 수정 요청에서 언급되지 않은 일정은 유지한다.",
+        "불가능하거나 모호한 요청을 임의로 반영하지 않는다.",
+        "rule-based DB payload와 사용자 설명문이 충돌하지 않는다.",
+        "DB 업데이트 전 사용자 승인 필요성이 드러난다."
+      ]
+    },
+    "metadata": {
+      "source": "synthetic-multiturn",
+      "version": "v2",
+      "primary_group": "ambiguous",
+      "user_segment": "early_career",
+      "domain": "life",
+      "tags": [
+        "ambiguous",
+        "early_career",
+        "life",
+        "reschedule_only",
+        "preserve_unmentioned",
+        "ambiguous_request"
+      ],
+      "turn_count": 3,
+      "recurrence_scope": "out_of_scope"
+    }
+  }
+]
