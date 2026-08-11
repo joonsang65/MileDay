@@ -11,6 +11,3 @@ tqdm==4.67.1
 psutil==7.0.0
 pytest==8.4.1
 pytest-cov==6.2.1
-lm_eval==0.4.12
-langdetect==1.0.9
-immutabledict==4.2.1
