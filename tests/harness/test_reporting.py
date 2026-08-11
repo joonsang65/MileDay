@@ -1,3 +1,4 @@
+from harness.html_reporting import generate_mileday_multiturn_html_report
 from harness.reporting import generate_markdown_report
 from harness.results import ResultStore
 from harness.schemas import EvaluationError, FailureCategory, RequestResult, ResultStatus, RuntimeMetrics
@@ -103,3 +104,67 @@ def test_report_output_is_deterministic_for_same_input(tmp_path):
     second = generate_markdown_report("run-report", tmp_path / "runs").read_text(encoding="utf-8")
 
     assert first == second
+
+
+def test_mileday_multiturn_html_report_renders_summary_and_details(tmp_path):
+    store = ResultStore(tmp_path / "runs")
+    _stored_result(
+        store,
+        run_id="multiturn-run",
+        dataset_id="mileday-multiturn-schedule",
+        case_id="multiturn-001-turn-1",
+        parsed_output={
+            "case_id": "multiturn-001",
+            "turn_id": 1,
+            "evaluation_family": "mileday_multiturn",
+            "user_message": "일정을 제안했습니다.",
+            "explanation_judge": {"score": 0.9, "reason": "좋음", "is_aligned": True},
+            "parsed_json": {
+                "db_payload": {
+                    "goal": {"title": "러닝"},
+                    "milestones": [{"title": "[월 19:00-21:00] 조깅", "scheduled_date": "2026-08-03"}],
+                }
+            },
+        },
+    )
+    _stored_result(
+        store,
+        run_id="multiturn-run",
+        dataset_id="mileday-multiturn-schedule",
+        case_id="multiturn-001-turn-2",
+        status=ResultStatus.INVALID,
+        parsed_output={
+            "case_id": "multiturn-001",
+            "turn_id": 2,
+            "evaluation_family": "mileday_multiturn",
+            "explanation_judge": {"score": 0.0, "reason": "이전 일정과 불일치", "is_aligned": False},
+            "multiturn_validation": {
+                "deterministic_validation": {
+                    "failure_codes": ["AVAILABILITY_VIOLATION"],
+                    "failed_check_names": ["availability_alignment"],
+                },
+                "safety_gate": {
+                    "passed": False,
+                    "violations": [
+                        {
+                            "failure_code": "AVAILABILITY_VIOLATION",
+                            "message": "가용 시간 밖 일정 생성",
+                        }
+                    ],
+                },
+            },
+        },
+        error=EvaluationError(category=FailureCategory.PARSER_ERROR, message="judge rejected"),
+    )
+
+    path = generate_mileday_multiturn_html_report("multiturn-run", tmp_path / "runs")
+    text = path.read_text(encoding="utf-8")
+
+    assert path.name == "report.html"
+    assert "MileDay 멀티턴 리포트" in text
+    assert "전체 turn" in text
+    assert "multiturn-001-turn-2" in text
+    assert "이전 일정과 불일치" in text
+    assert "[월 19:00-21:00] 조깅" in text
+    assert "AVAILABILITY_VIOLATION" in text
+    assert "Safety Gate" in text

@@ -6,7 +6,9 @@ import random
 import subprocess
 from collections import Counter
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
+from statistics import mean
 from typing import Annotated, Any, Callable
 
 import typer
@@ -29,13 +31,30 @@ from harness.dataset_processor import (
 )
 from harness.dataset_registry import DEFAULT_DATASET_REGISTRY_PATH, load_dataset_registry
 from harness.mileday.constraints import validate_schedule_output
-from harness.mileday.dataset import MileDayGenerationCase, load_mileday_generation_cases
+from harness.mileday.dataset import (
+    GOAL_DB_FIELDS,
+    MILESTONE_DB_FIELDS,
+    MileDayGenerationCase,
+    MileDayMultiTurnCase,
+    load_mileday_generation_cases,
+    load_mileday_multiturn_cases,
+)
 from harness.mileday.explanation_judge import (
     ExplanationJudge,
     GeminiExplanationJudge,
     BatchQualitySummaryResult,
     skipped_batch_quality_summary_result,
     skipped_explanation_judge_result,
+)
+from harness.mileday.multiturn_prompts import (
+    ACTIVE_MULTITURN_PROMPT_VERSION,
+    build_mileday_multiturn_prompt,
+    date_day_of_week,
+    mileday_multiturn_allowed_slots,
+)
+from harness.mileday.time_prefix import (
+    canonical_milestone_title,
+    parse_canonical_milestone_title,
 )
 from harness.mileday.rubric import evaluate_semantic_rubric
 from harness.model_registry import (
@@ -51,17 +70,24 @@ from harness.orchestrator import (
     run_benchmark_cases,
 )
 from harness.performance.monitor import PerformanceMonitor
+from harness.html_reporting import generate_mileday_multiturn_html_report
 from harness.reporting import generate_markdown_report
 from harness.results import ResultStore
 from harness.runtime.base import RuntimeAdapterError
 from harness.runtime.ollama import OllamaRuntime
-from harness.schemas import EvaluationError, FailureCategory, RequestResult, ResultStatus
+from harness.schemas import EvaluationError, FailureCategory, RequestResult, ResultStatus, RuntimeMetrics
 
 
 app = typer.Typer(help="Local LLM evaluation harness.")
 FENCED_JSON_PATTERN = re.compile(r"```(?:json)?\s*(?P<json>.*?)\s*```", re.IGNORECASE | re.DOTALL)
 PUBLIC_BENCHMARK_DATASET_KEYS = ("ifeval_ko", "kobalt", "click", "kmmlu_pro")
 THIRD_BENCHMARK_MODEL_IDS = ("candidate-3", "candidate-5")
+MILEDAY_MULTITURN_MODEL_ID = "candidate-3"
+MILEDAY_MULTITURN_FIXTURE = Path("tests") / "fixtures" / "mileday" / "multiturn_schedule.pretty.json"
+MILEDAY_MULTITURN_DATASET_ID = "mileday-multiturn-schedule"
+MILEDAY_MULTITURN_PROMPT_VERSION = ACTIVE_MULTITURN_PROMPT_VERSION
+MILEDAY_MULTITURN_REFERENCE_TIMEZONE = "Asia/Seoul"
+MILEDAY_MULTITURN_RUNTIME_OPTIONS = {"temperature": 0.1, "top_p": 0.8}
 THIRD_BENCHMARK_DATASET_KEYS = ("ifeval_ko", "kobalt")
 THIRD_BENCHMARK_WEIGHTS = {
     "ifeval-ko": 0.60,
@@ -349,6 +375,185 @@ def run_mileday_smoke(
     typer.echo(f"batch_summary={summary_path}")
 
 
+@app.command("run-mileday-multiturn")
+def run_mileday_multiturn(
+    registry: Annotated[
+        Path,
+        typer.Option("--registry", help="Model registry YAML path."),
+    ] = DEFAULT_MODEL_REGISTRY_PATH,
+    mode: Annotated[
+        BenchmarkMode,
+        typer.Option("--mode", help="cold or warm execution mode."),
+    ] = BenchmarkMode.COLD,
+) -> None:
+    """Run the fixed MileDay multiturn evaluation for the selected local model."""
+
+    settings = load_settings()
+    explanation_judge = (
+        GeminiExplanationJudge(
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_judge_model,
+            base_url=settings.gemini_api_base_url,
+        )
+        if settings.gemini_api_key
+        else None
+    )
+    try:
+        model_registry = load_model_registry(registry)
+        model_by_id = {item.id: item for item in model_registry.models}
+        if MILEDAY_MULTITURN_MODEL_ID not in model_by_id:
+            raise typer.BadParameter(f"Unknown model id: {MILEDAY_MULTITURN_MODEL_ID}")
+        cases = load_mileday_multiturn_cases(MILEDAY_MULTITURN_FIXTURE)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    store = ResultStore(settings.runs_dir)
+    batch_sequence = _next_mileday_multiturn_sequence(store.runs_dir)
+    model = model_by_id[MILEDAY_MULTITURN_MODEL_ID]
+    run_id = f"{model.id}-mileday-multiturn-{batch_sequence}"
+
+    typer.echo(f"run_id={run_id}")
+    typer.echo(f"model={model.id}")
+    typer.echo(f"fixture={MILEDAY_MULTITURN_FIXTURE}")
+    typer.echo(f"cases={len(cases)}")
+    typer.echo(f"prompt_version={MILEDAY_MULTITURN_PROMPT_VERSION}")
+    typer.echo("judge=required")
+
+    stored = _run_mileday_multiturn_for_model(
+        model_id=model.id,
+        model_tag=model.model_tag,
+        run_id=run_id,
+        mode=mode,
+        cases=cases,
+        store=store,
+        ollama_base_url=settings.ollama_base_url,
+        timeout_seconds=settings.default_timeout_seconds,
+        explanation_judge=explanation_judge,
+    )
+    report_path = generate_markdown_report(run_id, settings.runs_dir)
+    multiturn_report_path = _append_mileday_multiturn_report(run_id, settings.runs_dir, cases)
+    html_report_path = generate_mileday_multiturn_html_report(run_id, settings.runs_dir)
+    counts = _status_counts(store.load_request_results(run_id))
+    typer.echo(
+        f"{model.id} -> {run_id} -> {report_path} -> "
+        f"{_counter_text_for_cli(counts)}"
+    )
+    typer.echo(f"stored={stored}")
+    typer.echo(f"multiturn_report={multiturn_report_path}")
+    typer.echo(f"html_report={html_report_path}")
+
+
+@app.command("run-mileday-multiturn-grid")
+def run_mileday_multiturn_grid(
+    registry: Annotated[
+        Path,
+        typer.Option("--registry", help="Model registry YAML path."),
+    ] = DEFAULT_MODEL_REGISTRY_PATH,
+    mode: Annotated[
+        BenchmarkMode,
+        typer.Option("--mode", help="cold or warm execution mode."),
+    ] = BenchmarkMode.COLD,
+) -> None:
+    """Run a small sampling-option grid for MileDay multiturn evaluation."""
+
+    settings = load_settings()
+    explanation_judge = (
+        GeminiExplanationJudge(
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_judge_model,
+            base_url=settings.gemini_api_base_url,
+        )
+        if settings.gemini_api_key
+        else None
+    )
+    try:
+        model_registry = load_model_registry(registry)
+        model_by_id = {item.id: item for item in model_registry.models}
+        if MILEDAY_MULTITURN_MODEL_ID not in model_by_id:
+            raise typer.BadParameter(f"Unknown model id: {MILEDAY_MULTITURN_MODEL_ID}")
+        cases = load_mileday_multiturn_cases(MILEDAY_MULTITURN_FIXTURE)[:3]
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    temperatures = [0.0, 0.1, 0.2]
+    top_ps = [0.8, 0.9, 1.0]
+    store = ResultStore(settings.runs_dir)
+    batch_sequence = _next_mileday_multiturn_grid_sequence(store.runs_dir)
+    batch_id = f"candidate-3-mileday-multiturn-grid-{batch_sequence}"
+    model = model_by_id[MILEDAY_MULTITURN_MODEL_ID]
+    batch_items: list[dict[str, object]] = []
+
+    typer.echo(f"batch_id={batch_id}")
+    typer.echo(f"model={model.id}")
+    typer.echo(f"fixture={MILEDAY_MULTITURN_FIXTURE}")
+    typer.echo(f"cases={len(cases)}")
+    typer.echo("temperature_grid=0.0,0.1,0.2")
+    typer.echo("top_p_grid=0.8,0.9,1.0")
+    typer.echo("judge=required")
+
+    for temperature in temperatures:
+        for top_p in top_ps:
+            run_id = (
+                f"{batch_id}-temp{_option_label(temperature)}-top_p{_option_label(top_p)}"
+            )
+            runtime_options = {"temperature": temperature, "top_p": top_p}
+            typer.echo(f"run_id={run_id} options={runtime_options}")
+            stored = _run_mileday_multiturn_for_model(
+                model_id=model.id,
+                model_tag=model.model_tag,
+                run_id=run_id,
+                mode=mode,
+                cases=cases,
+                store=store,
+                ollama_base_url=settings.ollama_base_url,
+                timeout_seconds=settings.default_timeout_seconds,
+                explanation_judge=explanation_judge,
+                runtime_options=runtime_options,
+            )
+            report_path = generate_markdown_report(run_id, settings.runs_dir)
+            multiturn_report_path = _append_mileday_multiturn_report(run_id, settings.runs_dir, cases)
+            html_report_path = generate_mileday_multiturn_html_report(run_id, settings.runs_dir)
+            results = store.load_request_results(run_id)
+            counts = _status_counts(results)
+            batch_items.append(
+                {
+                    "run_id": run_id,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "stored": stored,
+                    "counts": counts,
+                    "report_path": report_path,
+                    "multiturn_report_path": multiturn_report_path,
+                    "html_report_path": html_report_path,
+                }
+            )
+            typer.echo(
+                f"{run_id} -> {report_path} -> {_counter_text_for_cli(counts)} stored={stored}"
+            )
+
+    summary_path = _write_mileday_multiturn_grid_summary(
+        store.runs_dir,
+        batch_id=batch_id,
+        items=batch_items,
+        cases=cases,
+    )
+    typer.echo(f"grid_summary={summary_path}")
+
+
+@app.command("render-multiturn-html")
+def render_multiturn_html(
+    run_id: Annotated[
+        str,
+        typer.Option("--run-id", help="Run id under artifacts/runs."),
+    ],
+) -> None:
+    """Render a stored MileDay multiturn run as a local static HTML report."""
+
+    settings = load_settings()
+    html_report_path = generate_mileday_multiturn_html_report(run_id, settings.runs_dir)
+    typer.echo(f"html_report={html_report_path}")
+
+
 @app.command("run-benchmark")
 def run_benchmark(
     model_id: Annotated[
@@ -610,6 +815,110 @@ def _run_mileday_smoke_for_model(
             phase=record.phase.value,
         )
         stored += 1
+    return stored
+
+
+def _run_mileday_multiturn_for_model(
+    *,
+    model_id: str,
+    model_tag: str,
+    run_id: str,
+    mode: BenchmarkMode,
+    cases: list[MileDayMultiTurnCase],
+    store: ResultStore,
+    ollama_base_url: str,
+    timeout_seconds: int,
+    explanation_judge: ExplanationJudge | None,
+    runtime_options: dict[str, object] | None = None,
+) -> int:
+    config = BenchmarkRunConfig(
+        run_id=run_id,
+        model_id=model_id,
+        model_tag=model_tag,
+        mode=mode,
+        runtime_options=runtime_options or MILEDAY_MULTITURN_RUNTIME_OPTIONS,
+        timeout_seconds=timeout_seconds,
+    )
+    progress = _progress_bar(
+        total=_progress_total(sum(len(case.turns) for case in cases), config),
+        desc=f"{model_id} MileDay multiturn",
+    )
+    runtime = OllamaRuntime(base_url=ollama_base_url)
+    stored = 0
+    try:
+        for case in cases:
+            transcript: list[dict[str, str]] = []
+            previous_parsed: dict[str, Any] | None = None
+            case_blocked = False
+            for turn in case.turns:
+                turn_case_id = _mileday_multiturn_turn_case_id(case.case_id, turn.turn_id)
+                if case_blocked:
+                    skipped = _skipped_mileday_multiturn_result(
+                        run_id=run_id,
+                        model_id=model_id,
+                        dataset_id=case.dataset_id,
+                        case_id=turn_case_id,
+                        case=case,
+                        turn_id=turn.turn_id,
+                    )
+                    store.store_request_result(skipped)
+                    for _ in range(_progress_total(1, config)):
+                        _progress_update(progress)(None)
+                    stored += 1
+                    continue
+
+                prompt = _mileday_multiturn_prompt(case, turn.turn_id, transcript)
+                records = run_benchmark_cases(
+                    [
+                        BenchmarkCasePrompt(
+                            dataset_id=case.dataset_id,
+                            case_id=turn_case_id,
+                            prompt=prompt,
+                            parsed_output={
+                                "evaluation_family": "mileday_multiturn",
+                                "case_id": case.case_id,
+                                "turn_id": turn.turn_id,
+                                "turn_count": len(case.turns),
+                                "expected_action": turn.expected_action,
+                                "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+                            },
+                        )
+                    ],
+                    config,
+                    runtime,
+                    monitor_factory=PerformanceMonitor,
+                    completed_resume_keys=set(),
+                    progress_callback=_progress_update(progress),
+                )
+                measured = measured_records(records)
+                if not measured:
+                    continue
+                record = measured[-1]
+                result = _evaluate_mileday_multiturn_record(
+                    record.request_result,
+                    case,
+                    turn.turn_id,
+                    record.response.text,
+                    previous_parsed=previous_parsed,
+                    explanation_judge=explanation_judge,
+                )
+                store.store_request_result(result, raw_output=record.response.text)
+                store.append_performance_samples(
+                    run_id,
+                    [record.performance_summary.model_dump(mode="json")],
+                    phase=record.phase.value,
+                )
+                stored += 1
+                if result.status == ResultStatus.PASSED:
+                    parsed_json = result.parsed_output.get("parsed_json")
+                    if isinstance(parsed_json, dict):
+                        previous_parsed = parsed_json
+                    transcript.append({"role": "user", "content": turn.content})
+                    transcript.append({"role": "assistant", "content": record.response.text})
+                else:
+                    case_blocked = True
+    finally:
+        _progress_close(progress)
     return stored
 
 
@@ -914,6 +1223,40 @@ def _next_third_benchmark_batch_sequence(runs_dir: Path) -> int:
     return highest + 1
 
 
+def _next_mileday_multiturn_sequence(runs_dir: Path) -> int:
+    highest = 0
+    if not runs_dir.exists():
+        return 1
+    pattern = re.compile(
+        rf"^{re.escape(MILEDAY_MULTITURN_MODEL_ID)}-mileday-multiturn-(?P<sequence>\d+)$"
+    )
+    for path in runs_dir.iterdir():
+        if not path.is_dir():
+            continue
+        match = pattern.fullmatch(path.name)
+        if match is not None:
+            highest = max(highest, int(match.group("sequence")))
+    return highest + 1
+
+
+def _next_mileday_multiturn_grid_sequence(runs_dir: Path) -> int:
+    highest = 0
+    if not runs_dir.exists():
+        return 1
+    pattern = re.compile(
+        rf"^{re.escape(MILEDAY_MULTITURN_MODEL_ID)}-mileday-multiturn-grid-(?P<sequence>\d+)"
+    )
+    for path in runs_dir.iterdir():
+        match = pattern.match(path.name)
+        if match is not None:
+            highest = max(highest, int(match.group("sequence")))
+    return highest + 1
+
+
+def _option_label(value: float) -> str:
+    return f"{value:.1f}".replace(".", "p")
+
+
 def _benchmark_batch_id(sequence: int, limit: int) -> str:
     return f"benchmark-batch-{sequence}-{limit}cases"
 
@@ -1130,6 +1473,288 @@ def _write_third_benchmark_batch_summary(
     return path
 
 
+def _append_mileday_multiturn_report(
+    run_id: str,
+    runs_dir: Path,
+    cases: list[MileDayMultiTurnCase],
+) -> Path:
+    store = ResultStore(runs_dir)
+    run_dir = store.run_dir(run_id)
+    report_path = run_dir / "report.md"
+    results = store.load_request_results(run_id)
+    existing = report_path.read_text(encoding="utf-8") if report_path.exists() else ""
+    lines = [
+        "",
+        "## MileDay 멀티턴 평가",
+        "",
+        "### 실행 조건",
+        "",
+        f"- model id: {MILEDAY_MULTITURN_MODEL_ID}",
+        f"- fixture: `{MILEDAY_MULTITURN_FIXTURE.as_posix()}`",
+        f"- cases: {len(cases)}",
+        "- sampling: none",
+        "- judge: required",
+        f"- prompt version: {MILEDAY_MULTITURN_PROMPT_VERSION}",
+        "- time storage policy: milestone title prefix",
+        "",
+    ]
+    lines.extend(_mileday_multiturn_measurement_summary(results, cases))
+    lines.extend(_mileday_multiturn_case_table(results, cases))
+    lines.extend(_mileday_multiturn_failure_summary(results))
+    lines.extend(_mileday_multiturn_conclusion(results, cases))
+    report_path.write_text(
+        existing.rstrip() + "\n" + "\n".join(lines).rstrip() + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return report_path
+
+
+def _mileday_multiturn_measurement_summary(
+    results: list[RequestResult],
+    cases: list[MileDayMultiTurnCase],
+) -> list[str]:
+    total_turns = sum(len(case.turns) for case in cases)
+    counts = Counter(result.status.value for result in results)
+    completed_cases = _mileday_multiturn_completed_cases(results, cases)
+    all_turn_pass_cases = _mileday_multiturn_all_turn_pass_cases(results, cases)
+    latencies = [result.metrics.latency_ms for result in results if result.metrics.latency_ms is not None]
+    ttfts = [result.metrics.ttft_ms for result in results if result.metrics.ttft_ms is not None]
+    tok_per_sec = [
+        result.metrics.tokens_per_second
+        for result in results
+        if result.metrics.tokens_per_second is not None
+    ]
+    turn_latency = _mileday_multiturn_per_turn_latency(results)
+    judge_results = [result.parsed_output.get("explanation_judge") for result in results]
+    judge_completed = sum(
+        1
+        for item in judge_results
+        if isinstance(item, dict) and item.get("skipped") is False and item.get("error") is None
+    )
+    judge_scores = [
+        float(item["score"])
+        for item in judge_results
+        if isinstance(item, dict) and isinstance(item.get("score"), int | float)
+    ]
+    judge_aligned = sum(
+        1 for item in judge_results if isinstance(item, dict) and item.get("is_aligned") is True
+    )
+    warning_count = _mileday_multiturn_warning_count(results)
+    db_ready_cases = len(all_turn_pass_cases)
+    critical_failures = counts.get(ResultStatus.FAILED.value, 0) + counts.get(ResultStatus.INVALID.value, 0)
+    return [
+        "### 측정 요약",
+        "",
+        "| 항목 | 값 |",
+        "|---|---:|",
+        f"| total_turns | {total_turns} |",
+        f"| passed_turns | {counts.get(ResultStatus.PASSED.value, 0)} |",
+        f"| invalid_turns | {counts.get(ResultStatus.INVALID.value, 0)} |",
+        f"| failed_turns | {counts.get(ResultStatus.FAILED.value, 0)} |",
+        f"| skipped_turns | {counts.get(ResultStatus.SKIPPED.value, 0)} |",
+        f"| critical_failure_rate | {_format_rate_from_counts(critical_failures, total_turns)} |",
+        f"| warnings | {warning_count} |",
+        f"| case_completion_rate | {_format_rate_from_counts(len(completed_cases), len(cases))} |",
+        f"| all_turn_pass_case_rate | {_format_rate_from_counts(len(all_turn_pass_cases), len(cases))} |",
+        f"| judge_completed | {judge_completed} |",
+        f"| judge_is_aligned_count | {judge_aligned} |",
+        f"| judge_score_avg | {_format_optional_float(mean(judge_scores) if judge_scores else None)} |",
+        f"| avg_latency_ms | {_format_optional_float(mean(latencies) if latencies else None)} |",
+        f"| max_latency_ms | {_format_optional_float(max(latencies) if latencies else None)} |",
+        f"| avg_ttft_ms | {_format_optional_float(mean(ttfts) if ttfts else None)} |",
+        f"| avg_tokens_per_second | {_format_optional_float(mean(tok_per_sec) if tok_per_sec else None)} |",
+        f"| performance_by_turn_index | {_escape_table(json.dumps(turn_latency, ensure_ascii=False, sort_keys=True))} |",
+        f"| db_ready_cases | {db_ready_cases} |",
+        "",
+    ]
+
+
+def _mileday_multiturn_case_table(
+    results: list[RequestResult],
+    cases: list[MileDayMultiTurnCase],
+) -> list[str]:
+    by_case = _mileday_multiturn_results_by_case(results)
+    lines = [
+        "### Case별 최종 상태",
+        "",
+        "| case | turns | final status | passed | invalid | failed | skipped |",
+        "|---|---:|---|---:|---:|---:|---:|",
+    ]
+    for case in cases:
+        group = by_case.get(case.case_id, [])
+        counts = Counter(result.status.value for result in group)
+        final_status = group[-1].status.value if group else "not_executed"
+        lines.append(
+            f"| {case.case_id} | {len(case.turns)} | {final_status} | "
+            f"{counts.get(ResultStatus.PASSED.value, 0)} | "
+            f"{counts.get(ResultStatus.INVALID.value, 0)} | "
+            f"{counts.get(ResultStatus.FAILED.value, 0)} | "
+            f"{counts.get(ResultStatus.SKIPPED.value, 0)} |"
+        )
+    lines.append("")
+    return lines
+
+
+def _mileday_multiturn_failure_summary(results: list[RequestResult]) -> list[str]:
+    parser_errors = Counter()
+    judge_rejects = Counter()
+    failures = Counter()
+    warnings = Counter()
+    deterministic_checks = Counter()
+    failure_codes = Counter()
+    safety_gate_codes = Counter()
+    safety_gate_rows: list[str] = []
+    for result in results:
+        validation = result.parsed_output.get("multiturn_validation")
+        if isinstance(validation, dict):
+            for warning in validation.get("warnings", []):
+                warnings[str(warning)] += 1
+            deterministic_validation = validation.get("deterministic_validation")
+            if isinstance(deterministic_validation, dict):
+                for check_name in deterministic_validation.get("failed_check_names", []):
+                    deterministic_checks[str(check_name)] += 1
+                for failure_code in deterministic_validation.get("failure_codes", []):
+                    failure_codes[str(failure_code)] += 1
+            safety_gate = validation.get("safety_gate")
+            if isinstance(safety_gate, dict):
+                for violation in safety_gate.get("violations", []):
+                    if not isinstance(violation, dict):
+                        continue
+                    code = str(violation.get("failure_code", "UNKNOWN"))
+                    safety_gate_codes[code] += 1
+                    safety_gate_rows.append(
+                        f"| {result.case_id} | {code} | {_escape_table(str(violation.get('message', '')))} |"
+                    )
+        if result.status == ResultStatus.INVALID:
+            judge = result.parsed_output.get("explanation_judge")
+            if isinstance(judge, dict) and judge.get("is_aligned") is False:
+                judge_rejects[str(judge.get("reason", "judge rejected"))] += 1
+                failure_codes["JUDGE_REJECTION"] += 1
+            elif result.error is not None:
+                parser_errors[result.error.message] += 1
+        if result.status == ResultStatus.FAILED and result.error is not None:
+            failures[result.error.category.value] += 1
+    lines = [
+        "### 실패 원인 요약",
+        "",
+        f"- parser/constraint errors: {_dict_counter_text(dict(parser_errors)) if parser_errors else '없음'}",
+        f"- warnings: {_dict_counter_text(dict(warnings)) if warnings else '없음'}",
+        f"- deterministic failed checks: {_dict_counter_text(dict(deterministic_checks)) if deterministic_checks else '없음'}",
+        f"- failure codes: {_dict_counter_text(dict(failure_codes)) if failure_codes else '없음'}",
+        f"- judge rejects: {_dict_counter_text(dict(judge_rejects)) if judge_rejects else '없음'}",
+        f"- failed categories: {_dict_counter_text(dict(failures)) if failures else '없음'}",
+        "",
+    ]
+    lines.extend(
+        [
+            "### Safety Gate",
+            "",
+            f"- 전체 통과 여부: {'통과' if not safety_gate_codes else '실패'}",
+            f"- 위반 유형별 건수: {_dict_counter_text(dict(safety_gate_codes)) if safety_gate_codes else '없음'}",
+            "",
+        ]
+    )
+    if safety_gate_rows:
+        lines.extend(
+            [
+                "| turn | failure code | 설명 |",
+                "|---|---|---|",
+                *safety_gate_rows,
+                "",
+            ]
+        )
+    return lines
+
+
+def _mileday_multiturn_conclusion(
+    results: list[RequestResult],
+    cases: list[MileDayMultiTurnCase],
+) -> list[str]:
+    completed_cases = _mileday_multiturn_completed_cases(results, cases)
+    all_turn_pass_cases = _mileday_multiturn_all_turn_pass_cases(results, cases)
+    ready = len(all_turn_pass_cases) == len(cases)
+    conclusion = (
+        "모든 case가 마지막 turn까지 통과했으므로 제품 기능 연결을 위한 후보로 볼 수 있다."
+        if ready
+        else "일부 case가 마지막 turn까지 통과하지 못했으므로 제품 기능 연결 전 prompt, parser, judge 기준을 보강해야 한다."
+    )
+    return [
+        "### 결론",
+        "",
+        f"- 마지막 turn까지 실행된 case 수: {len(completed_cases)} / {len(cases)}",
+        f"- 최종적으로 DB 반영 가능한 case 수: {len(all_turn_pass_cases)} / {len(cases)}",
+        f"- 제품 연결 판단: {conclusion}",
+        "",
+    ]
+
+
+def _mileday_multiturn_completed_cases(
+    results: list[RequestResult],
+    cases: list[MileDayMultiTurnCase],
+) -> set[str]:
+    by_case = _mileday_multiturn_results_by_case(results)
+    completed: set[str] = set()
+    for case in cases:
+        group = by_case.get(case.case_id, [])
+        if len(group) == len(case.turns) and group[-1].status != ResultStatus.SKIPPED:
+            completed.add(case.case_id)
+    return completed
+
+
+def _mileday_multiturn_all_turn_pass_cases(
+    results: list[RequestResult],
+    cases: list[MileDayMultiTurnCase],
+) -> set[str]:
+    by_case = _mileday_multiturn_results_by_case(results)
+    passed: set[str] = set()
+    for case in cases:
+        group = by_case.get(case.case_id, [])
+        if len(group) == len(case.turns) and all(result.status == ResultStatus.PASSED for result in group):
+            passed.add(case.case_id)
+    return passed
+
+
+def _mileday_multiturn_results_by_case(
+    results: list[RequestResult],
+) -> dict[str, list[RequestResult]]:
+    grouped: dict[str, list[RequestResult]] = {}
+    for result in sorted(
+        results,
+        key=lambda item: (
+            str(item.parsed_output.get("case_id")),
+            int(item.parsed_output.get("turn_id", 0)),
+        ),
+    ):
+        case_id = str(result.parsed_output.get("case_id", "unknown"))
+        grouped.setdefault(case_id, []).append(result)
+    return grouped
+
+
+def _mileday_multiturn_per_turn_latency(results: list[RequestResult]) -> dict[str, float]:
+    by_turn: dict[int, list[int]] = {}
+    for result in results:
+        turn_id = result.parsed_output.get("turn_id")
+        if isinstance(turn_id, int) and result.metrics.latency_ms is not None:
+            by_turn.setdefault(turn_id, []).append(result.metrics.latency_ms)
+    return {
+        f"turn_{turn_id}": round(mean(values), 3)
+        for turn_id, values in sorted(by_turn.items())
+        if values
+    }
+
+
+def _mileday_multiturn_warning_count(results: list[RequestResult]) -> int:
+    count = 0
+    for result in results:
+        validation = result.parsed_output.get("multiturn_validation")
+        if isinstance(validation, dict):
+            warnings = validation.get("warnings")
+            if isinstance(warnings, list):
+                count += len(warnings)
+    return count
+
+
 def _public_benchmark_model_summary(
     *,
     model_id: str,
@@ -1229,6 +1854,157 @@ def _progress_update(progress):
 def _progress_close(progress) -> None:
     if progress is not None:
         progress.close()
+
+
+def _write_mileday_multiturn_grid_summary(
+    runs_dir: Path,
+    *,
+    batch_id: str,
+    items: list[dict[str, object]],
+    cases: list[MileDayMultiTurnCase],
+) -> Path:
+    path = runs_dir / f"{batch_id}-summary.md"
+    store = ResultStore(runs_dir)
+    lines = [
+        f"# MileDay Multiturn Sampling Grid Summary: {batch_id}",
+        "",
+        "## 실행 조건",
+        "",
+        f"- model id: {MILEDAY_MULTITURN_MODEL_ID}",
+        f"- fixture: `{MILEDAY_MULTITURN_FIXTURE.as_posix()}`",
+        f"- cases: {len(cases)}",
+        f"- case ids: {', '.join(case.case_id for case in cases)}",
+        "- temperature: 0.0, 0.1, 0.2",
+        "- top_p: 0.8, 0.9, 1.0",
+        f"- prompt version: {MILEDAY_MULTITURN_PROMPT_VERSION}",
+        "- sampling: fixed first 3 fixture cases",
+        "",
+        "## 조합별 결과",
+        "",
+        "| temp | top_p | passed | invalid | failed | skipped | turn1 passed | turn2 passed | turn3 passed | judge rejects | avg latency ms | top failure codes | report |",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
+    ]
+    ranked: list[dict[str, object]] = []
+    for item in items:
+        run_id = str(item["run_id"])
+        results = store.load_request_results(run_id)
+        counts = _status_counts(results)
+        turn_status = _grid_turn_status_counts(results)
+        judge_rejects = _grid_judge_reject_count(results)
+        failure_codes = _grid_failure_code_counts(results)
+        avg_latency = _grid_avg_latency_ms(results)
+        passed = int(counts.get("passed", 0))
+        invalid = int(counts.get("invalid", 0))
+        skipped = int(counts.get("skipped", 0))
+        ranked.append(
+            {
+                "run_id": run_id,
+                "temperature": item["temperature"],
+                "top_p": item["top_p"],
+                "passed": passed,
+                "invalid": invalid,
+                "skipped": skipped,
+                "judge_rejects": judge_rejects,
+                "avg_latency": avg_latency,
+            }
+        )
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(item["temperature"]),
+                    str(item["top_p"]),
+                    str(passed),
+                    str(invalid),
+                    str(counts.get("failed", 0)),
+                    str(skipped),
+                    str(turn_status.get(1, {}).get("passed", 0)),
+                    str(turn_status.get(2, {}).get("passed", 0)),
+                    str(turn_status.get(3, {}).get("passed", 0)),
+                    str(judge_rejects),
+                    _format_optional_float(avg_latency),
+                    _dict_counter_text(dict(failure_codes.most_common(3))) if failure_codes else "없음",
+                    f"`{Path(str(item.get('report_path', ''))).as_posix()}`",
+                ]
+            )
+            + " |"
+        )
+    best = (
+        sorted(
+            ranked,
+            key=lambda row: (
+                -int(row["passed"]),
+                int(row["invalid"]),
+                int(row["skipped"]),
+                int(row["judge_rejects"]),
+                float(row["avg_latency"] or 999999),
+            ),
+        )[0]
+        if ranked
+        else None
+    )
+    lines.extend(["", "## 1차 판단", ""])
+    if best is None:
+        lines.append("- 비교 가능한 결과가 없습니다.")
+    else:
+        lines.append(
+            "- 가장 나은 조합: "
+            f"temperature={best['temperature']}, top_p={best['top_p']} "
+            f"(passed={best['passed']}, invalid={best['invalid']}, "
+            f"skipped={best['skipped']}, judge_rejects={best['judge_rejects']})"
+        )
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8", newline="\n")
+    return path
+
+
+def _grid_turn_status_counts(results: list[RequestResult]) -> dict[int, Counter[str]]:
+    by_turn: dict[int, Counter[str]] = {}
+    for result in results:
+        try:
+            turn_id = int(result.case_id.rsplit("-turn-", 1)[1])
+        except (IndexError, ValueError):
+            continue
+        by_turn.setdefault(turn_id, Counter())[result.status.value] += 1
+    return by_turn
+
+
+def _grid_judge_reject_count(results: list[RequestResult]) -> int:
+    count = 0
+    for result in results:
+        judge = result.parsed_output.get("explanation_judge")
+        if isinstance(judge, dict) and judge.get("is_aligned") is False:
+            count += 1
+    return count
+
+
+def _grid_failure_code_counts(results: list[RequestResult]) -> Counter[str]:
+    counter: Counter[str] = Counter()
+    for result in results:
+        validation = result.parsed_output.get("multiturn_validation")
+        if not isinstance(validation, dict):
+            continue
+        deterministic = validation.get("deterministic_validation")
+        if isinstance(deterministic, dict):
+            counter.update(
+                code
+                for code in deterministic.get("failure_codes", [])
+                if isinstance(code, str)
+            )
+        judge = result.parsed_output.get("explanation_judge")
+        if isinstance(judge, dict) and judge.get("is_aligned") is False:
+            counter["JUDGE_REJECTION"] += 1
+    return counter
+
+
+def _grid_avg_latency_ms(results: list[RequestResult]) -> float | None:
+    values = [
+        result.metrics.latency_ms
+        for result in results
+        if result.metrics is not None and result.metrics.latency_ms is not None
+    ]
+    if not values:
+        return None
+    return round(sum(values) / len(values), 3)
 
 
 def _parse_model_ids(raw_model_ids: str) -> list[str]:
@@ -1549,6 +2325,60 @@ def _escape_table(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
 
 
+def _mileday_multiturn_prompt(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    transcript: list[dict[str, str]],
+) -> str:
+    return build_mileday_multiturn_prompt(case, turn_id, transcript)
+
+
+def _mileday_multiturn_transcript_text(transcript: list[dict[str, str]]) -> str:
+    if not transcript:
+        return "이전 대화 없음."
+    chunks = []
+    for index, message in enumerate(transcript, start=1):
+        role = message["role"]
+        content = message["content"].strip()
+        chunks.append(f"{index}. {role}:\n{content}")
+    return "\n\n".join(chunks)
+
+
+def _mileday_multiturn_reference_date_context() -> dict[str, str]:
+    today = date.today()
+    day_of_week = _date_day_of_week(today.isoformat())
+    return {
+        "today": today.isoformat(),
+        "weekday": _ko_weekday(day_of_week),
+        "day_of_week": day_of_week or "",
+        "timezone": MILEDAY_MULTITURN_REFERENCE_TIMEZONE,
+    }
+
+
+def _mileday_multiturn_allowed_slots(case: MileDayMultiTurnCase) -> list[dict[str, str]]:
+    return mileday_multiturn_allowed_slots(case)
+
+
+def _mileday_multiturn_candidate_start_date(case: MileDayMultiTurnCase) -> date:
+    return date.today()
+
+
+def _ko_weekday(day_of_week: str | None) -> str:
+    return {
+        "monday": "월",
+        "tuesday": "화",
+        "wednesday": "수",
+        "thursday": "목",
+        "friday": "금",
+        "saturday": "토",
+        "sunday": "일",
+    }.get(day_of_week or "", "")
+
+
+def _mileday_multiturn_turn_case_id(case_id: str, turn_id: int) -> str:
+    return f"{case_id}-turn-{turn_id}"
+
+
 def _mileday_generation_prompt(case: MileDayGenerationCase) -> str:
     milestone_schema = _milestone_schema_example(case.expected.required_fields)
     prompt = (
@@ -1766,6 +2596,1462 @@ def _evaluate_mileday_record(
     )
 
 
+def _extract_user_message(raw_output: str) -> str | None:
+    match = re.search(
+        r"\[USER_MESSAGE\]\s*(?P<message>.*?)(?:\s*\[/USER_MESSAGE\])?(?=\n\s*\[(?:PLAN|PATCH)\])",
+        raw_output,
+        re.DOTALL,
+    )
+    if match is None:
+        return None
+    message = match.group("message").strip()
+    return message or None
+
+
+def _extract_plan_block(raw_output: str) -> str | None:
+    match = re.search(
+        r"\[PLAN\]\s*(?P<plan>.*?)\s*\[/PLAN\]",
+        raw_output,
+        re.DOTALL,
+    )
+    if match is None:
+        return None
+    plan = match.group("plan").strip()
+    return plan or None
+
+
+def _extract_patch_block(raw_output: str) -> str | None:
+    match = re.search(
+        r"\[PATCH\]\s*(?P<patch>.*?)\s*\[/PATCH\]",
+        raw_output,
+        re.DOTALL,
+    )
+    if match is None:
+        return None
+    return match.group("patch").strip()
+
+
+def _extract_schedule_intent_block(raw_output: str) -> str | None:
+    match = re.search(
+        r"\[(?:SCHEDULE_INTENT|일정_의도)\]\s*(?P<intent>.*?)\s*\[/(?:SCHEDULE_INTENT|일정_의도)\]",
+        raw_output,
+        re.DOTALL,
+    )
+    if match is None:
+        return None
+    intent = match.group("intent").strip()
+    return intent or None
+
+
+def _parse_mileday_schedule_intent_block(intent_block: str) -> tuple[dict[str, Any], list[str]]:
+    intent: dict[str, Any] = {"action": "", "target": "", "change": "", "tasks": []}
+    errors: list[str] = []
+    key_map = {
+        "action": "action",
+        "행동": "action",
+        "target": "target",
+        "대상": "target",
+        "change": "change",
+        "변경": "change",
+    }
+    action_map = {
+        "create": "create",
+        "생성": "create",
+        "partial_update": "partial_update",
+        "부분수정": "partial_update",
+        "부분 수정": "partial_update",
+    }
+    in_tasks = False
+    for line_number, raw_line in enumerate(intent_block.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if lower in {"tasks:", "작업:"}:
+            in_tasks = True
+            continue
+        if in_tasks:
+            if not line.startswith("- "):
+                errors.append(f"Line {line_number} in tasks must start with '- '.")
+                continue
+            task = line[2:].strip()
+            if not task:
+                errors.append(f"Line {line_number} has an empty task.")
+                continue
+            intent["tasks"].append(task)
+            continue
+        if ":" not in line:
+            errors.append(f"Line {line_number} must use 'key: value'.")
+            continue
+        key, value = [part.strip() for part in line.split(":", 1)]
+        key = key_map.get(key.lower(), key_map.get(key))
+        if key is None:
+            errors.append(f"Line {line_number} has an unsupported key: {key}.")
+            continue
+        if key == "action":
+            value = action_map.get(value.lower(), action_map.get(value, value))
+        intent[key] = value
+    if intent["action"] not in {"create", "partial_update"}:
+        errors.append("action must be create or partial_update.")
+    if not intent["target"]:
+        errors.append("target must not be empty.")
+    if not intent["change"]:
+        errors.append("change must not be empty.")
+    if not isinstance(intent["tasks"], list):
+        errors.append("tasks must be a list.")
+    return intent, errors
+
+
+def _fallback_mileday_schedule_intent(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    raw_output: str,
+) -> dict[str, Any] | None:
+    if not raw_output.strip():
+        return None
+    tasks = _extract_candidate_tasks_from_freeform_output(raw_output)
+    expected_action = case.turns[turn_id - 1].expected_action
+    if expected_action == "partial_update" and not tasks:
+        tasks = [_task_from_update_request(case.turns[turn_id - 1].content, case)]
+    elif expected_action == "create" and len(tasks) < case.expected.constraints.min_milestones:
+        tasks = _default_mileday_tasks_for_goal(case)
+    return {
+        "action": expected_action,
+        "target": case.input.initial_goal.title,
+        "change": case.turns[turn_id - 1].content,
+        "tasks": tasks,
+        "source": "freeform_fallback",
+    }
+
+
+def _extract_candidate_tasks_from_freeform_output(raw_output: str) -> list[str]:
+    tasks: list[str] = []
+    for raw_line in raw_output.splitlines():
+        line = raw_line.strip().strip("|").strip()
+        if not line:
+            continue
+        if any(token in line for token in ('"title_prefix"', '"weekday"', '"scheduled_date"', "---", "날짜", "색상:", "완료여부:")):
+            continue
+        if line.startswith(("[", "{", "}", "```", "#")):
+            continue
+        if "|" in line:
+            cells = [cell.strip() for cell in line.split("|") if cell.strip()]
+            text = cells[-1] if cells else ""
+        elif line.startswith("- "):
+            text = line[2:].strip()
+        else:
+            text = line
+        text = re.sub(r"^제목\s*:\s*", "", text).strip()
+        text = re.sub(r"^\d{4}-\d{2}-\d{2}\s*", "", text).strip()
+        text = re.sub(r"^S\d{3}\s*", "", text).strip()
+        text = re.sub(r"^\[[^\]]+\]\s*", "", text).strip()
+        if re.fullmatch(r"[월화수목금토일]요일?\(?\d{1,2}:\d{2}-\d{1,2}:\d{2}\)?", text):
+            continue
+        if 2 <= len(text) <= 40 and re.search(r"[가-힣]", text):
+            tasks.append(text)
+    deduped: list[str] = []
+    for task in tasks:
+        if task not in deduped:
+            deduped.append(task)
+    return deduped[:8]
+
+
+def _default_mileday_tasks_for_goal(case: MileDayMultiTurnCase) -> list[str]:
+    title = case.input.initial_goal.title
+    return [
+        f"{title} 준비",
+        f"{title} 기초 진행",
+        f"{title} 핵심 진행",
+        f"{title} 중간 점검",
+        f"{title} 최종 점검",
+    ]
+
+
+def _plan_items_from_mileday_intent(
+    case: MileDayMultiTurnCase,
+    intent: dict[str, Any],
+) -> list[dict[str, str]]:
+    tasks = [task for task in intent.get("tasks", []) if isinstance(task, str) and task.strip()]
+    min_items = case.expected.constraints.min_milestones
+    max_items = case.expected.constraints.max_milestones
+    item_count = min(max(len(tasks), min_items), max_items)
+    if not tasks:
+        tasks = [case.input.initial_goal.title]
+    existing_dates = {item.scheduled_date for item in case.input.existing_schedule}
+    slots = [
+        slot
+        for slot in _mileday_multiturn_allowed_slots(case)
+        if slot["scheduled_date"] not in existing_dates
+    ][:item_count]
+    plan_items: list[dict[str, str]] = []
+    for index, slot in enumerate(slots):
+        raw_task = tasks[index] if index < len(tasks) else f"{case.input.initial_goal.title} {index + 1}단계"
+        task = _sanitize_mileday_task(raw_task, case)
+        plan_items.append({"slot_id": slot["slot_id"], "task": task})
+    return plan_items
+
+
+def _patch_items_from_mileday_intent(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    intent: dict[str, Any],
+    previous_parsed: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    previous_plan_items = previous_parsed.get("plan_items") if isinstance(previous_parsed, dict) else []
+    if not isinstance(previous_plan_items, list):
+        return []
+    request = case.turns[turn_id - 1].content
+    if _is_add_request(request):
+        return []
+    if _is_date_move_request(request):
+        return []
+    tasks = [task for task in intent.get("tasks", []) if isinstance(task, str) and task.strip()]
+    target_text = f"{intent.get('target', '')} {intent.get('change', '')} {' '.join(tasks)}"
+    combined_text = f"{target_text} {request}"
+    requested_destination_days = _requested_destination_weekdays(combined_text)
+    if requested_destination_days and not _destination_days_available(case, requested_destination_days):
+        return []
+
+    target_slot_ids = _select_mileday_patch_target_slot_ids(case, previous_plan_items, target_text)
+    if not target_slot_ids:
+        return []
+    replacement = _replacement_task_from_intent(intent, case)
+    return [{"slot_id": slot_id, "task": replacement} for slot_id in target_slot_ids]
+
+
+def _add_items_from_mileday_intent(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    intent: dict[str, Any],
+    previous_parsed: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    request = case.turns[turn_id - 1].content
+    if not _is_add_request(request):
+        return []
+    previous_plan_items = previous_parsed.get("plan_items") if isinstance(previous_parsed, dict) else []
+    if not isinstance(previous_plan_items, list):
+        return []
+    used_slot_ids = {
+        item.get("slot_id")
+        for item in previous_plan_items
+        if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
+    }
+    for slot in _mileday_multiturn_allowed_slots(case):
+        if slot["slot_id"] not in used_slot_ids:
+            return [{"slot_id": slot["slot_id"], "task": _task_from_update_request(request, case)}]
+    return []
+
+
+def _is_add_request(text: str) -> bool:
+    return any(keyword in text for keyword in ("추가", "넣어", "새로"))
+
+
+def _remove_slot_ids_from_mileday_intent(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    intent: dict[str, Any],
+    previous_parsed: dict[str, Any] | None,
+) -> list[str]:
+    request = case.turns[turn_id - 1].content
+    if not _is_remove_request(request):
+        return []
+    previous_plan_items = previous_parsed.get("plan_items") if isinstance(previous_parsed, dict) else []
+    if not isinstance(previous_plan_items, list):
+        return []
+    target_text = _target_only_text(f"{intent.get('target', '')} {intent.get('change', '')} {request}")
+    return _select_mileday_patch_target_slot_ids(case, previous_plan_items, target_text)
+
+
+def _is_remove_request(text: str) -> bool:
+    return any(keyword in text for keyword in ("빼", "제외", "삭제", "없애"))
+
+
+def _is_date_move_request(text: str) -> bool:
+    return any(
+        keyword in text
+        for keyword in ("하루 앞당", "하루 뒤", "한 주", "일주일", "앞으로 당", "앞당겨", "미뤄", "연기")
+    )
+
+
+def _replacement_task_from_intent(intent: dict[str, Any], case: MileDayMultiTurnCase) -> str:
+    request_task = _task_from_update_request(str(intent.get("change") or ""), case)
+    if request_task != case.input.initial_goal.title:
+        return request_task
+    tasks = [task for task in intent.get("tasks", []) if isinstance(task, str) and task.strip()]
+    for task in tasks:
+        if any(placeholder in task for placeholder in ("추가할 작업명", "유지할 작업명", "삭제할 작업명")):
+            continue
+        return _sanitize_mileday_task(task, case)
+    change = str(intent.get("change") or "").strip()
+    if change and not any(placeholder in change for placeholder in ("작업명 목록", "작업 목록")):
+        return _sanitize_mileday_task(change, case)
+    return case.input.initial_goal.title
+
+
+def _sanitize_mileday_task(task: str, case: MileDayMultiTurnCase) -> str:
+    request_task = _task_from_update_request(task, case)
+    if request_task != case.input.initial_goal.title:
+        return request_task
+    cleaned = re.sub(r"\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?\s*[~-]\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?", "", task)
+    cleaned = re.sub(r"\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}", "", cleaned)
+    cleaned = re.sub(r"(월|화|수|목|금|토|일)요일\s*(오전|오후)?", "", cleaned)
+    cleaned = cleaned.replace("오전", "").replace("오후", "")
+    cleaned = cleaned.strip(" -~:()")
+    if "포장" in task:
+        return "포장 관련 작업"
+    if _contains_disallowed_english_task_text(cleaned):
+        return case.input.initial_goal.title
+    if not cleaned:
+        return case.input.initial_goal.title
+    return cleaned
+
+
+def _task_from_update_request(text: str, case: MileDayMultiTurnCase) -> str:
+    normalized = text.lower()
+    if "회화 녹음" in text or ("피드백" in text and "회화" in text):
+        return "회화 녹음 및 피드백"
+    if "회복" in text:
+        return "회복 위주 운동"
+    if "포장" in text:
+        return "포장 관련 작업"
+    if "기술 블로그" in text or "블로그 글" in text:
+        return "기술 블로그 글 작성"
+    if "1시간" in text or "한 시간" in text or ("reduce" in normalized and ("hour" in normalized or "duration" in normalized)):
+        return "1시간 축소 학습"
+    return case.input.initial_goal.title
+
+
+def _requested_destination_weekdays(text: str) -> set[str]:
+    if not any(keyword in text for keyword in ("옮", "이동", "변경")):
+        return set()
+    return _mentioned_weekday_values(text)
+
+
+def _destination_days_available(case: MileDayMultiTurnCase, weekdays: set[str]) -> bool:
+    available_days = {item.day_of_week for item in case.input.availability}
+    return weekdays <= available_days
+
+
+def _select_mileday_patch_target_slot_ids(
+    case: MileDayMultiTurnCase,
+    previous_plan_items: list[Any],
+    target_text: str,
+) -> list[str]:
+    slots_by_id = {slot["slot_id"]: slot for slot in _mileday_multiturn_allowed_slots(case)}
+    previous_slot_ids = [
+        item.get("slot_id")
+        for item in previous_plan_items
+        if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
+    ]
+    reduced_weekdays = _reduced_duration_weekdays(target_text)
+    if reduced_weekdays:
+        return [
+            slot_id
+            for slot_id in previous_slot_ids
+            if slot_id in slots_by_id and slots_by_id[slot_id]["day_of_week"] in reduced_weekdays
+        ]
+    target_only_text = _target_only_text(target_text)
+    weekdays = _mentioned_weekday_values(target_only_text)
+    matching_slot_ids = [
+        slot_id
+        for slot_id in previous_slot_ids
+        if slot_id in slots_by_id and (not weekdays or slots_by_id[slot_id]["day_of_week"] in weekdays)
+    ]
+    if not matching_slot_ids:
+        matching_slot_ids = previous_slot_ids
+    if any(keyword in target_text for keyword in ("마지막", "최종")) and matching_slot_ids:
+        return [max(matching_slot_ids, key=lambda slot_id: slots_by_id.get(slot_id, {}).get("scheduled_date", ""))]
+    if weekdays:
+        return matching_slot_ids
+    keywords = _target_keywords(target_text)
+    if keywords:
+        keyword_matches = []
+        for item in previous_plan_items:
+            if not isinstance(item, dict):
+                continue
+            slot_id = item.get("slot_id")
+            task = item.get("task")
+            if (
+                isinstance(slot_id, str)
+                and isinstance(task, str)
+                and slot_id in matching_slot_ids
+                and any(keyword in task for keyword in keywords)
+            ):
+                keyword_matches.append(slot_id)
+        if keyword_matches:
+            return keyword_matches
+        if any(keyword in target_only_text for keyword in keywords):
+            return []
+    return matching_slot_ids
+
+
+def _target_keywords(text: str) -> list[str]:
+    candidates = ["회복", "포장", "복습", "암기", "발표", "일본어", "회화", "러닝", "달리기"]
+    return [keyword for keyword in candidates if keyword in text]
+
+
+def _target_only_text(text: str) -> str:
+    before_maintain = re.split(r"유지|maintain|keep", text, maxsplit=1, flags=re.IGNORECASE)[0]
+    markers = ["바꿔", "변경", "줄", "빼", "제외", "몰아", "옮", "이동", "앞당"]
+    marker_positions = [before_maintain.find(marker) for marker in markers if before_maintain.find(marker) >= 0]
+    if marker_positions:
+        return before_maintain[: min(marker_positions)]
+    return before_maintain
+
+
+def _reduced_duration_weekdays(text: str) -> set[str]:
+    normalized = text.lower()
+    if not any(keyword in normalized for keyword in ("줄", "1시간", "한 시간", "reduce", "shorter")):
+        return set()
+    focused_weekdays = set()
+    for match in re.finditer(r"([월화수목금토일]요일)[^.!?\n]*(?:1시간|한 시간|줄)", text):
+        focused_weekdays.update(_mentioned_weekday_values(match.group(1)))
+    for match in re.finditer(r"(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?)[^.!?\n]*(?:1\s*hour|reduce|shorter)", normalized):
+        focused_weekdays.update(_mentioned_weekday_values(match.group(1)))
+    if focused_weekdays:
+        return focused_weekdays
+    target_part = re.split(r"유지|maintain|keep", text, maxsplit=1, flags=re.IGNORECASE)[0]
+    return _mentioned_weekday_values(target_part)
+
+
+def _mentioned_weekday_values(text: str) -> set[str]:
+    labels = {
+        "월요일": "monday",
+        "화요일": "tuesday",
+        "수요일": "wednesday",
+        "목요일": "thursday",
+        "금요일": "friday",
+        "토요일": "saturday",
+        "일요일": "sunday",
+        "monday": "monday",
+        "mondays": "monday",
+        "tuesday": "tuesday",
+        "tuesdays": "tuesday",
+        "wednesday": "wednesday",
+        "wednesdays": "wednesday",
+        "thursday": "thursday",
+        "thursdays": "thursday",
+        "friday": "friday",
+        "fridays": "friday",
+        "saturday": "saturday",
+        "saturdays": "saturday",
+        "sunday": "sunday",
+        "sundays": "sunday",
+    }
+    normalized = text.lower()
+    return {day for label, day in labels.items() if label in normalized}
+
+
+def _parse_mileday_plan_block(plan_block: str, *, allow_empty: bool = False) -> tuple[list[dict[str, str]], list[str]]:
+    items: list[dict[str, str]] = []
+    errors: list[str] = []
+    for line_number, raw_line in enumerate(plan_block.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not line.startswith("- "):
+            errors.append(f"Line {line_number} must start with '- '.")
+            continue
+        content = line[2:].strip()
+        if "|" not in content:
+            errors.append(f"Line {line_number} must use 'slot_id | task'.")
+            continue
+        slot_id, task = [part.strip() for part in content.split("|", 1)]
+        if not slot_id:
+            errors.append(f"Line {line_number} has an empty slot_id.")
+        if not task:
+            errors.append(f"Line {line_number} has an empty task.")
+        items.append({"slot_id": slot_id, "task": task})
+    if not items and not errors and not allow_empty:
+        errors.append("PLAN block must contain at least one plan line.")
+    return items, errors
+
+
+def _apply_mileday_plan_patch(
+    previous_plan_items: list[Any],
+    patch_items: list[Any],
+) -> list[dict[str, str]]:
+    patch_by_slot = {
+        item.get("slot_id"): item.get("task")
+        for item in patch_items
+        if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
+    }
+    merged: list[dict[str, str]] = []
+    for item in previous_plan_items:
+        if not isinstance(item, dict):
+            continue
+        slot_id = item.get("slot_id")
+        task = item.get("task")
+        if not isinstance(slot_id, str) or not isinstance(task, str):
+            continue
+        merged.append({"slot_id": slot_id, "task": str(patch_by_slot.get(slot_id, task))})
+    return merged
+
+
+def _expand_mileday_patch_items_for_weekday_request(
+    case: MileDayMultiTurnCase,
+    previous_plan_items: list[Any],
+    patch_items: list[dict[str, str]],
+    user_request: str,
+) -> list[dict[str, str]]:
+    if not patch_items:
+        return patch_items
+    if "만" in user_request:
+        return patch_items
+    requested_weekdays = {
+        day
+        for label, day in {
+            "월요일": "monday",
+            "월": "monday",
+            "화요일": "tuesday",
+            "화": "tuesday",
+            "수요일": "wednesday",
+            "수": "wednesday",
+            "목요일": "thursday",
+            "목": "thursday",
+            "금요일": "friday",
+            "금": "friday",
+            "토요일": "saturday",
+            "토": "saturday",
+            "일요일": "sunday",
+            "일": "sunday",
+        }.items()
+        if label in user_request
+    }
+    if not requested_weekdays:
+        return patch_items
+
+    slots_by_id = {slot["slot_id"]: slot for slot in _mileday_multiturn_allowed_slots(case)}
+    previous_slot_ids = [
+        item.get("slot_id")
+        for item in previous_plan_items
+        if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
+    ]
+    patch_by_day: dict[str, str] = {}
+    for item in patch_items:
+        slot = slots_by_id.get(item["slot_id"])
+        if slot is not None and slot["day_of_week"] in requested_weekdays:
+            patch_by_day[slot["day_of_week"]] = item["task"]
+    if not patch_by_day:
+        return patch_items
+
+    expanded_by_slot = {item["slot_id"]: item for item in patch_items}
+    for slot_id in previous_slot_ids:
+        slot = slots_by_id.get(slot_id)
+        if slot is None:
+            continue
+        task = patch_by_day.get(slot["day_of_week"])
+        if task is not None:
+            expanded_by_slot[slot_id] = {"slot_id": slot_id, "task": task}
+    return list(expanded_by_slot.values())
+
+
+def _contains_disallowed_english_task_text(task: str) -> bool:
+    normalized = re.sub(r"(?i)\b\d+\s*(km|m|cm|mm|kg|g|ml|l)\b", "", task)
+    normalized = re.sub(r"\b[A-Z]{2,8}\b", "", normalized)
+    return re.search(r"[A-Za-z]{2,}", normalized) is not None
+
+
+def _mentioned_korean_weekdays(task: str) -> set[str]:
+    labels = {
+        "월요일": "monday",
+        "화요일": "tuesday",
+        "수요일": "wednesday",
+        "목요일": "thursday",
+        "금요일": "friday",
+        "토요일": "saturday",
+        "일요일": "sunday",
+    }
+    return {day for label, day in labels.items() if label in task}
+
+
+def _build_mileday_rule_based_user_message(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    parsed: dict[str, Any],
+    previous_parsed: dict[str, Any] | None,
+) -> str:
+    availability = _format_mileday_availability(case)
+    action = parsed.get("action")
+    plan_items = parsed.get("plan_items")
+    patch_items = parsed.get("patch_items")
+    add_items = parsed.get("add_items")
+    remove_slot_ids = parsed.get("remove_slot_ids")
+    plan_count = len(plan_items) if isinstance(plan_items, list) else 0
+    patch_count = len(patch_items) if isinstance(patch_items, list) else 0
+    add_count = len(add_items) if isinstance(add_items, list) else 0
+    remove_count = len(remove_slot_ids) if isinstance(remove_slot_ids, list) else 0
+    previous_count = len(previous_parsed.get("plan_items", [])) if isinstance(previous_parsed, dict) else 0
+    goal_title = case.input.initial_goal.title
+    deadline = case.input.initial_goal.deadline
+    requires_confirmation = "DB 반영 전 사용자 확인이 필요합니다."
+
+    if action == "create":
+        return (
+            f"{goal_title} 목표를 {deadline}까지 진행할 수 있도록 {plan_count}개 일정을 제안했습니다. "
+            f"가능 시간은 {availability}입니다. "
+            f"{requires_confirmation}"
+        )
+    if patch_count == 0:
+        if add_count > 0:
+            return (
+                f"요청한 일정 추가 {add_count}건을 반영하고, 기존 일정은 유지했습니다. "
+                f"전체 일정 수는 {plan_count or previous_count}개이며 가능 시간은 {availability}입니다. "
+                f"{requires_confirmation}"
+            )
+        if remove_count > 0:
+            return (
+                f"요청한 일정 제외 {remove_count}건을 반영하고, 나머지 일정은 유지했습니다. "
+                f"전체 일정 수는 {plan_count or previous_count}개이며 가능 시간은 {availability}입니다. "
+                f"{requires_confirmation}"
+            )
+        return (
+            f"요청한 변경은 현재 가능한 시간({availability}) 안에서 바로 반영하기 어렵습니다. "
+            "기존 일정은 변경하지 않았습니다. "
+            f"{requires_confirmation}"
+        )
+    return (
+        f"요청한 변경 {patch_count}건을 반영하고, 나머지 일정은 유지했습니다. "
+        f"전체 일정 수는 {plan_count or previous_count}개이며 가능 시간은 {availability}입니다. "
+        f"{requires_confirmation}"
+    )
+
+
+def _format_mileday_availability(case: MileDayMultiTurnCase) -> str:
+    day_labels = {
+        "monday": "월",
+        "tuesday": "화",
+        "wednesday": "수",
+        "thursday": "목",
+        "friday": "금",
+        "saturday": "토",
+        "sunday": "일",
+    }
+    return ", ".join(
+        f"{day_labels.get(item.day_of_week, item.day_of_week)} {item.start_time}-{item.end_time}"
+        for item in case.input.availability
+    )
+
+
+def _evaluate_mileday_multiturn_record(
+    base_result: RequestResult,
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    raw_output: str,
+    *,
+    previous_parsed: dict[str, Any] | None,
+    explanation_judge: ExplanationJudge | None,
+) -> RequestResult:
+    if base_result.error is not None:
+        return base_result
+
+    turn = case.turns[turn_id - 1]
+    if MILEDAY_MULTITURN_PROMPT_VERSION == "v11":
+        return _evaluate_mileday_multiturn_intent_record(
+            base_result,
+            case,
+            turn_id,
+            raw_output,
+            previous_parsed=previous_parsed,
+            explanation_judge=explanation_judge,
+        )
+
+    plan_block = _extract_plan_block(raw_output)
+    patch_block = _extract_patch_block(raw_output)
+    contract: dict[str, Any] = {
+        "type": "mileday_multiturn_plan_or_patch_with_rule_based_message",
+        "has_plan_section": "[PLAN]" in raw_output,
+        "has_plan_end": "[/PLAN]" in raw_output,
+        "has_patch_section": "[PATCH]" in raw_output,
+        "has_patch_end": "[/PATCH]" in raw_output,
+        "plan_parseable": False,
+        "patch_parseable": False,
+        "required_fields_present": False,
+        "db_payload_schema_valid": False,
+        "requires_confirmation_valid": False,
+    }
+    base_metadata = {
+        **base_result.parsed_output,
+        "evaluation_family": "mileday_multiturn",
+        "case_id": case.case_id,
+        "turn_id": turn_id,
+        "turn_count": len(case.turns),
+        "expected_action": turn.expected_action,
+        "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+        "output_contract": contract,
+    }
+    needs_plan = turn.expected_action == "create"
+    needs_patch = turn.expected_action == "partial_update"
+    missing_required_block = (needs_plan and plan_block is None) or (needs_patch and patch_block is None)
+    if missing_required_block:
+        errors = []
+        if needs_plan and plan_block is None:
+            errors.append("Missing [PLAN] or [/PLAN] section.")
+        if needs_patch and patch_block is None:
+            errors.append("Missing [PATCH] or [/PATCH] section.")
+        return _invalid_mileday_result(
+            base_result,
+            parsed_output={**base_metadata, "contract_errors": errors},
+            message="MileDay multiturn output must contain the expected PLAN/PATCH block.",
+        )
+
+    if needs_plan:
+        plan_items, parse_errors = _parse_mileday_plan_block(plan_block or "")
+        patch_items: list[dict[str, str]] = []
+    else:
+        plan_items = []
+        patch_items, parse_errors = _parse_mileday_plan_block(patch_block or "", allow_empty=True)
+    if parse_errors:
+        return _invalid_mileday_result(
+            base_result,
+            parsed_output={
+                **base_metadata,
+                "plan_parse_errors": parse_errors,
+            },
+            message="MileDay multiturn PLAN/PATCH block was not parseable.",
+        )
+    contract["plan_parseable"] = needs_plan
+    contract["patch_parseable"] = needs_patch
+    parsed = {
+        "action": turn.expected_action,
+        "user_message": "",
+        "plan_items": plan_items,
+        "patch_items": patch_items,
+        "requires_confirmation": True,
+    }
+    validation = _validate_mileday_multiturn_plan_output(
+        case,
+        turn_id,
+        parsed,
+        previous_parsed,
+    )
+    contract.update(validation["contract"])
+    parsed_for_judge = validation.get("effective_parsed_json", parsed)
+    user_message = _build_mileday_rule_based_user_message(case, turn_id, parsed_for_judge, previous_parsed)
+    if isinstance(parsed_for_judge, dict):
+        parsed_for_judge = {**parsed_for_judge, "user_message": user_message}
+    parsed_output = {
+        **base_metadata,
+        "output_contract": contract,
+        "explanation": user_message,
+        "user_message": user_message,
+        "parsed_json": parsed_for_judge,
+        "raw_parsed_json": parsed,
+        "multiturn_validation": validation,
+        "semantic_score": validation["local_score"],
+    }
+    if validation["errors"]:
+        failed_check_names = validation["deterministic_validation"]["failed_check_names"]
+        failed_check_text = ", ".join(failed_check_names) if failed_check_names else "unknown"
+        return _invalid_mileday_result(
+            base_result,
+            parsed_output=parsed_output,
+            message=f"MileDay multiturn deterministic validation failed: {failed_check_text}.",
+        )
+
+    if explanation_judge is None:
+        dependency_error = EvaluationError(
+            category=FailureCategory.EXTERNAL_DEPENDENCY,
+            message="Gemini multiturn judge is required but GEMINI_API_KEY is not configured.",
+        )
+        return base_result.model_copy(
+            update={
+                "status": ResultStatus.FAILED,
+                "parsed_output": {
+                    **parsed_output,
+                    "explanation_judge": {
+                        **skipped_explanation_judge_result().model_dump(mode="json"),
+                        "error": dependency_error.model_dump(mode="json"),
+                    },
+                },
+                "error": dependency_error,
+            }
+        )
+
+    evaluate_multiturn = getattr(explanation_judge, "evaluate_multiturn", None)
+    if evaluate_multiturn is None:
+        dependency_error = EvaluationError(
+            category=FailureCategory.CODE_ERROR,
+            message="Configured explanation judge does not support MileDay multiturn evaluation.",
+        )
+        return base_result.model_copy(
+            update={
+                "status": ResultStatus.FAILED,
+                "parsed_output": {
+                    **parsed_output,
+                    "explanation_judge": {
+                        **skipped_explanation_judge_result().model_dump(mode="json"),
+                        "error": dependency_error.model_dump(mode="json"),
+                    },
+                },
+                "error": dependency_error,
+            }
+        )
+
+    judge_result = evaluate_multiturn(case, turn_id, user_message, parsed_for_judge, previous_parsed)
+    parsed_output["explanation_judge"] = judge_result.model_dump(mode="json")
+    if judge_result.error is not None:
+        return base_result.model_copy(
+            update={
+                "status": ResultStatus.FAILED,
+                "parsed_output": parsed_output,
+                "error": judge_result.error,
+            }
+        )
+    if not judge_result.is_aligned:
+        return _invalid_mileday_result(
+            base_result,
+            parsed_output=parsed_output,
+            message="MileDay multiturn judge rejected the response.",
+        )
+    return base_result.model_copy(
+        update={
+            "status": ResultStatus.PASSED,
+            "parsed_output": parsed_output,
+        }
+    )
+
+
+def _evaluate_mileday_multiturn_intent_record(
+    base_result: RequestResult,
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    raw_output: str,
+    *,
+    previous_parsed: dict[str, Any] | None,
+    explanation_judge: ExplanationJudge | None,
+) -> RequestResult:
+    if base_result.error is not None:
+        return base_result
+
+    turn = case.turns[turn_id - 1]
+    intent_block = _extract_schedule_intent_block(raw_output)
+    contract: dict[str, Any] = {
+        "type": "mileday_multiturn_intent_with_rule_based_payload",
+        "has_schedule_intent_section": "[SCHEDULE_INTENT]" in raw_output or "[일정_의도]" in raw_output,
+        "has_schedule_intent_end": "[/SCHEDULE_INTENT]" in raw_output or "[/일정_의도]" in raw_output,
+        "intent_parseable": False,
+        "required_fields_present": False,
+        "db_payload_schema_valid": False,
+        "requires_confirmation_valid": False,
+    }
+    base_metadata = {
+        **base_result.parsed_output,
+        "evaluation_family": "mileday_multiturn",
+        "case_id": case.case_id,
+        "turn_id": turn_id,
+        "turn_count": len(case.turns),
+        "expected_action": turn.expected_action,
+        "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+        "output_contract": contract,
+    }
+    if intent_block is None:
+        intent = _fallback_mileday_schedule_intent(case, turn_id, raw_output)
+        if intent is None:
+            return _invalid_mileday_result(
+                base_result,
+                parsed_output={
+                    **base_metadata,
+                    "contract_errors": ["Missing [일정_의도] or [/일정_의도] section."],
+                },
+                message="MileDay multiturn output must contain the expected Korean schedule intent block.",
+            )
+        parse_errors = []
+        contract["freeform_fallback_used"] = True
+    else:
+        intent, parse_errors = _parse_mileday_schedule_intent_block(intent_block)
+        contract["freeform_fallback_used"] = False
+    if parse_errors:
+        has_invalid_explicit_action = bool(intent.get("action")) and any(
+            "action must be create or partial_update." == error for error in parse_errors
+        )
+        if has_invalid_explicit_action:
+            return _invalid_mileday_result(
+                base_result,
+                parsed_output={**base_metadata, "intent_parse_errors": parse_errors, "raw_intent": intent},
+                message="MileDay multiturn SCHEDULE_INTENT block was not parseable.",
+            )
+        fallback_intent = _fallback_mileday_schedule_intent(case, turn_id, raw_output)
+        if fallback_intent is None:
+            return _invalid_mileday_result(
+                base_result,
+                parsed_output={**base_metadata, "intent_parse_errors": parse_errors, "raw_intent": intent},
+                message="MileDay multiturn SCHEDULE_INTENT block was not parseable.",
+            )
+        intent = fallback_intent
+        contract["freeform_fallback_used"] = True
+    else:
+        contract.setdefault("freeform_fallback_used", False)
+
+    contract["intent_parseable"] = True
+    if turn.expected_action == "create":
+        plan_items = _plan_items_from_mileday_intent(case, intent)
+        patch_items: list[dict[str, str]] = []
+        remove_slot_ids: list[str] = []
+        add_items: list[dict[str, str]] = []
+    else:
+        patch_items = _patch_items_from_mileday_intent(case, turn_id, intent, previous_parsed)
+        remove_slot_ids = _remove_slot_ids_from_mileday_intent(case, turn_id, intent, previous_parsed)
+        add_items = _add_items_from_mileday_intent(case, turn_id, intent, previous_parsed)
+        previous_plan_items = previous_parsed.get("plan_items") if isinstance(previous_parsed, dict) else []
+        plan_items = _apply_mileday_plan_patch(previous_plan_items if isinstance(previous_plan_items, list) else [], patch_items)
+        if remove_slot_ids:
+            plan_items = [item for item in plan_items if item.get("slot_id") not in set(remove_slot_ids)]
+        plan_items.extend(add_items)
+
+    parsed = {
+        "action": turn.expected_action,
+        "intent": intent,
+        "user_message": "",
+        "plan_items": plan_items,
+        "patch_items": patch_items,
+        "remove_slot_ids": remove_slot_ids,
+        "add_items": add_items,
+        "requires_confirmation": True,
+    }
+    validation = _validate_mileday_multiturn_plan_output(
+        case,
+        turn_id,
+        parsed,
+        previous_parsed,
+    )
+    contract.update(validation["contract"])
+    parsed_for_judge = validation.get("effective_parsed_json", parsed)
+    user_message = _build_mileday_rule_based_user_message(case, turn_id, parsed_for_judge, previous_parsed)
+    if isinstance(parsed_for_judge, dict):
+        parsed_for_judge = {**parsed_for_judge, "user_message": user_message}
+    parsed_output = {
+        **base_metadata,
+        "output_contract": contract,
+        "explanation": user_message,
+        "user_message": user_message,
+        "parsed_json": parsed_for_judge,
+        "raw_intent": intent,
+        "raw_parsed_json": parsed,
+        "multiturn_validation": validation,
+        "semantic_score": validation["local_score"],
+    }
+    if validation["errors"]:
+        failed_check_names = validation["deterministic_validation"]["failed_check_names"]
+        failed_check_text = ", ".join(failed_check_names) if failed_check_names else "unknown"
+        return _invalid_mileday_result(
+            base_result,
+            parsed_output=parsed_output,
+            message=f"MileDay multiturn deterministic validation failed: {failed_check_text}.",
+        )
+
+    if explanation_judge is None:
+        dependency_error = EvaluationError(
+            category=FailureCategory.EXTERNAL_DEPENDENCY,
+            message="Gemini multiturn judge is required but GEMINI_API_KEY is not configured.",
+        )
+        return base_result.model_copy(
+            update={
+                "status": ResultStatus.FAILED,
+                "parsed_output": {
+                    **parsed_output,
+                    "explanation_judge": {
+                        **skipped_explanation_judge_result().model_dump(mode="json"),
+                        "error": dependency_error.model_dump(mode="json"),
+                    },
+                },
+                "error": dependency_error,
+            }
+        )
+
+    evaluate_multiturn = getattr(explanation_judge, "evaluate_multiturn", None)
+    if evaluate_multiturn is None:
+        dependency_error = EvaluationError(
+            category=FailureCategory.CODE_ERROR,
+            message="Configured explanation judge does not support MileDay multiturn evaluation.",
+        )
+        return base_result.model_copy(
+            update={
+                "status": ResultStatus.FAILED,
+                "parsed_output": {
+                    **parsed_output,
+                    "explanation_judge": {
+                        **skipped_explanation_judge_result().model_dump(mode="json"),
+                        "error": dependency_error.model_dump(mode="json"),
+                    },
+                },
+                "error": dependency_error,
+            }
+        )
+
+    judge_result = evaluate_multiturn(case, turn_id, user_message, parsed_for_judge, previous_parsed)
+    parsed_output["explanation_judge"] = judge_result.model_dump(mode="json")
+    if judge_result.error is not None:
+        return base_result.model_copy(
+            update={
+                "status": ResultStatus.FAILED,
+                "parsed_output": parsed_output,
+                "error": judge_result.error,
+            }
+        )
+    if not judge_result.is_aligned:
+        return _invalid_mileday_result(
+            base_result,
+            parsed_output=parsed_output,
+            message="MileDay multiturn judge rejected the response.",
+        )
+    return base_result.model_copy(
+        update={
+            "status": ResultStatus.PASSED,
+            "parsed_output": parsed_output,
+        }
+    )
+
+
+def _validate_mileday_multiturn_plan_output(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    parsed: dict[str, Any],
+    previous_parsed: dict[str, Any] | None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    failed_checks: list[dict[str, str]] = []
+
+    def add_error(check: str, message: str, *, code: str | None = None, safety_gate: bool = False) -> None:
+        errors.append(message)
+        failed_checks.append(
+            {
+                "check": check,
+                "failure_code": code or _failure_code_for_check(check),
+                "severity": "critical" if safety_gate else "error",
+                "message": message,
+                "safety_gate": safety_gate,
+                "validator_source": "deterministic",
+            }
+        )
+
+    expected_action = case.turns[turn_id - 1].expected_action
+    raw_plan_items = parsed.get("plan_items")
+    raw_patch_items = parsed.get("patch_items")
+    raw_remove_slot_ids = parsed.get("remove_slot_ids")
+    raw_add_items = parsed.get("add_items")
+    if expected_action == "partial_update":
+        previous_plan_items = previous_parsed.get("plan_items") if isinstance(previous_parsed, dict) else None
+        if not isinstance(previous_plan_items, list):
+            add_error("previous_plan_present", "partial_update requires previous parsed plan_items", code="STATE_LOSS")
+            previous_plan_items = []
+        patch_items = raw_patch_items if isinstance(raw_patch_items, list) else []
+        patch_items = _expand_mileday_patch_items_for_weekday_request(
+            case,
+            previous_plan_items,
+            patch_items,
+            case.turns[turn_id - 1].content,
+        )
+        plan_items = _apply_mileday_plan_patch(previous_plan_items, patch_items)
+        remove_slot_ids = {
+            slot_id
+            for slot_id in raw_remove_slot_ids
+            if isinstance(raw_remove_slot_ids, list) and isinstance(slot_id, str)
+        }
+        if remove_slot_ids:
+            plan_items = [item for item in plan_items if item.get("slot_id") not in remove_slot_ids]
+        add_items = raw_add_items if isinstance(raw_add_items, list) else []
+        if add_items:
+            plan_items.extend(add_items)
+    else:
+        patch_items = []
+        remove_slot_ids = set()
+        add_items = []
+        plan_items = raw_plan_items
+    required_fields_present = (
+        parsed.get("action") == expected_action
+        and isinstance(plan_items, list)
+    )
+    if not required_fields_present:
+        add_error("required_fields_present", "Parsed v11 output must contain action and plan_items", code="INTENT_CONTRACT_ERROR")
+
+    confirmation_valid = parsed.get("requires_confirmation") is True
+    if not confirmation_valid:
+        add_error("requires_confirmation_valid", "requires_confirmation must be true", code="APPROVAL_GUARD_VIOLATION", safety_gate=True)
+
+    allowed_slots = _mileday_multiturn_allowed_slots(case)
+    slots_by_id = {slot["slot_id"]: slot for slot in allowed_slots}
+    selected_milestones: list[dict[str, Any]] = []
+    slot_ids_seen: set[str] = set()
+    source_items = patch_items if expected_action == "partial_update" else plan_items
+    plan_schema_valid = isinstance(source_items, list) and all(isinstance(item, dict) for item in source_items)
+    plan_slot_valid = True
+    if not plan_schema_valid:
+        add_error("plan_schema_valid", "plan_items/patch_items must be a list of objects", code="PAYLOAD_SCHEMA_ERROR")
+        source_items = []
+
+    valid_patch_slot_ids = {item.get("slot_id") for item in previous_parsed.get("plan_items", [])} if isinstance(previous_parsed, dict) else set()
+    for item in source_items or []:
+        slot_id = item.get("slot_id")
+        task = item.get("task")
+        if not isinstance(slot_id, str) or slot_id not in slots_by_id:
+            plan_slot_valid = False
+            add_error("plan_slot_valid", f"Unknown slot_id: {slot_id!r}", code="TARGET_NOT_FOUND")
+            continue
+        if expected_action == "partial_update" and slot_id not in valid_patch_slot_ids:
+            plan_slot_valid = False
+            add_error("patch_slot_valid", f"PATCH slot_id was not present in previous PLAN: {slot_id}", code="TARGET_NOT_FOUND", safety_gate=True)
+            continue
+        if slot_id in slot_ids_seen:
+            plan_slot_valid = False
+            add_error("plan_slot_valid", f"Duplicate slot_id: {slot_id}", code="PAYLOAD_SCHEMA_ERROR")
+            continue
+        slot_ids_seen.add(slot_id)
+        if not isinstance(task, str) or not task.strip():
+            plan_slot_valid = False
+            add_error("plan_task_valid", f"Task must be a non-empty string for {slot_id}", code="PAYLOAD_SCHEMA_ERROR")
+            continue
+        if task.strip().startswith("[") or re.search(r"\d{1,2}:\d{2}", task):
+            plan_slot_valid = False
+            add_error("plan_task_valid", f"Task must not include weekday/time prefix for {slot_id}", code="TIME_PREFIX_MISMATCH")
+            continue
+        slot = slots_by_id[slot_id]
+        mentioned_weekdays = _mentioned_korean_weekdays(task)
+        if mentioned_weekdays and slot["day_of_week"] not in mentioned_weekdays:
+            plan_slot_valid = False
+            add_error("plan_task_valid", f"Task weekday text does not match slot weekday for {slot_id}", code="DATE_WEEKDAY_MISMATCH")
+            continue
+        if "오전" in task or "오후" in task:
+            plan_slot_valid = False
+            add_error("plan_task_valid", f"Task must not include time-of-day text for {slot_id}", code="TIME_PREFIX_MISMATCH")
+            continue
+        if _contains_disallowed_english_task_text(task):
+            plan_slot_valid = False
+            add_error("plan_task_valid", f"Task must be written in Korean for {slot_id}", code="INTENT_CONTRACT_ERROR")
+            continue
+
+    slot_ids_seen = set()
+    for item in plan_items or []:
+        slot_id = item.get("slot_id")
+        task = item.get("task")
+        if not isinstance(slot_id, str) or slot_id not in slots_by_id:
+            continue
+        if slot_id in slot_ids_seen:
+            continue
+        slot_ids_seen.add(slot_id)
+        if not isinstance(task, str) or not task.strip():
+            continue
+        if (
+            task.strip().startswith("[")
+            or re.search(r"\d{1,2}:\d{2}", task)
+            or "오전" in task
+            or "오후" in task
+            or _contains_disallowed_english_task_text(task)
+        ):
+            continue
+        mentioned_weekdays = _mentioned_korean_weekdays(task)
+        slot = slots_by_id[slot_id]
+        if mentioned_weekdays and slot["day_of_week"] not in mentioned_weekdays:
+            continue
+        selected_milestones.append(
+            {
+                "title": canonical_milestone_title(slot["day_of_week"], slot["time_range"].split("-")[0], slot["time_range"].split("-")[1], task.strip()),
+                "color": case.input.initial_goal.color,
+                "scheduled_date": slot["scheduled_date"],
+            }
+        )
+
+    min_items = 3 if expected_action == "create" else 1
+    max_items = case.expected.constraints.max_milestones
+    milestone_count_valid = min_items <= len(selected_milestones) <= max_items
+    if not milestone_count_valid:
+        add_error("milestone_count_valid", "Final PLAN item count is outside the expected min/max range", code="PAYLOAD_SCHEMA_ERROR")
+
+    goal_payload = {
+        "title": case.input.initial_goal.title,
+        "deadline": case.input.initial_goal.deadline,
+        "is_recurring": case.input.initial_goal.is_recurring,
+        "recurrence_type": case.input.initial_goal.recurrence_type,
+        "color": case.input.initial_goal.color,
+    }
+    rule_based_db_payload = {
+        "goal": goal_payload,
+        "milestones": selected_milestones,
+    }
+    effective_parsed = {
+        **parsed,
+        "plan_items": plan_items,
+        "patch_items": patch_items,
+        "remove_slot_ids": sorted(remove_slot_ids),
+        "add_items": add_items,
+        "db_payload": rule_based_db_payload,
+        "rule_based_db_payload": rule_based_db_payload,
+    }
+
+    availability_result = _validate_multiturn_availability_alignment(case, selected_milestones)
+    availability_alignment = availability_result["is_valid"]
+    weekday_date_alignment = availability_result["weekday_date_alignment"]
+    if not availability_alignment:
+        for message in availability_result["errors"]:
+            add_error("availability_alignment", message, code="AVAILABILITY_VIOLATION", safety_gate=True)
+    if availability_alignment and not weekday_date_alignment:
+        add_error("weekday_date_alignment", "Milestone title weekday does not match scheduled_date weekday", code="DATE_WEEKDAY_MISMATCH", safety_gate=True)
+    if availability_result["warnings"]:
+        warnings.extend(availability_result["warnings"])
+
+    latest_allowed = case.expected.constraints.latest_allowed_date
+    deadline_compliance = all(
+        isinstance(milestone.get("scheduled_date"), str)
+        and milestone["scheduled_date"] <= latest_allowed
+        for milestone in selected_milestones
+    )
+    if not deadline_compliance:
+        add_error("deadline_compliance", "All generated scheduled_date values must be before the case deadline", code="DEADLINE_VIOLATION", safety_gate=True)
+
+    previous_plan_slot_ids = set(_plan_slot_ids(previous_parsed))
+    current_plan_slot_ids = {
+        item.get("slot_id")
+        for item in plan_items or []
+        if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
+    }
+    previous_titles = set(_milestone_titles(previous_parsed))
+    current_titles = set(_milestone_titles(effective_parsed))
+    state_regression_count = (
+        len(previous_plan_slot_ids - current_plan_slot_ids)
+        if previous_plan_slot_ids
+        else len(previous_titles - current_titles)
+        if previous_titles
+        else 0
+    )
+    completed_existing_titles = [
+        milestone.title for milestone in case.input.existing_schedule if milestone.is_completed
+    ]
+    completed_milestones_preserved = all(
+        any(title in current_title for current_title in current_titles)
+        for title in completed_existing_titles
+    )
+    if completed_existing_titles and not completed_milestones_preserved:
+        warnings.append("Completed existing milestones are outside the v8 PLAN output.")
+
+    db_payload_schema_valid = set(rule_based_db_payload["goal"]) == set(GOAL_DB_FIELDS) and all(
+        set(item) == set(MILESTONE_DB_FIELDS) for item in selected_milestones
+    )
+    if not db_payload_schema_valid:
+        add_error("db_payload_schema_valid", "DB payload contains missing or extra fields.", code="PAYLOAD_SCHEMA_ERROR")
+    safety_gate_failures = [item for item in failed_checks if item.get("safety_gate") is True]
+    local_flags = [
+        required_fields_present,
+        plan_schema_valid,
+        plan_slot_valid,
+        db_payload_schema_valid,
+        confirmation_valid,
+        deadline_compliance,
+        milestone_count_valid,
+        availability_alignment,
+        weekday_date_alignment,
+    ]
+    return {
+        "errors": errors,
+        "warnings": warnings,
+        "local_score": round(sum(1 for flag in local_flags if flag) / len(local_flags), 3),
+        "effective_parsed_json": effective_parsed,
+        "rule_based_db_payload": rule_based_db_payload,
+        "deterministic_validation": {
+            "is_valid": len(errors) == 0,
+            "failed_checks": failed_checks,
+            "failed_check_names": sorted({item["check"] for item in failed_checks}),
+            "failure_codes": sorted({item["failure_code"] for item in failed_checks}),
+        },
+        "failure_taxonomy": failed_checks,
+        "safety_gate": {
+            "passed": len(safety_gate_failures) == 0,
+            "violations": safety_gate_failures,
+            "violation_count": len(safety_gate_failures),
+        },
+        "contract": {
+            "required_fields_present": required_fields_present,
+            "db_payload_schema_valid": db_payload_schema_valid,
+            "requires_confirmation_valid": confirmation_valid,
+            "plan_schema_valid": plan_schema_valid,
+            "plan_slot_valid": plan_slot_valid,
+            "patch_applied": expected_action == "partial_update",
+        },
+        "state": {
+            "previous_context_used": previous_parsed is not None,
+            "unmentioned_milestones_preserved": state_regression_count == 0,
+            "completed_milestones_preserved": completed_milestones_preserved,
+            "partial_update_scope_valid": True,
+            "state_regression_count": state_regression_count,
+        },
+        "schedule_quality": {
+            "availability_alignment": availability_alignment,
+            "weekday_date_alignment": weekday_date_alignment,
+            "deadline_compliance": deadline_compliance,
+            "milestone_count_valid": milestone_count_valid,
+            "schedule_progression_valid": None,
+            "explanation_alignment": None,
+        },
+    }
+
+
+def _milestone_titles(parsed: dict[str, Any] | None) -> list[str]:
+    if not isinstance(parsed, dict):
+        return []
+    db_payload = parsed.get("db_payload")
+    if not isinstance(db_payload, dict):
+        return []
+    milestones = db_payload.get("milestones")
+    if not isinstance(milestones, list):
+        return []
+    return [str(item["title"]) for item in milestones if isinstance(item, dict) and isinstance(item.get("title"), str)]
+
+
+def _plan_slot_ids(parsed: dict[str, Any] | None) -> list[str]:
+    if not isinstance(parsed, dict):
+        return []
+    plan_items = parsed.get("plan_items")
+    if not isinstance(plan_items, list):
+        return []
+    return [
+        str(item["slot_id"])
+        for item in plan_items
+        if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
+    ]
+
+
+def _validate_multiturn_availability_alignment(
+    case: MileDayMultiTurnCase,
+    milestones: list[dict[str, Any]],
+) -> dict[str, Any]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not milestones:
+        return {
+            "is_valid": False,
+            "weekday_date_alignment": False,
+            "errors": ["At least one milestone is required for availability validation."],
+            "warnings": warnings,
+        }
+    windows = {
+        (window.day_of_week, window.start_time, window.end_time)
+        for window in case.input.availability
+    }
+    title_prefix_valid = True
+    weekday_date_alignment = True
+    for milestone in milestones:
+        title = milestone.get("title")
+        scheduled_date = milestone.get("scheduled_date")
+        if not isinstance(title, str):
+            title_prefix_valid = False
+            errors.append("Milestone title must be a string.")
+            continue
+        parsed_title = parse_canonical_milestone_title(title)
+        if parsed_title is None:
+            title_prefix_valid = False
+            errors.append(f"Milestone title must start with a bracketed weekday/time range: {title}")
+            continue
+        if (parsed_title.day_of_week, parsed_title.start_time, parsed_title.end_time) not in windows:
+            title_prefix_valid = False
+            errors.append(f"Milestone title uses unavailable weekday/time: {title}")
+        if isinstance(scheduled_date, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", scheduled_date):
+            actual_day = _date_day_of_week(scheduled_date)
+            if actual_day is not None and actual_day != parsed_title.day_of_week:
+                weekday_date_alignment = False
+                errors.append(
+                    f"Milestone title weekday does not match scheduled_date: {title} / {scheduled_date}"
+                )
+        else:
+            weekday_date_alignment = False
+            warnings.append(f"Cannot verify weekday/date alignment for invalid date: {scheduled_date}")
+    return {
+        "is_valid": title_prefix_valid and weekday_date_alignment,
+        "weekday_date_alignment": weekday_date_alignment,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def _failure_code_for_check(check: str) -> str:
+    return {
+        "previous_plan_present": "STATE_LOSS",
+        "required_fields_present": "INTENT_CONTRACT_ERROR",
+        "requires_confirmation_valid": "APPROVAL_GUARD_VIOLATION",
+        "plan_schema_valid": "PAYLOAD_SCHEMA_ERROR",
+        "plan_slot_valid": "TARGET_NOT_FOUND",
+        "patch_slot_valid": "TARGET_NOT_FOUND",
+        "plan_task_valid": "INTENT_CONTRACT_ERROR",
+        "milestone_count_valid": "PAYLOAD_SCHEMA_ERROR",
+        "availability_alignment": "AVAILABILITY_VIOLATION",
+        "weekday_date_alignment": "DATE_WEEKDAY_MISMATCH",
+        "deadline_compliance": "DEADLINE_VIOLATION",
+        "db_payload_schema_valid": "PAYLOAD_SCHEMA_ERROR",
+    }.get(check, "JUDGE_REJECTION")
+
+
+def _parse_milestone_title_time_prefix(title: str) -> tuple[str, str, str] | None:
+    match = re.match(r"^\[(?P<weekday>[^\s\]]+)\s+(?P<start>\d{2}:\d{2})-(?P<end>\d{2}:\d{2})\]", title)
+    if match is None:
+        return None
+    weekday = match.group("weekday")
+    day_of_week = {
+        "월": "monday",
+        "월요일": "monday",
+        "화": "tuesday",
+        "화요일": "tuesday",
+        "수": "wednesday",
+        "수요일": "wednesday",
+        "목": "thursday",
+        "목요일": "thursday",
+        "금": "friday",
+        "금요일": "friday",
+        "토": "saturday",
+        "토요일": "saturday",
+        "일": "sunday",
+        "일요일": "sunday",
+    }.get(weekday)
+    if day_of_week is None:
+        return None
+    return day_of_week, match.group("start"), match.group("end")
+
+
+def _date_day_of_week(raw_date: str) -> str | None:
+    try:
+        weekday_index = date.fromisoformat(raw_date).weekday()
+    except ValueError:
+        return None
+    return [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ][weekday_index]
+
+
+def _skipped_mileday_multiturn_result(
+    *,
+    run_id: str,
+    model_id: str,
+    dataset_id: str,
+    case_id: str,
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+) -> RequestResult:
+    return RequestResult(
+        run_id=run_id,
+        model_id=model_id,
+        dataset_id=dataset_id,
+        case_id=case_id,
+        status=ResultStatus.SKIPPED,
+        parsed_output={
+            "evaluation_family": "mileday_multiturn",
+            "case_id": case.case_id,
+            "turn_id": turn_id,
+            "turn_count": len(case.turns),
+            "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+            "skipped_reason": "Previous turn in the same case did not pass.",
+        },
+        metrics=RuntimeMetrics(),
+        error=EvaluationError(
+            category=FailureCategory.NOT_EXECUTED,
+            message="Previous turn in the same case did not pass.",
+        ),
+    )
+
+
 def _invalid_mileday_result(
     base_result: RequestResult,
     *,
@@ -1838,3 +4124,5 @@ def _extract_explanation(raw_output: str) -> str | None:
 
 if __name__ == "__main__":
     app()
+
+

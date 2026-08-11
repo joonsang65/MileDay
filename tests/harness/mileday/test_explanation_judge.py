@@ -1,3 +1,5 @@
+import httpx
+
 from harness.mileday.explanation_judge import (
     GeminiExplanationJudge,
     build_batch_quality_summary_prompt,
@@ -56,6 +58,56 @@ def test_gemini_explanation_judge_parses_structured_response(monkeypatch):
         "score",
         "reason",
     ]
+
+
+def test_gemini_explanation_judge_retries_transient_503(monkeypatch):
+    case = load_mileday_generation_cases("tests/fixtures/mileday/synthetic_schedule.jsonl")[0]
+    calls = []
+    sleeps = []
+
+    class MockResponse:
+        def __init__(self, status_code: int):
+            self.status_code = status_code
+            self.text = '{"error": {"message": "temporary"}}'
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                request = httpx.Request("POST", "https://example.test/v1/models/gemini-test:generateContent")
+                response = httpx.Response(self.status_code, request=request, text=self.text)
+                raise httpx.HTTPStatusError("temporary", request=request, response=response)
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": (
+                                        '{"is_aligned": true, "score": 0.91, '
+                                        '"reason": "retry succeeded"}'
+                                    )
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    def mock_post(url, headers, json, timeout):
+        calls.append((url, headers, json, timeout))
+        return MockResponse(503 if len(calls) < 3 else 200)
+
+    monkeypatch.setattr("harness.mileday.explanation_judge.httpx.post", mock_post)
+    monkeypatch.setattr("harness.mileday.explanation_judge.sleep", lambda seconds: sleeps.append(seconds))
+
+    judge = GeminiExplanationJudge(api_key="secret", model="gemini-test", base_url="https://example.test/v1")
+    result = judge.evaluate(case, "설명", {"milestones": []})
+
+    assert result.is_aligned is True
+    assert result.score == 0.91
+    assert len(calls) == 3
+    assert sleeps == [0.5, 1.0, 2.0]
 
 
 def test_skipped_explanation_judge_result_is_non_blocking():

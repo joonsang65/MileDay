@@ -94,7 +94,7 @@ def render_markdown_report(
 def dataset_family(dataset_id: str, parsed_output: dict[str, Any] | None = None) -> str:
     parsed = parsed_output or {}
     explicit = parsed.get("evaluation_family") or parsed.get("family")
-    if explicit in {"public_benchmark", "mileday_generation"}:
+    if explicit in {"public_benchmark", "mileday_generation", "mileday_multiturn"}:
         return str(explicit)
     lowered = dataset_id.lower()
     if lowered.startswith("mileday") or "mileday" in lowered or "validation" in parsed or "rubric" in parsed:
