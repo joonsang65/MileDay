@@ -27,6 +27,7 @@ class HarnessSettings(BaseModel):
     ollama_base_url: str = Field(default="http://localhost:11434")
     gemini_api_key: str | None = Field(default=None)
     gemini_api_base_url: str = Field(default="https://generativelanguage.googleapis.com/v1beta")
+    gemini_generation_api_key: str | None = Field(default=None)
     gemini_judge_model: str = Field(default="gemini-3.5-flash")
     mileday_require_explanation_judge: bool = Field(default=False)
 
@@ -54,6 +55,7 @@ def _settings_from_env() -> dict[str, Any]:
         "ollama_base_url": getenv("OLLAMA_BASE_URL"),
         "gemini_api_key": getenv("GEMINI_API_KEY"),
         "gemini_api_base_url": getenv("GEMINI_API_BASE_URL"),
+        "gemini_generation_api_key": getenv("GEMINI_GENERATION_API_KEY"),
         "gemini_judge_model": getenv("GEMINI_JUDGE_MODEL"),
         "mileday_require_explanation_judge": getenv("MILEDAY_REQUIRE_EXPLANATION_JUDGE"),
     }

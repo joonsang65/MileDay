@@ -5,6 +5,8 @@ from typer.testing import CliRunner
 
 from harness.benchmarks.mcq import MCQCaseResult
 from harness.cli import (
+    MILEDAY_API_MODEL_IDS,
+    MILEDAY_API_MULTITURN_PROMPT_VERSION,
     MILEDAY_MULTITURN_FIXTURE,
     MILEDAY_MULTITURN_MODEL_ID,
     MILEDAY_MULTITURN_PROMPT_VERSION,
@@ -13,6 +15,7 @@ from harness.cli import (
     PublicBenchmarkCase,
     _evaluate_mileday_multiturn_record,
     _evaluate_mileday_record,
+    _mileday_multiturn_api_prompt,
     _load_third_benchmark_cases,
     _mileday_generation_prompt,
     _mileday_multiturn_prompt,
@@ -443,6 +446,115 @@ def test_run_mileday_multiturn_uses_all_fixed_fixture_cases(monkeypatch, tmp_pat
     assert f'"prompt_version": "{MILEDAY_MULTITURN_PROMPT_VERSION}"' in stored_results
 
 
+def test_run_mileday_multiturn_api_runs_flash_lite_and_flash(monkeypatch, tmp_path):
+    monkeypatch.setenv("HARNESS_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("HARNESS_RUNS_DIR", str(tmp_path / "artifacts" / "runs"))
+    monkeypatch.setenv("GEMINI_API_KEY", "judge-key")
+    monkeypatch.setenv("GEMINI_GENERATION_API_KEY", "generation-key")
+    fast_cases = load_mileday_multiturn_cases(MILEDAY_MULTITURN_FIXTURE)[:2]
+    runtimes = []
+    sleeps = []
+
+    class MockJudge:
+        def __init__(self, **_kwargs):
+            pass
+
+        def evaluate_multiturn(self, case, turn_id, explanation, parsed_output, previous_output):
+            return ExplanationJudgeResult(is_aligned=True, score=0.95, reason="ok")
+
+    class MockGeminiRuntime:
+        def __init__(self, api_key, base_url):
+            self.api_key = api_key
+            self.base_url = base_url
+            self.requests = []
+            runtimes.append(self)
+
+        def stream(self, request):
+            return iter(())
+
+        def generate(self, request):
+            self.requests.append(request)
+            action = (
+                "partial_update"
+                if "예상_행동: 부분수정" in request.prompt
+                else "create"
+            )
+            return RuntimeResponse(
+                model_tag=request.model_tag,
+                text=_multiturn_response_for_prompt(request.prompt, action=action),
+                metrics=RuntimeMetrics(ttft_ms=1, latency_ms=2, tokens_per_second=3),
+                metadata={"provider": "gemini"},
+            )
+
+    monkeypatch.setattr("harness.cli.GeminiExplanationJudge", MockJudge)
+    monkeypatch.setattr("harness.cli.GeminiRuntime", MockGeminiRuntime)
+    monkeypatch.setattr("harness.cli.load_mileday_multiturn_cases", lambda _fixture: fast_cases)
+    monkeypatch.setattr("harness.cli.time.sleep", lambda seconds: sleeps.append(seconds))
+
+    result = CliRunner().invoke(
+        app,
+        ["run-mileday-multiturn-api", "--sleep-seconds", "0.01", "--limit", "1"],
+    )
+
+    assert result.exit_code == 0
+    assert "batch_id=gemini-mileday-multiturn-1" in result.stdout
+    assert "runtime=gemini" in result.stdout
+    assert "sleep_seconds=0.01" in result.stdout
+    assert "cases=1" in result.stdout
+    assert "case_limit=1" in result.stdout
+    assert f"prompt_version={MILEDAY_API_MULTITURN_PROMPT_VERSION}" in result.stdout
+    assert "models=" + ", ".join(MILEDAY_API_MODEL_IDS) in result.stdout
+    assert "gemini-3.5-flash-lite -> gemini-3-5-flash-lite-mileday-multiturn-1" in result.stdout
+    assert "gemini-3.6-flash -> gemini-3-6-flash-mileday-multiturn-1" in result.stdout
+    assert [runtime.api_key for runtime in runtimes] == ["generation-key", "generation-key"]
+    assert [runtime.requests[0].model_tag for runtime in runtimes] == list(MILEDAY_API_MODEL_IDS)
+    assert runtimes[0].requests[0].options == MILEDAY_MULTITURN_RUNTIME_OPTIONS
+    assert MILEDAY_API_MULTITURN_PROMPT_VERSION in runtimes[0].requests[0].prompt
+    assert "[PREVIOUS_PLAN_TARGETS]" in runtimes[0].requests[1].prompt
+    assert "S001" in runtimes[0].requests[1].prompt
+    assert sleeps == [0.01] * 6
+    assert (
+        tmp_path
+        / "artifacts"
+        / "runs"
+        / "gemini-3-5-flash-lite-mileday-multiturn-1"
+        / "report.html"
+    ).exists()
+    summary_path = tmp_path / "artifacts" / "runs" / "gemini-mileday-multiturn-1-summary.md"
+    assert summary_path.exists()
+    summary_text = summary_path.read_text(encoding="utf-8")
+    assert "gemini-3.5-flash-lite" in summary_text
+    assert "gemini-3.6-flash" in summary_text
+
+
+def test_run_mileday_multiturn_api_requires_gemini_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_GENERATION_API_KEY", raising=False)
+
+    result = CliRunner().invoke(app, ["run-mileday-multiturn-api"])
+
+    assert result.exit_code != 0
+    assert "GEMINI_API_KEY or GEMINI_GENERATION_API_KEY is required" in result.output
+
+
+def test_run_mileday_multiturn_api_rejects_negative_sleep(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "judge-key")
+
+    result = CliRunner().invoke(app, ["run-mileday-multiturn-api", "--sleep-seconds", "-1"])
+
+    assert result.exit_code != 0
+    assert "sleep_seconds must be non-negative" in result.output
+
+
+def test_run_mileday_multiturn_api_rejects_non_positive_limit(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "judge-key")
+
+    result = CliRunner().invoke(app, ["run-mileday-multiturn-api", "--limit", "0"])
+
+    assert result.exit_code != 0
+    assert "limit must be positive" in result.output
+
+
 def test_v11_second_turn_receives_previous_intent_result():
     case = load_mileday_multiturn_cases("tests/fixtures/mileday/multiturn_schedule.pretty.json")[0]
     first_response = _multiturn_intent_response()
@@ -458,6 +570,28 @@ def test_v11_second_turn_receives_previous_intent_result():
     assert "[일정_의도]" in prompt
     assert "행동: 생성" in prompt
     assert case.turns[1].content in prompt
+
+
+def test_api_multiturn_prompt_has_strict_partial_update_targeting_rules():
+    case = load_mileday_multiturn_cases(MILEDAY_MULTITURN_FIXTURE)[0]
+    transcript = [
+        {
+            "role": "assistant",
+            "content": "[CURRENT_PLAN_TARGETS]\n- S001 | 시험 범위 확인\n- S002 | 기본 개념 정리",
+        }
+    ]
+
+    prompt = _mileday_multiturn_api_prompt(case, 2, transcript)
+
+    assert MILEDAY_API_MULTITURN_PROMPT_VERSION in prompt
+    assert "[PARTIAL_UPDATE_RULES]" in prompt
+    assert "[PARTIAL_UPDATE_SCOPE_MAP]" in prompt
+    assert "[TARGET_RULES]" in prompt
+    assert "[PARTIAL_UPDATE_EXAMPLES]" in prompt
+    assert "exactly one existing slot_id" in prompt
+    assert "rewrite all task names" in prompt
+    assert "S001" in prompt
+    assert "[SCHEDULE_INTENT]" in prompt
 
 
 def test_run_mileday_multiturn_skips_remaining_turns_after_invalid(monkeypatch, tmp_path):
@@ -897,6 +1031,59 @@ def test_v11_intent_partial_update_preserves_previous_plan_and_builds_payload():
     assert parsed["plan_items"][3]["task"] == "회복 위주 운동"
     assert parsed["plan_items"][1]["task"] == "10km 달리기 연습"
     assert result.parsed_output["multiturn_validation"]["state"]["state_regression_count"] == 0
+
+
+def test_api_intent_single_second_week_update_does_not_patch_all_slots():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/multiturn_schedule.pretty.json")[0]
+    previous_parsed = {
+        "plan_items": [
+            {"slot_id": "S001", "task": "시험 범위 확인 및 학습 계획 수립"},
+            {"slot_id": "S002", "task": "기본 개념 정리 및 교재 정독"},
+            {"slot_id": "S003", "task": "핵심 요약 노트 작성"},
+            {"slot_id": "S004", "task": "기출문제 풀이 및 오답 정리"},
+            {"slot_id": "S005", "task": "최종 모의고사 풀이 및 취약점 보완"},
+        ],
+        "db_payload": {"goal": {}, "milestones": []},
+    }
+    base_result = RequestResult(
+        run_id="run-1",
+        model_id="gemini-3.5-flash-lite",
+        dataset_id=case.dataset_id,
+        case_id="multiturn-001-turn-2",
+        status=ResultStatus.PASSED,
+    )
+
+    class MockJudge:
+        def evaluate_multiturn(self, case, turn_id, explanation, parsed_output, previous_output):
+            return ExplanationJudgeResult(is_aligned=True, score=0.95, reason="ok")
+
+    raw_output = (
+        "[SCHEDULE_INTENT]\n"
+        "action: partial_update\n"
+        "target: 중간고사 준비\n"
+        "change: 두 번째 주 작업명 구체화\n"
+        "tasks:\n"
+        "- 기본 개념 심화 학습 및 핵심 교재 정독\n"
+        "[/SCHEDULE_INTENT]"
+    )
+
+    result = _evaluate_mileday_multiturn_record(
+        base_result,
+        case,
+        2,
+        raw_output,
+        previous_parsed=previous_parsed,
+        explanation_judge=MockJudge(),
+        prompt_version=MILEDAY_API_MULTITURN_PROMPT_VERSION,
+    )
+
+    parsed = result.parsed_output["parsed_json"]
+    assert result.status == ResultStatus.PASSED
+    assert parsed["patch_items"] == [
+        {"slot_id": "S005", "task": "기본 개념 심화 학습 및 핵심 교재 정독"}
+    ]
+    assert len({item["task"] for item in parsed["plan_items"]}) == 5
+    assert result.parsed_output["multiturn_validation"]["state"]["partial_update_scope_valid"] is True
 
 
 def test_v11_create_skips_existing_schedule_dates_and_sanitizes_english_tasks():

@@ -4,6 +4,7 @@ import json
 import re
 import random
 import subprocess
+import time
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date
@@ -48,6 +49,8 @@ from harness.mileday.explanation_judge import (
 )
 from harness.mileday.multiturn_prompts import (
     ACTIVE_MULTITURN_PROMPT_VERSION,
+    API_MULTITURN_PROMPT_VERSION,
+    build_mileday_multiturn_api_prompt,
     build_mileday_multiturn_prompt,
     date_day_of_week,
     mileday_multiturn_allowed_slots,
@@ -73,7 +76,8 @@ from harness.performance.monitor import PerformanceMonitor
 from harness.html_reporting import generate_mileday_multiturn_html_report
 from harness.reporting import generate_markdown_report
 from harness.results import ResultStore
-from harness.runtime.base import RuntimeAdapterError
+from harness.runtime.base import RuntimeAdapter, RuntimeAdapterError
+from harness.runtime.gemini import GeminiRuntime
 from harness.runtime.ollama import OllamaRuntime
 from harness.schemas import EvaluationError, FailureCategory, RequestResult, ResultStatus, RuntimeMetrics
 
@@ -83,9 +87,11 @@ FENCED_JSON_PATTERN = re.compile(r"```(?:json)?\s*(?P<json>.*?)\s*```", re.IGNOR
 PUBLIC_BENCHMARK_DATASET_KEYS = ("ifeval_ko", "kobalt", "click", "kmmlu_pro")
 THIRD_BENCHMARK_MODEL_IDS = ("candidate-3", "candidate-5")
 MILEDAY_MULTITURN_MODEL_ID = "candidate-3"
+MILEDAY_API_MODEL_IDS = ("gemini-3.5-flash-lite", "gemini-3.6-flash")
 MILEDAY_MULTITURN_FIXTURE = Path("tests") / "fixtures" / "mileday" / "multiturn_schedule.pretty.json"
 MILEDAY_MULTITURN_DATASET_ID = "mileday-multiturn-schedule"
 MILEDAY_MULTITURN_PROMPT_VERSION = ACTIVE_MULTITURN_PROMPT_VERSION
+MILEDAY_API_MULTITURN_PROMPT_VERSION = API_MULTITURN_PROMPT_VERSION
 MILEDAY_MULTITURN_REFERENCE_TIMEZONE = "Asia/Seoul"
 MILEDAY_MULTITURN_RUNTIME_OPTIONS = {"temperature": 0.1, "top_p": 0.8}
 THIRD_BENCHMARK_DATASET_KEYS = ("ifeval_ko", "kobalt")
@@ -540,6 +546,130 @@ def run_mileday_multiturn_grid(
     typer.echo(f"grid_summary={summary_path}")
 
 
+@app.command("run-mileday-multiturn-api")
+def run_mileday_multiturn_api(
+    mode: Annotated[
+        BenchmarkMode,
+        typer.Option("--mode", help="cold or warm execution mode."),
+    ] = BenchmarkMode.COLD,
+    model_id: Annotated[
+        str,
+        typer.Option(
+            "--model-id",
+            help="Comma-separated Gemini model ids. Defaults to flash-lite and flash.",
+        ),
+    ] = ",".join(MILEDAY_API_MODEL_IDS),
+    sleep_seconds: Annotated[
+        float,
+        typer.Option(
+            "--sleep-seconds",
+            help="Seconds to wait after each target+judge API turn before the next turn.",
+        ),
+    ] = 0.0,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Optional positive limit for fixture cases to execute."),
+    ] = None,
+) -> None:
+    """Run the fixed MileDay multiturn evaluation for selected Gemini API models."""
+
+    if sleep_seconds < 0:
+        raise typer.BadParameter("sleep_seconds must be non-negative.")
+    if limit is not None and limit <= 0:
+        raise typer.BadParameter("limit must be positive.")
+    settings = load_settings()
+    generation_api_key = settings.gemini_generation_api_key or settings.gemini_api_key
+    if not generation_api_key:
+        raise typer.BadParameter("GEMINI_API_KEY or GEMINI_GENERATION_API_KEY is required.")
+    if not settings.gemini_api_key:
+        raise typer.BadParameter("GEMINI_API_KEY is required for the required Gemini judge.")
+    explanation_judge = (
+        GeminiExplanationJudge(
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_judge_model,
+            base_url=settings.gemini_api_base_url,
+        )
+    )
+    try:
+        cases = load_mileday_multiturn_cases(MILEDAY_MULTITURN_FIXTURE)
+        if limit is not None:
+            cases = cases[:limit]
+        requested_model_ids = _parse_model_ids(model_id)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    store = ResultStore(settings.runs_dir)
+    batch_sequence = _next_mileday_multiturn_api_sequence(store.runs_dir)
+    batch_id = f"gemini-mileday-multiturn-{batch_sequence}"
+    batch_items: list[dict[str, object]] = []
+
+    typer.echo(f"batch_id={batch_id}")
+    typer.echo("models=" + ", ".join(requested_model_ids))
+    typer.echo(f"fixture={MILEDAY_MULTITURN_FIXTURE}")
+    typer.echo(f"cases={len(cases)}")
+    typer.echo(f"case_limit={limit if limit is not None else 'all'}")
+    typer.echo(f"prompt_version={MILEDAY_API_MULTITURN_PROMPT_VERSION}")
+    typer.echo("runtime=gemini")
+    typer.echo("judge=required")
+    typer.echo(f"sleep_seconds={sleep_seconds:g}")
+
+    for current_model_id in requested_model_ids:
+        run_id = f"{_run_id_safe_model_name(current_model_id)}-mileday-multiturn-{batch_sequence}"
+        runtime = GeminiRuntime(
+            api_key=generation_api_key,
+            base_url=settings.gemini_api_base_url,
+        )
+        stored = _run_mileday_multiturn_for_model(
+            model_id=current_model_id,
+            model_tag=current_model_id,
+            run_id=run_id,
+            mode=mode,
+            cases=cases,
+            store=store,
+            ollama_base_url=settings.ollama_base_url,
+            timeout_seconds=settings.default_timeout_seconds,
+            explanation_judge=explanation_judge,
+            runtime=runtime,
+            sleep_seconds=sleep_seconds,
+            prompt_builder=_mileday_multiturn_api_prompt,
+            prompt_version=MILEDAY_API_MULTITURN_PROMPT_VERSION,
+        )
+        report_path = generate_markdown_report(run_id, settings.runs_dir)
+        multiturn_report_path = _append_mileday_multiturn_report(
+            run_id,
+            settings.runs_dir,
+            cases,
+            model_id=current_model_id,
+        )
+        html_report_path = generate_mileday_multiturn_html_report(run_id, settings.runs_dir)
+        results = store.load_request_results(run_id)
+        counts = _status_counts(results)
+        batch_items.append(
+            {
+                "model_id": current_model_id,
+                "run_id": run_id,
+                "stored": stored,
+                "counts": counts,
+                "report_path": report_path,
+                "multiturn_report_path": multiturn_report_path,
+                "html_report_path": html_report_path,
+            }
+        )
+        typer.echo(
+            f"{current_model_id} -> {run_id} -> {report_path} -> "
+            f"{_counter_text_for_cli(counts)} stored={stored}"
+        )
+
+    summary_path = _write_mileday_multiturn_api_summary(
+        store.runs_dir,
+        batch_id=batch_id,
+        items=batch_items,
+        cases=cases,
+        model_ids=requested_model_ids,
+    )
+    typer.echo(f"batch_summary={summary_path}")
+
+
 @app.command("render-multiturn-html")
 def render_multiturn_html(
     run_id: Annotated[
@@ -830,6 +960,10 @@ def _run_mileday_multiturn_for_model(
     timeout_seconds: int,
     explanation_judge: ExplanationJudge | None,
     runtime_options: dict[str, object] | None = None,
+    runtime: RuntimeAdapter | None = None,
+    sleep_seconds: float = 0.0,
+    prompt_builder: Callable[[MileDayMultiTurnCase, int, list[dict[str, str]]], str] | None = None,
+    prompt_version: str = MILEDAY_MULTITURN_PROMPT_VERSION,
 ) -> int:
     config = BenchmarkRunConfig(
         run_id=run_id,
@@ -843,7 +977,8 @@ def _run_mileday_multiturn_for_model(
         total=_progress_total(sum(len(case.turns) for case in cases), config),
         desc=f"{model_id} MileDay multiturn",
     )
-    runtime = OllamaRuntime(base_url=ollama_base_url)
+    active_runtime = runtime or OllamaRuntime(base_url=ollama_base_url)
+    active_prompt_builder = prompt_builder or _mileday_multiturn_prompt
     stored = 0
     try:
         for case in cases:
@@ -860,6 +995,7 @@ def _run_mileday_multiturn_for_model(
                         case_id=turn_case_id,
                         case=case,
                         turn_id=turn.turn_id,
+                        prompt_version=prompt_version,
                     )
                     store.store_request_result(skipped)
                     for _ in range(_progress_total(1, config)):
@@ -867,7 +1003,7 @@ def _run_mileday_multiturn_for_model(
                     stored += 1
                     continue
 
-                prompt = _mileday_multiturn_prompt(case, turn.turn_id, transcript)
+                prompt = active_prompt_builder(case, turn.turn_id, transcript)
                 records = run_benchmark_cases(
                     [
                         BenchmarkCasePrompt(
@@ -880,12 +1016,12 @@ def _run_mileday_multiturn_for_model(
                                 "turn_id": turn.turn_id,
                                 "turn_count": len(case.turns),
                                 "expected_action": turn.expected_action,
-                                "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+                                "prompt_version": prompt_version,
                             },
                         )
                     ],
                     config,
-                    runtime,
+                    active_runtime,
                     monitor_factory=PerformanceMonitor,
                     completed_resume_keys=set(),
                     progress_callback=_progress_update(progress),
@@ -901,6 +1037,7 @@ def _run_mileday_multiturn_for_model(
                     record.response.text,
                     previous_parsed=previous_parsed,
                     explanation_judge=explanation_judge,
+                    prompt_version=prompt_version,
                 )
                 store.store_request_result(result, raw_output=record.response.text)
                 store.append_performance_samples(
@@ -911,12 +1048,19 @@ def _run_mileday_multiturn_for_model(
                 stored += 1
                 if result.status == ResultStatus.PASSED:
                     parsed_json = result.parsed_output.get("parsed_json")
+                    assistant_content = record.response.text
                     if isinstance(parsed_json, dict):
                         previous_parsed = parsed_json
+                        assistant_content = _append_mileday_plan_targets_to_transcript(
+                            assistant_content,
+                            parsed_json,
+                        )
                     transcript.append({"role": "user", "content": turn.content})
-                    transcript.append({"role": "assistant", "content": record.response.text})
+                    transcript.append({"role": "assistant", "content": assistant_content})
                 else:
                     case_blocked = True
+                if sleep_seconds > 0:
+                    time.sleep(sleep_seconds)
     finally:
         _progress_close(progress)
     return stored
@@ -1253,8 +1397,28 @@ def _next_mileday_multiturn_grid_sequence(runs_dir: Path) -> int:
     return highest + 1
 
 
+def _next_mileday_multiturn_api_sequence(runs_dir: Path) -> int:
+    highest = 0
+    if not runs_dir.exists():
+        return 1
+    pattern = re.compile(r"^gemini-mileday-multiturn-(?P<sequence>\d+)-summary\.md$")
+    run_pattern = re.compile(r"^gemini-[\w-]+-mileday-multiturn-(?P<sequence>\d+)$")
+    for path in runs_dir.iterdir():
+        summary_match = pattern.fullmatch(path.name)
+        run_match = run_pattern.fullmatch(path.name)
+        match = summary_match or run_match
+        if match is not None:
+            highest = max(highest, int(match.group("sequence")))
+    return highest + 1
+
+
 def _option_label(value: float) -> str:
     return f"{value:.1f}".replace(".", "p")
+
+
+def _run_id_safe_model_name(model_id: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9_.-]+", "-", model_id.strip()).strip("-")
+    return normalized.replace(".", "-")
 
 
 def _benchmark_batch_id(sequence: int, limit: int) -> str:
@@ -1477,6 +1641,8 @@ def _append_mileday_multiturn_report(
     run_id: str,
     runs_dir: Path,
     cases: list[MileDayMultiTurnCase],
+    *,
+    model_id: str = MILEDAY_MULTITURN_MODEL_ID,
 ) -> Path:
     store = ResultStore(runs_dir)
     run_dir = store.run_dir(run_id)
@@ -1489,7 +1655,7 @@ def _append_mileday_multiturn_report(
         "",
         "### 실행 조건",
         "",
-        f"- model id: {MILEDAY_MULTITURN_MODEL_ID}",
+        f"- model id: {model_id}",
         f"- fixture: `{MILEDAY_MULTITURN_FIXTURE.as_posix()}`",
         f"- cases: {len(cases)}",
         "- sampling: none",
@@ -1957,6 +2123,104 @@ def _write_mileday_multiturn_grid_summary(
     return path
 
 
+def _write_mileday_multiturn_api_summary(
+    runs_dir: Path,
+    *,
+    batch_id: str,
+    items: list[dict[str, object]],
+    cases: list[MileDayMultiTurnCase],
+    model_ids: list[str],
+) -> Path:
+    path = runs_dir / f"{batch_id}-summary.md"
+    store = ResultStore(runs_dir)
+    lines = [
+        f"# MileDay Multiturn API Summary: {batch_id}",
+        "",
+        "## 실행 조건",
+        "",
+        "- runtime: gemini",
+        f"- models: {', '.join(model_ids)}",
+        f"- fixture: `{MILEDAY_MULTITURN_FIXTURE.as_posix()}`",
+        f"- cases: {len(cases)}",
+        f"- prompt version: {MILEDAY_API_MULTITURN_PROMPT_VERSION}",
+        "- sampling: fixed full fixture",
+        "",
+        "## 모델별 결과",
+        "",
+        "| model | passed | invalid | failed | skipped | case completion | all-turn-pass cases | judge rejects | avg latency ms | top failure codes | report | html |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|",
+    ]
+    ranked: list[dict[str, object]] = []
+    for item in items:
+        run_id = str(item["run_id"])
+        model_id = str(item["model_id"])
+        results = store.load_request_results(run_id)
+        counts = _status_counts(results)
+        completed_cases = _mileday_multiturn_completed_cases(results, cases)
+        all_turn_pass_cases = _mileday_multiturn_all_turn_pass_cases(results, cases)
+        judge_rejects = _grid_judge_reject_count(results)
+        failure_codes = _grid_failure_code_counts(results)
+        avg_latency = _grid_avg_latency_ms(results)
+        passed = int(counts.get("passed", 0))
+        invalid = int(counts.get("invalid", 0))
+        skipped = int(counts.get("skipped", 0))
+        ranked.append(
+            {
+                "model_id": model_id,
+                "passed": passed,
+                "invalid": invalid,
+                "skipped": skipped,
+                "judge_rejects": judge_rejects,
+                "avg_latency": avg_latency,
+            }
+        )
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    model_id,
+                    str(passed),
+                    str(invalid),
+                    str(counts.get("failed", 0)),
+                    str(skipped),
+                    _format_rate_from_counts(len(completed_cases), len(cases)),
+                    _format_rate_from_counts(len(all_turn_pass_cases), len(cases)),
+                    str(judge_rejects),
+                    _format_optional_float(avg_latency),
+                    _dict_counter_text(dict(failure_codes.most_common(3))) if failure_codes else "none",
+                    f"`{Path(str(item.get('report_path', ''))).as_posix()}`",
+                    f"`{Path(str(item.get('html_report_path', ''))).as_posix()}`",
+                ]
+            )
+            + " |"
+        )
+    best = (
+        sorted(
+            ranked,
+            key=lambda row: (
+                -int(row["passed"]),
+                int(row["invalid"]),
+                int(row["skipped"]),
+                int(row["judge_rejects"]),
+                float(row["avg_latency"] or 999999),
+            ),
+        )[0]
+        if ranked
+        else None
+    )
+    lines.extend(["", "## 1차 판단", ""])
+    if best is None:
+        lines.append("- 비교 가능한 결과가 없습니다.")
+    else:
+        lines.append(
+            f"- 현재 기준 우위 모델: {best['model_id']} "
+            f"(passed={best['passed']}, invalid={best['invalid']}, "
+            f"skipped={best['skipped']}, judge_rejects={best['judge_rejects']})"
+        )
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8", newline="\n")
+    return path
+
+
 def _grid_turn_status_counts(results: list[RequestResult]) -> dict[int, Counter[str]]:
     by_turn: dict[int, Counter[str]] = {}
     for result in results:
@@ -2331,6 +2595,31 @@ def _mileday_multiturn_prompt(
     transcript: list[dict[str, str]],
 ) -> str:
     return build_mileday_multiturn_prompt(case, turn_id, transcript)
+
+
+def _mileday_multiturn_api_prompt(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    transcript: list[dict[str, str]],
+) -> str:
+    return build_mileday_multiturn_api_prompt(case, turn_id, transcript)
+
+
+def _append_mileday_plan_targets_to_transcript(content: str, parsed_json: dict[str, Any]) -> str:
+    plan_items = parsed_json.get("plan_items")
+    if not isinstance(plan_items, list):
+        return content
+    lines = []
+    for item in plan_items:
+        if not isinstance(item, dict):
+            continue
+        slot_id = item.get("slot_id")
+        task = item.get("task")
+        if isinstance(slot_id, str) and isinstance(task, str):
+            lines.append(f"- {slot_id} | {task}")
+    if not lines:
+        return content
+    return content.rstrip() + "\n\n[CURRENT_PLAN_TARGETS]\n" + "\n".join(lines)
 
 
 def _mileday_multiturn_transcript_text(transcript: list[dict[str, str]]) -> str:
@@ -2812,7 +3101,7 @@ def _patch_items_from_mileday_intent(
     if requested_destination_days and not _destination_days_available(case, requested_destination_days):
         return []
 
-    target_slot_ids = _select_mileday_patch_target_slot_ids(case, previous_plan_items, target_text)
+    target_slot_ids = _select_mileday_patch_target_slot_ids(case, previous_plan_items, combined_text)
     if not target_slot_ids:
         return []
     replacement = _replacement_task_from_intent(intent, case)
@@ -2943,26 +3232,37 @@ def _select_mileday_patch_target_slot_ids(
         for item in previous_plan_items
         if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
     ]
+    explicit_slot_ids = [
+        slot_id
+        for slot_id in re.findall(r"\bS\d{3}\b", target_text)
+        if slot_id in previous_slot_ids
+    ]
+    if explicit_slot_ids:
+        return list(dict.fromkeys(explicit_slot_ids))
     reduced_weekdays = _reduced_duration_weekdays(target_text)
     if reduced_weekdays:
-        return [
+        reduced_matches = [
             slot_id
             for slot_id in previous_slot_ids
             if slot_id in slots_by_id and slots_by_id[slot_id]["day_of_week"] in reduced_weekdays
         ]
+        return _limit_single_target_if_requested(target_text, reduced_matches, slots_by_id)
     target_only_text = _target_only_text(target_text)
     weekdays = _mentioned_weekday_values(target_only_text)
+    requested_week_index = _requested_plan_week_index(target_text)
+    if requested_week_index is not None:
+        week_matches = _slot_ids_in_plan_week(previous_slot_ids, slots_by_id, requested_week_index)
+        if week_matches:
+            return _limit_single_target_if_requested(target_text, week_matches, slots_by_id)
     matching_slot_ids = [
         slot_id
         for slot_id in previous_slot_ids
         if slot_id in slots_by_id and (not weekdays or slots_by_id[slot_id]["day_of_week"] in weekdays)
     ]
-    if not matching_slot_ids:
-        matching_slot_ids = previous_slot_ids
     if any(keyword in target_text for keyword in ("마지막", "최종")) and matching_slot_ids:
         return [max(matching_slot_ids, key=lambda slot_id: slots_by_id.get(slot_id, {}).get("scheduled_date", ""))]
     if weekdays:
-        return matching_slot_ids
+        return _limit_single_target_if_requested(target_text, matching_slot_ids, slots_by_id)
     keywords = _target_keywords(target_text)
     if keywords:
         keyword_matches = []
@@ -2979,10 +3279,76 @@ def _select_mileday_patch_target_slot_ids(
             ):
                 keyword_matches.append(slot_id)
         if keyword_matches:
-            return keyword_matches
+            return _limit_single_target_if_requested(target_text, keyword_matches, slots_by_id)
         if any(keyword in target_only_text for keyword in keywords):
             return []
-    return matching_slot_ids
+    if _single_patch_target_requested(target_text) and previous_slot_ids:
+        return [previous_slot_ids[0]]
+    return []
+
+
+def _single_patch_target_requested(text: str) -> bool:
+    normalized = text.lower()
+    return any(
+        keyword in normalized
+        for keyword in (
+            "하나만",
+            "한 개만",
+            "1개만",
+            "하나",
+            "one",
+            "single",
+            "only one",
+        )
+    )
+
+
+def _limit_single_target_if_requested(
+    request_text: str,
+    slot_ids: list[str],
+    slots_by_id: dict[str, dict[str, str]],
+) -> list[str]:
+    if not _single_patch_target_requested(request_text):
+        return slot_ids
+    if not slot_ids:
+        return []
+    return [max(slot_ids, key=lambda slot_id: slots_by_id.get(slot_id, {}).get("scheduled_date", ""))]
+
+
+def _requested_plan_week_index(text: str) -> int | None:
+    normalized = text.lower()
+    if "두 번째 주" in text or "2번째 주" in text or "둘째 주" in text or "second week" in normalized:
+        return 2
+    if "첫 번째 주" in text or "1번째 주" in text or "첫째 주" in text or "first week" in normalized:
+        return 1
+    return None
+
+
+def _slot_ids_in_plan_week(
+    previous_slot_ids: list[str],
+    slots_by_id: dict[str, dict[str, str]],
+    week_index: int,
+) -> list[str]:
+    ordered_slot_ids = [
+        slot_id
+        for slot_id in previous_slot_ids
+        if slot_id in slots_by_id and slots_by_id[slot_id].get("scheduled_date")
+    ]
+    if week_index <= 0 or not ordered_slot_ids:
+        return []
+    week_key_by_slot_id = {
+        slot_id: date.fromisoformat(slots_by_id[slot_id]["scheduled_date"]).isocalendar()[:2]
+        for slot_id in ordered_slot_ids
+    }
+    ordered_week_keys = []
+    for slot_id in ordered_slot_ids:
+        week_key = week_key_by_slot_id[slot_id]
+        if week_key not in ordered_week_keys:
+            ordered_week_keys.append(week_key)
+    if week_index > len(ordered_week_keys):
+        return []
+    target_week = ordered_week_keys[week_index - 1]
+    return [slot_id for slot_id in ordered_slot_ids if week_key_by_slot_id[slot_id] == target_week]
 
 
 def _target_keywords(text: str) -> list[str]:
@@ -3241,12 +3607,13 @@ def _evaluate_mileday_multiturn_record(
     *,
     previous_parsed: dict[str, Any] | None,
     explanation_judge: ExplanationJudge | None,
+    prompt_version: str = MILEDAY_MULTITURN_PROMPT_VERSION,
 ) -> RequestResult:
     if base_result.error is not None:
         return base_result
 
     turn = case.turns[turn_id - 1]
-    if MILEDAY_MULTITURN_PROMPT_VERSION == "v11":
+    if prompt_version in {"v11", MILEDAY_API_MULTITURN_PROMPT_VERSION}:
         return _evaluate_mileday_multiturn_intent_record(
             base_result,
             case,
@@ -3254,6 +3621,7 @@ def _evaluate_mileday_multiturn_record(
             raw_output,
             previous_parsed=previous_parsed,
             explanation_judge=explanation_judge,
+            prompt_version=prompt_version,
         )
 
     plan_block = _extract_plan_block(raw_output)
@@ -3277,7 +3645,7 @@ def _evaluate_mileday_multiturn_record(
         "turn_id": turn_id,
         "turn_count": len(case.turns),
         "expected_action": turn.expected_action,
-        "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+        "prompt_version": prompt_version,
         "output_contract": contract,
     }
     needs_plan = turn.expected_action == "create"
@@ -3420,6 +3788,7 @@ def _evaluate_mileday_multiturn_intent_record(
     *,
     previous_parsed: dict[str, Any] | None,
     explanation_judge: ExplanationJudge | None,
+    prompt_version: str = MILEDAY_MULTITURN_PROMPT_VERSION,
 ) -> RequestResult:
     if base_result.error is not None:
         return base_result
@@ -3442,7 +3811,7 @@ def _evaluate_mileday_multiturn_intent_record(
         "turn_id": turn_id,
         "turn_count": len(case.turns),
         "expected_action": turn.expected_action,
-        "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+        "prompt_version": prompt_version,
         "output_contract": contract,
     }
     if intent_block is None:
@@ -3675,6 +4044,16 @@ def _validate_mileday_multiturn_plan_output(
     selected_milestones: list[dict[str, Any]] = []
     slot_ids_seen: set[str] = set()
     source_items = patch_items if expected_action == "partial_update" else plan_items
+    partial_update_scope_valid = True
+    if expected_action == "partial_update":
+        if _single_patch_target_requested(case.turns[turn_id - 1].content) and len(patch_items) > 1:
+            partial_update_scope_valid = False
+            add_error(
+                "partial_update_scope_valid",
+                "Single-target partial_update requests must change at most one slot.",
+                code="INTENT_CONTRACT_ERROR",
+                safety_gate=True,
+            )
     plan_schema_valid = isinstance(source_items, list) and all(isinstance(item, dict) for item in source_items)
     plan_slot_valid = True
     if not plan_schema_valid:
@@ -3840,6 +4219,7 @@ def _validate_mileday_multiturn_plan_output(
         milestone_count_valid,
         availability_alignment,
         weekday_date_alignment,
+        partial_update_scope_valid,
     ]
     return {
         "errors": errors,
@@ -3866,12 +4246,13 @@ def _validate_mileday_multiturn_plan_output(
             "plan_schema_valid": plan_schema_valid,
             "plan_slot_valid": plan_slot_valid,
             "patch_applied": expected_action == "partial_update",
+            "partial_update_scope_valid": partial_update_scope_valid,
         },
         "state": {
             "previous_context_used": previous_parsed is not None,
             "unmentioned_milestones_preserved": state_regression_count == 0,
             "completed_milestones_preserved": completed_milestones_preserved,
-            "partial_update_scope_valid": True,
+            "partial_update_scope_valid": partial_update_scope_valid,
             "state_regression_count": state_regression_count,
         },
         "schedule_quality": {
@@ -4029,6 +4410,7 @@ def _skipped_mileday_multiturn_result(
     case_id: str,
     case: MileDayMultiTurnCase,
     turn_id: int,
+    prompt_version: str = MILEDAY_MULTITURN_PROMPT_VERSION,
 ) -> RequestResult:
     return RequestResult(
         run_id=run_id,
@@ -4041,7 +4423,7 @@ def _skipped_mileday_multiturn_result(
             "case_id": case.case_id,
             "turn_id": turn_id,
             "turn_count": len(case.turns),
-            "prompt_version": MILEDAY_MULTITURN_PROMPT_VERSION,
+            "prompt_version": prompt_version,
             "skipped_reason": "Previous turn in the same case did not pass.",
         },
         metrics=RuntimeMetrics(),

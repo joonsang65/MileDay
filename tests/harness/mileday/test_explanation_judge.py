@@ -57,7 +57,87 @@ def test_gemini_explanation_judge_parses_structured_response(monkeypatch):
         "is_aligned",
         "score",
         "reason",
+        "critical_failures",
+        "dimension_scores",
     ]
+    dimension_schema = calls[0][2]["generationConfig"]["responseSchema"]["properties"]["dimension_scores"]
+    assert "additionalProperties" not in dimension_schema
+    assert "goal_alignment" in dimension_schema["properties"]
+
+
+def test_gemini_explanation_judge_requires_stricter_score_threshold(monkeypatch):
+    case = load_mileday_generation_cases("tests/fixtures/mileday/synthetic_schedule.jsonl")[0]
+
+    class MockResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": (
+                                        '{"is_aligned": true, "score": 0.89, '
+                                        '"reason": "Almost aligned.", '
+                                        '"critical_failures": [], '
+                                        '"dimension_scores": {"goal_alignment": 1.0}}'
+                                    )
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr("harness.mileday.explanation_judge.httpx.post", lambda *args, **kwargs: MockResponse())
+
+    judge = GeminiExplanationJudge(api_key="secret", model="gemini-test", base_url="https://example.test/v1")
+    result = judge.evaluate(case, "설명", {"milestones": []})
+
+    assert result.is_aligned is False
+    assert result.score == 0.89
+    assert result.critical_failures == []
+
+
+def test_gemini_explanation_judge_rejects_critical_failures(monkeypatch):
+    case = load_mileday_generation_cases("tests/fixtures/mileday/synthetic_schedule.jsonl")[0]
+
+    class MockResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": (
+                                        '{"is_aligned": true, "score": 0.99, '
+                                        '"reason": "Target scope is wrong.", '
+                                        '"critical_failures": ["WRONG_TARGET_SCOPE"], '
+                                        '"dimension_scores": {"target_scope_correct": 0.0}}'
+                                    )
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr("harness.mileday.explanation_judge.httpx.post", lambda *args, **kwargs: MockResponse())
+
+    judge = GeminiExplanationJudge(api_key="secret", model="gemini-test", base_url="https://example.test/v1")
+    result = judge.evaluate(case, "설명", {"milestones": []})
+
+    assert result.is_aligned is False
+    assert result.score == 0.99
+    assert result.critical_failures == ["WRONG_TARGET_SCOPE"]
+    assert result.dimension_scores == {"target_scope_correct": 0.0}
 
 
 def test_gemini_explanation_judge_retries_transient_503(monkeypatch):

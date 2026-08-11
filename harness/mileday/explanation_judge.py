@@ -11,12 +11,17 @@ from harness.mileday.dataset import MileDayGenerationCase, MileDayMultiTurnCase
 from harness.schemas import EvaluationError, FailureCategory
 
 
+JUDGE_PASS_THRESHOLD = 0.9
+
+
 class ExplanationJudgeResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     is_aligned: bool
     score: float = Field(ge=0.0, le=1.0)
     reason: str
+    critical_failures: list[str] = Field(default_factory=list)
+    dimension_scores: dict[str, float] = Field(default_factory=dict)
     skipped: bool = False
     error: EvaluationError | None = None
 
@@ -79,15 +84,7 @@ class GeminiExplanationJudge:
     ) -> ExplanationJudgeResult:
         payload = _gemini_json_payload(
             build_explanation_judge_prompt(case, explanation, parsed_output),
-            {
-                "type": "object",
-                "properties": {
-                    "is_aligned": {"type": "boolean"},
-                    "score": {"type": "number"},
-                    "reason": {"type": "string"},
-                },
-                "required": ["is_aligned", "score", "reason"],
-            },
+            _judge_response_schema(),
         )
         try:
             response_json = self._post_generate_content(payload)
@@ -115,15 +112,7 @@ class GeminiExplanationJudge:
                 parsed_output,
                 previous_output,
             ),
-            {
-                "type": "object",
-                "properties": {
-                    "is_aligned": {"type": "boolean"},
-                    "score": {"type": "number"},
-                    "reason": {"type": "string"},
-                },
-                "required": ["is_aligned", "score", "reason"],
-            },
+            _judge_response_schema(),
         )
         try:
             response_json = self._post_generate_content(payload)
@@ -211,8 +200,9 @@ def build_explanation_judge_prompt(
         "설명문이 사용자가 이해할 수 있는 한국어 설명인지, 그리고 JSON milestones의 핵심 일정 내용과 일치하는지 평가하세요.\n"
         "일정이 실제 사용자에게 실행 가능하지 않거나 설명문이 일정 생성 규칙과 어긋나면 낮게 평가하세요.\n"
         "내부 추론은 출력하지 말고 JSON 객체 하나만 출력하세요.\n"
-        '필드: {"is_aligned": boolean, "score": number, "reason": string}\n'
-        "score는 0.0~1.0이며, 0.8 이상이면 설명문이 milestones와 충분히 일치한다고 봅니다.\n"
+        '필드: {"is_aligned": boolean, "score": number, "reason": string, "critical_failures": string[], "dimension_scores": object}\n'
+        "score는 0.0~1.0입니다. 0.9 이상이고 critical_failures가 비어 있을 때만 is_aligned=true로 판단하세요.\n"
+        "dimension_scores에는 goal_alignment, schedule_constraint_fit, explanation_payload_consistency, user_readiness를 0.0~1.0 점수로 넣으세요.\n"
         "\n"
         f"목표: {case.input.goal_title}\n"
         f"마감일: {case.input.deadline}\n"
@@ -239,8 +229,9 @@ def build_multiturn_explanation_judge_prompt(
         "현재 turn의 사용자 요청이 이전 일정 상태에 대해 정확히 반영되었는지 평가하세요.\n"
         "데이터에 없는 사실을 추측하지 말고, 아래 입력과 출력만 근거로 판단하세요.\n"
         "내부 추론은 출력하지 말고 JSON 객체 하나만 출력하세요.\n"
-        '필드: {"is_aligned": boolean, "score": number, "reason": string}\n'
-        "score는 0.0~1.0입니다. 0.8 이상이고 치명적 문제가 없을 때만 is_aligned=true로 판단하세요.\n"
+        '필드: {"is_aligned": boolean, "score": number, "reason": string, "critical_failures": string[], "dimension_scores": object}\n'
+        "score는 0.0~1.0입니다. 0.9 이상이고 critical_failures가 비어 있을 때만 is_aligned=true로 판단하세요.\n"
+        "dimension_scores에는 current_request_applied, target_scope_correct, unmentioned_items_preserved, date_time_preserved, payload_explanation_consistent, confirmation_required를 0.0~1.0 점수로 넣으세요.\n"
         "\n"
         "[평가 기준]\n"
         "- 설명문이 현재 사용자 요청과 실제 JSON 변경 내용을 일치해서 설명하는가\n"
@@ -253,6 +244,16 @@ def build_multiturn_explanation_judge_prompt(
         "- create에서는 완료된 기존 milestone을 새 DB payload에 다시 포함하지 않아도 된다. 단, 같은 날짜/작업을 중복 생성하지 않아야 한다\n"
         "- JSON이 DB 반영 후보로 사용할 수 있는 goal/milestone payload를 제공하는가\n"
         "- DB 업데이트 전 사용자 승인 필요성이 드러나는가\n"
+        "\n"
+        "[치명 오류]\n"
+        "- WRONG_TARGET_SCOPE: 사용자가 지정한 대상이 아닌 slot을 변경함\n"
+        "- OVER_PATCHED_SINGLE_TARGET: 하나만/1개만 요청인데 여러 slot을 변경함\n"
+        "- UNDER_PATCHED_SCOPE: 수요일/평일/주말 같은 범위 요청인데 일부 대상만 변경함\n"
+        "- PRESERVED_ITEM_CHANGED: 유지하라고 한 항목을 변경함\n"
+        "- DATE_TIME_CHANGED: 날짜/시간 유지 요청인데 날짜 또는 시간 slot을 변경함\n"
+        "- UNSUPPORTED_REFUSAL: 가능한 작업명 변경을 불가능하다고 거부함\n"
+        "- PAYLOAD_EXPLANATION_MISMATCH: 설명문과 실제 JSON/patch 내용이 다름\n"
+        "치명 오류가 하나라도 있으면 critical_failures에 코드를 넣고 is_aligned=false로 판단하세요.\n"
         "\n"
         f"[CASE_ID]\n{case.case_id}\n"
         f"[TURN_ID]\n{turn_id}\n"
@@ -310,13 +311,58 @@ def _gemini_json_payload(prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _judge_response_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "is_aligned": {"type": "boolean"},
+            "score": {"type": "number"},
+            "reason": {"type": "string"},
+            "critical_failures": {"type": "array", "items": {"type": "string"}},
+            "dimension_scores": {
+                "type": "object",
+                "properties": {
+                    "goal_alignment": {"type": "number"},
+                    "schedule_constraint_fit": {"type": "number"},
+                    "explanation_payload_consistency": {"type": "number"},
+                    "user_readiness": {"type": "number"},
+                    "current_request_applied": {"type": "number"},
+                    "target_scope_correct": {"type": "number"},
+                    "unmentioned_items_preserved": {"type": "number"},
+                    "date_time_preserved": {"type": "number"},
+                    "payload_explanation_consistent": {"type": "number"},
+                    "confirmation_required": {"type": "number"},
+                },
+            },
+        },
+        "required": [
+            "is_aligned",
+            "score",
+            "reason",
+            "critical_failures",
+            "dimension_scores",
+        ],
+    }
+
+
 def _parse_gemini_judge_response(response_json: dict[str, Any]) -> ExplanationJudgeResult:
     parsed = _parse_gemini_json_text(response_json)
     score = min(1.0, max(0.0, float(parsed["score"])))
+    critical_failures = [
+        str(item)
+        for item in parsed.get("critical_failures", [])
+        if str(item).strip()
+    ]
+    dimension_scores = {
+        str(name): min(1.0, max(0.0, float(value)))
+        for name, value in parsed.get("dimension_scores", {}).items()
+    }
     return ExplanationJudgeResult(
-        is_aligned=bool(parsed["is_aligned"]) and score >= 0.8,
+        is_aligned=bool(parsed["is_aligned"]) and score >= JUDGE_PASS_THRESHOLD and not critical_failures,
         score=score,
         reason=str(parsed["reason"]),
+        critical_failures=critical_failures,
+        dimension_scores=dimension_scores,
     )
 
 
