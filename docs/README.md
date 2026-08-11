@@ -1,6 +1,6 @@
 # Docs
 
-`docs/`는 MileDay 제품 설계, API, DB, 운영 규칙, benchmark 의사결정을 기록하는 문서 디렉터리입니다. 구현 중 판단 기준이 필요할 때 먼저 확인해야 하는 source of truth입니다.
+`docs/`는 MileDay 제품 설계, API, DB, 운영 규칙, LLM 하네스 의사결정을 기록하는 문서 디렉터리입니다. 구현 중 판단 기준이 필요할 때 먼저 확인해야 하는 source of truth입니다.
 
 ## 주요 문서
 
@@ -13,7 +13,7 @@
 | `data_flow.md` | 기능별 frontend/backend/database 데이터 흐름 |
 | `error_logging.md` | 공통 에러 envelope, error code, request_id, logging 기준 |
 | `troubleshooting.md` | 개발 중 자주 발생하는 문제와 해결 절차 |
-| `harness_guide.md` | 로컬 LLM 평가 harness 실행, report, judge, troubleshooting |
+| `harness_guide.md` | flash-lite API prompt/parser harness 실행, report, judge, troubleshooting |
 | `commit_guide.md` | commit message 형식과 분할 기준 |
 | `performance_report._v1.md` | 성능 측정 결과와 분석 기록 |
 
@@ -26,10 +26,10 @@
 ```text
 docs/decisions/
   0001-use-ollama-as-default-runtime.md
-  0006-shortlist-models-for-portfolio-benchmark.md
+  0011-select-gemini-flash-lite-for-api-llm.md
 ```
 
-모델 후보 제외, benchmark 범위 변경, 평가 가중치 변경처럼 나중에 다시 확인해야 하는 판단은 일반 README보다 decision 문서로 남기는 편이 좋습니다.
+모델 후보 제외, 평가 범위 변경, prompt/parser 기준 변경처럼 나중에 다시 확인해야 하는 판단은 일반 README보다 decision 문서로 남기는 편이 좋습니다.
 
 ## 문서 읽는 순서
 
@@ -45,7 +45,7 @@ docs/decisions/
 8. `troubleshooting.md`
 9. 기존 코드
 
-### Harness / Benchmark 구현
+### Harness 구현
 
 1. `codex_rules.md`
 2. 현재 Story 또는 요청
@@ -59,7 +59,7 @@ docs/decisions/
 ## 문서 작성 기준
 
 - 구현 사실과 계획을 구분해서 씁니다.
-- 평가 결과는 실행 명령, 모델 id, dataset revision, sample 수, seed, date를 함께 남깁니다.
+- 평가 결과는 실행 명령, 모델 id, fixture revision, case 수, prompt version, date를 함께 남깁니다.
 - 단순 사용법은 README 또는 guide에 둡니다.
 - 되돌아볼 의사결정은 `docs/decisions/`에 둡니다.
 - 실제 코드와 충돌하는 문서는 그대로 방치하지 않고 차이를 명시합니다.

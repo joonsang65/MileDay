@@ -196,3 +196,14 @@ MileDay 일정 생성은 DB 반영 전 사용자 확인을 요구하지만, 잘�
 | gemini-3.6-flash | 23.3% | 0.780 | 6.988초 | 품질은 더 높지만 기준 미달, 속도 기준 미달 |
 
 따라서 모델 선택은 `gemini-3.5-flash-lite`로 확정하되, 제품 적용 전에는 프롬프트, parser, validator 개선을 통해 위 최소 기준을 만족하는지 다시 검증한다.
+
+## 현재 브랜치 적용 범위
+
+현재 브랜치는 모델 재비교가 아니라 `gemini-3.5-flash-lite`의 제품 기준 통과율을 끌어올리기 위한 prompt/parser 개선 브랜치다.
+
+- 비교 대상 모델 실행 경로는 제거하고 flash-lite 단일 실행으로 고정한다.
+- `test_api`는 전체 fixture 또는 `--limit`으로 제한된 fixture만 실행한다.
+- summary는 단일 flash-lite 결과만 기록한다.
+- parser 결과는 `plan_items`, `patch_items`, `add_items`, `remove_slot_ids`, `db_payload`, `requires_confirmation` shape를 유지한다.
+- DB 적재는 아직 실행하지 않고, parser output에서 DB payload와 SQL preview까지 이어지는 구조만 검증한다.
+- 현재 상세 실행 가이드는 `docs/harness_guide.md`를 기준으로 본다.

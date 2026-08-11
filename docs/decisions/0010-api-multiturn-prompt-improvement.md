@@ -97,3 +97,19 @@ API 프롬프트를 로컬 프롬프트와 분리한 이유는 API 비교 실험
 - `DATE_TIME_CHANGED`
 - `UNSUPPORTED_REFUSAL`
 - `PAYLOAD_EXPLANATION_MISMATCH`
+
+## 현재 브랜치 구현 상태
+
+현재 `prompt-tune` 브랜치에서는 API prompt/parser 개선에 집중하기 위해 flash-lite 전용 경로만 유지한다.
+
+- 실행 명령은 `python -m harness.cli test_api`이다.
+- API 모델은 `gemini-3.5-flash-lite`로 고정한다.
+- `--model-id`, `--sleep-seconds`, `--mode`는 사용하지 않는다.
+- sleep time은 코드 상수 `3.0`초로 고정한다.
+- run id는 `prompt-test-<n>` 형식이다.
+- Gemini 관련 환경 변수는 `GEMINI_API_KEY` 하나만 사용한다.
+- generation과 judge는 동일한 API key를 사용한다.
+- API prompt는 `harness/mileday/api_prompt.py`에서 관리한다.
+- parser orchestration은 `harness/mileday/api_parser.py`의 `evaluate_api_multiturn_record()`가 담당한다.
+- intent parsing, plan 생성, validation, DB payload, summary는 각각 별도 API 모듈로 분리한다.
+- 실제 DB write는 하지 않고, DB payload와 SQL preview 생성 가능한 순수 함수까지만 둔다.
