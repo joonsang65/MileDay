@@ -112,4 +112,6 @@ API 프롬프트를 로컬 프롬프트와 분리한 이유는 API 비교 실험
 - API prompt는 `harness/mileday/api_prompt.py`에서 관리한다.
 - parser orchestration은 `harness/mileday/api_parser.py`의 `evaluate_api_multiturn_record()`가 담당한다.
 - intent parsing, plan 생성, validation, DB payload, summary는 각각 별도 API 모듈로 분리한다.
-- 실제 DB write는 하지 않고, DB payload와 SQL preview 생성 가능한 순수 함수까지만 둔다.
+- `test_api`는 기본적으로 create를 실제 Supabase DB에 insert하고, 통과한 partial_update를 milestone update로 반영한다.
+- `--write-no`를 사용하면 실제 DB 적재 없이 prompt/parser 테스트만 수행한다.
+- DB write 결과와 slot-id 매핑은 run별 `db_manifest.json`에 저장하고, `cleanup --run-id <id>`로 manifest에 기록된 row만 삭제한다.

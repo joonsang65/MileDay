@@ -7,18 +7,25 @@
 - API 모델은 `gemini-3.5-flash-lite`로 고정한다.
 - 실행 명령은 `python -m harness.cli test_api` 하나로 단순화한다.
 - 모델 출력은 `[SCHEDULE_INTENT]` 블록으로 받고, parser가 DB 적재 후보를 만든다.
-- 실제 DB write, Supabase 호출, migration은 하지 않는다.
-- parser output에서 `db_payload`와 SQL preview로 이어질 수 있는 순수 함수 경계를 유지한다.
+- `test_api`는 기본적으로 create를 실제 Supabase DB에 insert하고, 통과한 partial_update를 milestone update로 반영한다.
+- `--write-no`를 사용하면 실제 DB 적재 없이 prompt/parser 테스트만 수행한다.
+- parser output에서 `db_payload`, SQL preview, DB write, cleanup manifest로 이어지는 경계를 유지한다.
 
 ## 환경 설정
 
-루트 `.env`에 Gemini key만 추가한다.
+루트 `.env`에 Gemini key와 DB write에 필요한 최소 값을 추가한다.
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+TEST_USER_ID=your_test_user_uuid
+TEST_TITLE_PREFIX=[TEST]
 ```
 
 generation과 judge는 같은 key를 사용한다. API base URL, generation model, judge model, sleep time은 코드 내부 상수로 고정한다.
+
+`SUPABASE_ANON_KEY`, `SUPABASE_DB_URL`, `TEST_EMAIL`, `TEST_PASSWORD`는 현재 harness DB write 경로에서 사용하지 않는다.
 
 ## 실행 명령
 
@@ -34,7 +41,19 @@ python -m harness.cli test_api
 python -m harness.cli test_api --limit 3
 ```
 
-`test_api`의 선택 옵션은 `--limit`만 둔다. `--model-id`, `--sleep-seconds`, `--mode`는 사용하지 않는다.
+DB write 없이 prompt/parser만 테스트:
+
+```powershell
+python -m harness.cli test_api --write-no
+```
+
+DB에 적재된 테스트 데이터 삭제:
+
+```powershell
+python -m harness.cli cleanup --run-id prompt-test-1
+```
+
+`test_api`의 선택 옵션은 `--limit`, `--write-no`만 둔다. `--model-id`, `--sleep-seconds`, `--mode`는 사용하지 않는다.
 
 고정값:
 
@@ -62,6 +81,7 @@ artifacts/runs/
       performance.jsonl
     report.md
     report.html
+    db_manifest.json
   prompt-test-1-summary.md
 ```
 
@@ -73,6 +93,7 @@ artifacts/runs/
 - `metrics/performance.jsonl`: latency, TTFT, throughput, resource sample
 - `report.md`: 기본 Markdown report
 - `report.html`: MileDay 멀티턴 전용 HTML report
+- `db_manifest.json`: DB write로 생성/수정된 goal/milestone id와 slot 매핑
 - `prompt-test-<n>-summary.md`: 단일 flash-lite prompt test 요약
 
 ## 평가 흐름
@@ -87,7 +108,9 @@ fixture case 로드
 -> deterministic validation
 -> db_payload 생성
 -> Gemini judge 평가
+-> create insert 또는 partial_update milestone update
 -> result artifact 저장
+-> DB manifest 저장
 -> Markdown/HTML/summary 생성
 ```
 
@@ -115,6 +138,8 @@ tasks:
 | `harness/mileday/api_plan_builder.py` | create/partial_update plan, patch, add, remove item 생성 |
 | `harness/mileday/api_validation.py` | slot/date/time/schema/safety gate 검증 |
 | `harness/mileday/api_db_payload.py` | DB payload와 SQL preview 순수 함수 |
+| `harness/mileday/api_db_client.py` | Supabase create insert, partial update, manifest 기반 cleanup |
+| `harness/mileday/api_db_manifest.py` | DB write record 저장/로드 |
 | `harness/mileday/api_parser.py` | `evaluate_api_multiturn_record()` orchestration |
 | `harness/mileday/api_summary.py` | API run Markdown summary와 multiturn report append |
 | `harness/results.py` | raw output, parsed result, metric artifact 저장 |
@@ -140,8 +165,9 @@ requires_confirmation
 - `build_schedule_db_payload()`
 - `build_sql_statements()`
 - `build_insert_sql_preview()`
+- `build_sql_parameters()`
 
-현재 SQL은 preview 용도이며 실제 DB에 실행하지 않는다.
+SQL preview는 검토와 debugging 용도로 유지한다. 실제 DB write는 `test_api` 기본 동작으로 create insert와 partial_update milestone update에 대해 수행한다.
 
 SQL preview는 실제 MileDay DB 스키마에 맞춰 다음 원칙을 따른다.
 

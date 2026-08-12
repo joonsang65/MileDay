@@ -9,10 +9,12 @@
 python -m harness.cli test_api
 ```
 
-선택 옵션은 fixture 일부만 실행하는 `--limit` 하나입니다.
+기본 실행은 create를 실제 Supabase DB에 insert하고, 통과한 partial_update를 milestone update로 반영합니다. DB 적재 없이 prompt/parser만 확인하려면 `--write-no`를 사용합니다.
 
 ```powershell
 python -m harness.cli test_api --limit 3
+python -m harness.cli test_api --write-no
+python -m harness.cli cleanup --run-id prompt-test-1
 ```
 
 고정값:
@@ -27,13 +29,18 @@ python -m harness.cli test_api --limit 3
 
 ## 환경 변수
 
-Gemini 관련 환경 변수는 하나만 사용합니다.
+Gemini와 DB write에 필요한 최소 환경 변수만 사용합니다.
 
 ```env
 GEMINI_API_KEY=...
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+TEST_USER_ID=...
+TEST_TITLE_PREFIX=[TEST]
 ```
 
 generation과 judge는 동일한 key를 사용합니다. API base URL과 judge model은 코드 내부 상수로 고정합니다.
+`SUPABASE_ANON_KEY`, `SUPABASE_DB_URL`, `TEST_EMAIL`, `TEST_PASSWORD`는 현재 harness DB write 경로에서 사용하지 않습니다.
 
 ## 주요 구조
 
@@ -50,6 +57,8 @@ generation과 judge는 동일한 key를 사용합니다. API base URL과 judge m
 | `mileday/api_plan_builder.py` | plan/patch/add/remove item 생성 |
 | `mileday/api_validation.py` | deterministic validation과 safety gate |
 | `mileday/api_db_payload.py` | DB payload와 SQL preview 순수 함수 |
+| `mileday/api_db_client.py` | Supabase create insert, partial update, manifest 기반 cleanup |
+| `mileday/api_db_manifest.py` | DB write record와 slot 매핑 저장/로드 |
 | `mileday/api_parser.py` | parser orchestration entrypoint |
 | `mileday/api_runner.py` | API run 실행 흐름 |
 | `mileday/api_summary.py` | API summary와 multiturn report append |
@@ -71,5 +80,6 @@ pytest tests/harness
 ## 주의
 
 - `.env`의 `GEMINI_API_KEY`는 commit하지 않습니다.
-- API 호출은 실제 과금 또는 quota를 사용할 수 있습니다.
+- API 호출과 기본 DB write는 실제 과금, quota, 원격 DB row를 사용할 수 있습니다.
+- `cleanup --run-id <id>`는 해당 run의 `db_manifest.json`에 기록된 row만 삭제합니다.
 - prompt/parser 변경 후에는 `pytest tests/harness`로 회귀를 확인합니다.

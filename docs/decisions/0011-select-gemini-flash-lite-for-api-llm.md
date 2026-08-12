@@ -205,5 +205,7 @@ MileDay 일정 생성은 DB 반영 전 사용자 확인을 요구하지만, 잘�
 - `test_api`는 전체 fixture 또는 `--limit`으로 제한된 fixture만 실행한다.
 - summary는 단일 flash-lite 결과만 기록한다.
 - parser 결과는 `plan_items`, `patch_items`, `add_items`, `remove_slot_ids`, `db_payload`, `requires_confirmation` shape를 유지한다.
-- DB 적재는 아직 실행하지 않고, parser output에서 DB payload와 SQL preview까지 이어지는 구조만 검증한다.
+- `test_api`는 기본적으로 create를 실제 Supabase DB에 insert하고, 통과한 partial_update를 milestone update로 반영한다.
+- DB 적재 없이 prompt/parser만 검증할 때는 `--write-no`를 사용한다.
+- 적재/수정된 테스트 row와 slot-id 매핑은 run별 `db_manifest.json`에 기록하고, `cleanup --run-id <id>`로 삭제한다.
 - 현재 상세 실행 가이드는 `docs/harness_guide.md`를 기준으로 본다.
