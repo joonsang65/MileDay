@@ -26,6 +26,10 @@ class HarnessSettings(BaseModel):
     default_timeout_seconds: int = Field(default=120, ge=1)
     ollama_base_url: str = Field(default="http://localhost:11434")
     gemini_api_key: str | None = Field(default=None)
+    supabase_url: str | None = Field(default=None)
+    supabase_service_role_key: str | None = Field(default=None)
+    test_user_id: str | None = Field(default=None)
+    test_title_prefix: str | None = Field(default=None)
 
     @field_validator("project_root", "artifacts_dir", "runs_dir", "datasets_dir", mode="before")
     @classmethod
@@ -50,6 +54,10 @@ def _settings_from_env() -> dict[str, Any]:
         "default_timeout_seconds": getenv("HARNESS_DEFAULT_TIMEOUT_SECONDS"),
         "ollama_base_url": getenv("OLLAMA_BASE_URL"),
         "gemini_api_key": getenv("GEMINI_API_KEY"),
+        "supabase_url": getenv("SUPABASE_URL"),
+        "supabase_service_role_key": getenv("SUPABASE_SERVICE_ROLE_KEY"),
+        "test_user_id": getenv("TEST_USER_ID"),
+        "test_title_prefix": getenv("TEST_TITLE_PREFIX"),
     }
     return {key: value for key, value in mapping.items() if value not in (None, "")}
 

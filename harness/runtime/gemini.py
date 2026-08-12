@@ -128,6 +128,9 @@ def _generation_config(request: RuntimeRequest) -> dict[str, Any]:
     }.items():
         if source in request.options:
             config[target] = request.options[source]
+    thinking_level = request.options.get("thinking_level") or request.options.get("thinkingLevel")
+    if isinstance(thinking_level, str) and thinking_level:
+        config["thinkingConfig"] = {"thinkingLevel": thinking_level}
 
     if request.response_format == "json":
         config["responseMimeType"] = "application/json"
@@ -197,4 +200,4 @@ def _error_response(
 
 
 def _elapsed_ms(started_at: float, completed_at: float) -> int:
-    return max(0, round((completed_at - started_at) * 1000))
+    return max(1, round((completed_at - started_at) * 1000))

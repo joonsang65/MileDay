@@ -52,3 +52,17 @@ def test_load_settings_accepts_gemini_api_key_env(monkeypatch):
     settings = load_settings()
 
     assert settings.gemini_api_key == "test-key"
+
+
+def test_load_settings_accepts_db_write_env(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service-role")
+    monkeypatch.setenv("TEST_USER_ID", "user-1")
+    monkeypatch.setenv("TEST_TITLE_PREFIX", "[TEST]")
+
+    settings = load_settings()
+
+    assert settings.supabase_url == "https://example.supabase.co"
+    assert settings.supabase_service_role_key == "service-role"
+    assert settings.test_user_id == "user-1"
+    assert settings.test_title_prefix == "[TEST]"

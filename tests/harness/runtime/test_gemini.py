@@ -84,6 +84,37 @@ def test_gemini_generate_categorizes_invalid_response():
     assert response.error.category == FailureCategory.PARSER_ERROR
 
 
+def test_gemini_generate_sends_thinking_level_config():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [{"content": {"parts": [{"text": "{}"}]}}],
+                "usageMetadata": {},
+            },
+            request=request,
+        )
+
+    runtime = GeminiRuntime(
+        api_key="test-key",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    response = runtime.generate(
+        RuntimeRequest(
+            model_tag="gemini-test",
+            prompt="hello",
+            options={"thinking_level": "minimal"},
+        )
+    )
+
+    assert response.error is None
+    assert captured["payload"]["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "minimal"}
+
+
 def test_gemini_generate_categorizes_http_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, json={"error": {"message": "quota"}}, request=request)

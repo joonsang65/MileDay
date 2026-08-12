@@ -13,6 +13,7 @@ from harness.mileday.api_runner import (
     MILEDAY_API_MODEL_ID,
     MILEDAY_API_MULTITURN_PROMPT_VERSION,
     MILEDAY_API_SLEEP_SECONDS,
+    cleanup_prompt_test_api,
     run_prompt_test_api,
 )
 from harness.model_registry import (
@@ -114,6 +115,10 @@ def test_api(
         int | None,
         typer.Option("--limit", help="Optional positive limit for fixture cases to execute."),
     ] = None,
+    write_no: Annotated[
+        bool,
+        typer.Option("--write-no", help="Run prompt/parser evaluation without writing DB rows."),
+    ] = False,
 ) -> None:
     """Run the flash-lite MileDay API prompt/parser test."""
 
@@ -123,7 +128,20 @@ def test_api(
         settings=load_settings(),
         fixture=MILEDAY_MULTITURN_FIXTURE,
         limit=limit,
+        write_db=not write_no,
     )
+
+
+@app.command("cleanup")
+def cleanup(
+    run_id: Annotated[
+        str,
+        typer.Option("--run-id", help="Prompt test run id to clean up from DB."),
+    ],
+) -> None:
+    """Delete DB rows created by a prompt-test run manifest."""
+
+    cleanup_prompt_test_api(settings=load_settings(), run_id=run_id)
 
 
 if __name__ == "__main__":
