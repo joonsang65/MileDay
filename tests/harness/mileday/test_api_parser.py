@@ -57,6 +57,79 @@ def test_api_parser_builds_rule_based_db_payload_for_create():
     assert parsed["requires_confirmation"] is True
 
 
+def test_api_parser_accepts_structured_json_output_for_create():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[0]
+
+    result = evaluate_api_multiturn_record(
+        _base_result("multiturn-101-turn-1"),
+        case,
+        1,
+        """
+{
+  "action": "create",
+  "operation": "none",
+  "target": "전체 일정",
+  "target_selector_type": "ambiguous",
+  "target_selector_value": "none",
+  "target_selector_confidence": "high",
+  "preserve_selector_type": "none",
+  "preserve_selector_values": [],
+  "requires_clarification": false,
+  "selected_slot_ids": ["S001", "S002", "S003"],
+  "change": "일정 생성",
+  "tasks": ["자료 범위 확인", "분석 초안 작성", "최종 점검"],
+  "mutation_safety_check": "create_scope_checked"
+}
+""".strip(),
+        previous_parsed=None,
+        explanation_judge=PassingJudge(),
+        prompt_version=MILEDAY_API_MULTITURN_PROMPT_VERSION,
+    )
+
+    assert result.status == ResultStatus.PASSED
+    parsed = result.parsed_output["parsed_json"]
+    assert parsed["plan_items"] == [
+        {"slot_id": "S001", "task": "자료 범위 확인"},
+        {"slot_id": "S002", "task": "분석 초안 작성"},
+        {"slot_id": "S003", "task": "최종 점검"},
+    ]
+    assert result.parsed_output["output_contract"]["structured_json_used"] is True
+
+
+def test_api_parser_rejects_structured_json_action_mismatch():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[0]
+
+    result = evaluate_api_multiturn_record(
+        _base_result("multiturn-101-turn-1"),
+        case,
+        1,
+        """
+{
+  "action": "partial_update",
+  "operation": "none",
+  "target": "전체 일정",
+  "target_selector_type": "ambiguous",
+  "target_selector_value": "none",
+  "target_selector_confidence": "high",
+  "preserve_selector_type": "none",
+  "preserve_selector_values": [],
+  "requires_clarification": false,
+  "selected_slot_ids": ["S001", "S002", "S003"],
+  "change": "create selected milestones",
+  "tasks": ["자료 범위 확인", "기초 통계 분석", "최종 점검"],
+  "mutation_safety_check": "create_scope_checked"
+}
+""".strip(),
+        previous_parsed=None,
+        explanation_judge=PassingJudge(),
+        prompt_version=MILEDAY_API_MULTITURN_PROMPT_VERSION,
+    )
+
+    assert result.status == ResultStatus.INVALID
+    validation = result.parsed_output["multiturn_validation"]
+    assert "intent_action_valid" in validation["deterministic_validation"]["failed_check_names"]
+
+
 def test_api_parser_limits_single_target_partial_update_to_one_patch():
     case = load_mileday_multiturn_cases("tests/fixtures/mileday/multiturn_schedule.pretty.json")[0]
     previous_parsed = {
@@ -144,3 +217,87 @@ def test_api_parser_adds_new_task_to_next_unused_slot():
     parsed = result.parsed_output["parsed_json"]
     assert parsed["add_items"] == [{"slot_id": "S004", "task": "기술 블로그 글 작성"}]
     assert parsed["plan_items"][-1] == {"slot_id": "S004", "task": "기술 블로그 글 작성"}
+
+
+def test_api_parser_removes_target_from_new_fixture_by_rule_scoring():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[1]
+    previous_parsed = {
+        "plan_items": [
+            {"slot_id": "S001", "task": "개념 정리"},
+            {"slot_id": "S002", "task": "모의고사 풀이"},
+            {"slot_id": "S003", "task": "가벼운 복습"},
+        ],
+        "db_payload": {
+            "goal": {
+                "title": case.input.initial_goal.title,
+                "deadline": case.input.initial_goal.deadline,
+                "is_recurring": False,
+                "recurrence_type": None,
+                "color": case.input.initial_goal.color,
+            },
+            "milestones": [],
+        },
+    }
+
+    result = evaluate_api_multiturn_record(
+        _base_result("multiturn-102-turn-2"),
+        case,
+        2,
+        _intent_response(
+            action="partial_update",
+            target="부담 큰 일정",
+            change="일정 하나 제외",
+            tasks=[],
+        ),
+        previous_parsed=previous_parsed,
+        explanation_judge=PassingJudge(),
+        prompt_version=MILEDAY_API_MULTITURN_PROMPT_VERSION,
+    )
+
+    assert result.status == ResultStatus.PASSED
+    parsed = result.parsed_output["parsed_json"]
+    assert parsed["remove_slot_ids"] == ["S002"]
+    assert [item["slot_id"] for item in parsed["plan_items"]] == ["S001", "S003"]
+
+
+def test_api_parser_keeps_ambiguous_add_remove_request_as_no_op():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[14]
+    previous_parsed = {
+        "plan_items": [
+            {"slot_id": "S001", "task": "회의 준비"},
+            {"slot_id": "S002", "task": "역할 분담"},
+            {"slot_id": "S003", "task": "최종 점검"},
+        ],
+        "db_payload": {
+            "goal": {
+                "title": case.input.initial_goal.title,
+                "deadline": case.input.initial_goal.deadline,
+                "is_recurring": False,
+                "recurrence_type": None,
+                "color": case.input.initial_goal.color,
+            },
+            "milestones": [],
+        },
+    }
+
+    result = evaluate_api_multiturn_record(
+        _base_result("multiturn-115-turn-2"),
+        case,
+        2,
+        _intent_response(
+            action="partial_update",
+            target="확인 필요",
+            change="임의 변경 없음",
+            tasks=[],
+        ),
+        previous_parsed=previous_parsed,
+        explanation_judge=PassingJudge(),
+        prompt_version=MILEDAY_API_MULTITURN_PROMPT_VERSION,
+    )
+
+    assert result.status == ResultStatus.PASSED
+    parsed = result.parsed_output["parsed_json"]
+    assert parsed["patch_items"] == []
+    assert parsed["add_items"] == []
+    assert parsed["remove_slot_ids"] == []
+    assert parsed["plan_items"] == previous_parsed["plan_items"]

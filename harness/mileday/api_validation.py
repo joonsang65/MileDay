@@ -40,7 +40,35 @@ def _validate_mileday_multiturn_plan_output(
             }
         )
 
-    expected_action = case.turns[turn_id - 1].expected_action
+    turn = case.turns[turn_id - 1]
+    expected_action = turn.expected_action
+    expected_operation = turn.expected_operation
+    intent = parsed.get("intent")
+    intent = intent if isinstance(intent, dict) else {}
+    fallback_used = bool(parsed.get("freeform_fallback_used")) or intent.get("source") == "freeform_fallback"
+    intent_action = intent.get("action") if isinstance(intent.get("action"), str) else ""
+    intent_operation = intent.get("operation") if isinstance(intent.get("operation"), str) else ""
+    intent_action_valid = not intent_action or intent_action == expected_action
+    if not intent_action_valid:
+        add_error(
+            "intent_action_valid",
+            f"Model intent action {intent_action!r} does not match expected action {expected_action!r}.",
+            code="INTENT_CONTRACT_ERROR",
+            safety_gate=True,
+        )
+    intent_operation_valid = _intent_operation_matches_expected(
+        intent_operation=intent_operation,
+        expected_action=expected_action,
+        expected_operation=expected_operation,
+        fallback_used=fallback_used,
+    )
+    if not intent_operation_valid:
+        add_error(
+            "intent_operation_valid",
+            f"Model intent operation {intent_operation!r} does not match expected operation {expected_operation!r}.",
+            code="INTENT_CONTRACT_ERROR",
+            safety_gate=True,
+        )
     raw_plan_items = parsed.get("plan_items")
     raw_patch_items = parsed.get("patch_items")
     raw_remove_slot_ids = parsed.get("remove_slot_ids")
@@ -170,13 +198,46 @@ def _validate_mileday_multiturn_plan_output(
             continue
         selected_milestones.append({"slot_id": slot_id, "task": task.strip()})
 
-    min_items = 3 if expected_action == "create" else 1
+    min_items = case.expected.constraints.min_milestones if expected_action == "create" else 1
     max_items = case.expected.constraints.max_milestones
     milestone_count_valid = min_items <= len(selected_milestones) <= max_items
     if not milestone_count_valid:
         add_error("milestone_count_valid", "Final PLAN item count is outside the expected min/max range", code="PAYLOAD_SCHEMA_ERROR")
 
-    rule_based_db_payload = build_schedule_db_payload(case, selected_milestones, slots_by_id)
+    subset_scope_result = _validate_create_subset_scope(case, turn_id, selected_milestones, slots_by_id)
+    create_subset_scope_valid = subset_scope_result["is_valid"]
+    if not create_subset_scope_valid:
+        add_error(
+            "create_subset_scope_valid",
+            subset_scope_result["message"],
+            code="CREATE_SUBSET_SCOPE_MISMATCH",
+            safety_gate=True,
+        )
+
+    time_difficulty_result = _validate_time_difficulty_alignment(case, turn_id, selected_milestones, slots_by_id)
+    schedule_progression_valid = time_difficulty_result["is_valid"]
+    if not schedule_progression_valid:
+        add_error(
+            "schedule_progression_valid",
+            time_difficulty_result["message"],
+            code="TIME_DIFFICULTY_MISMATCH",
+        )
+
+    db_operation = _db_operation_for_turn(
+        expected_action=expected_action,
+        patch_items=patch_items,
+        add_items=add_items,
+        remove_slot_ids=sorted(remove_slot_ids),
+    )
+    rule_based_db_payload = build_schedule_db_payload(
+        case,
+        selected_milestones,
+        slots_by_id,
+        operation=db_operation,
+        patch_items=patch_items,
+        add_items=add_items,
+        remove_slot_ids=sorted(remove_slot_ids),
+    )
     milestone_payloads = rule_based_db_payload["milestones"]
     effective_parsed = {
         **parsed,
@@ -214,6 +275,72 @@ def _validate_mileday_multiturn_plan_output(
         for item in plan_items or []
         if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
     }
+
+    effect = case.expected.effect
+
+    actual_added_count = len(current_plan_slot_ids - previous_plan_slot_ids)
+    actual_removed_count = len(previous_plan_slot_ids - current_plan_slot_ids)
+
+    explicit_add_count = len(add_items) if isinstance(add_items, list) else 0
+    explicit_remove_count = len(remove_slot_ids)
+    explicit_patch_count = len(patch_items) if isinstance(patch_items, list) else 0
+    add_preserve_scope_result = _validate_add_preserve_scope(intent, add_items, slots_by_id)
+    add_preserve_scope_valid = add_preserve_scope_result["is_valid"]
+    if expected_action == "partial_update" and expected_operation == "add" and not add_preserve_scope_valid:
+        add_error(
+            "add_preserve_scope_valid",
+            add_preserve_scope_result["message"],
+            code="PRESERVE_SCOPE_VIOLATION",
+            safety_gate=True,
+        )
+    model_safety_check = intent.get("mutation_safety_check")
+    model_safety_check = model_safety_check if isinstance(model_safety_check, str) else ""
+    actual_safety_check = _actual_mutation_safety_check(
+        db_operation=db_operation,
+        explicit_add_count=explicit_add_count,
+        explicit_remove_count=explicit_remove_count,
+        explicit_patch_count=explicit_patch_count,
+        requires_clarification=bool(intent.get("requires_clarification")),
+    )
+    self_check_matches = not model_safety_check or model_safety_check == actual_safety_check
+
+    operation_effect_valid = True
+
+    if expected_action == "partial_update" and expected_operation == "add":
+        if explicit_add_count <= 0 or actual_added_count <= 0:
+            operation_effect_valid = False
+            add_error(
+                "operation_effect_valid",
+                "Expected add operation, but no new schedule item was added.",
+                code="PARTIAL_UPDATE_EFFECT_MISMATCH",
+                safety_gate=True,
+            )
+
+    if expected_action == "partial_update" and expected_operation == "remove":
+        if explicit_remove_count <= 0 or actual_removed_count <= 0:
+            operation_effect_valid = False
+            add_error(
+                "operation_effect_valid",
+                "Expected remove operation, but no new schedule item was removed.",
+                code="PARTIAL_UPDATE_EFFECT_MISMATCH",
+                safety_gate=True,
+            )
+
+    if expected_action == "partial_update" and (
+        expected_operation == "none" or effect.expected_no_op or effect.expected_clarification
+    ):
+        mutated = explicit_patch_count > 0 or explicit_add_count > 0 or explicit_remove_count > 0
+        plan_changed = current_plan_slot_ids != previous_plan_slot_ids
+
+        if mutated or plan_changed:
+            operation_effect_valid = False
+            add_error(
+                "operation_effect_valid",
+                "Expected no-op/clarification, but the schedule was changed.",
+                code="UNEXPECTED_MUTATION",
+                safety_gate=True,
+            )
+
     previous_titles = set(_milestone_titles(previous_parsed))
     current_titles = set(_milestone_titles(effective_parsed))
     state_regression_count = (
@@ -250,6 +377,12 @@ def _validate_mileday_multiturn_plan_output(
         availability_alignment,
         weekday_date_alignment,
         partial_update_scope_valid,
+        operation_effect_valid,
+        create_subset_scope_valid,
+        intent_action_valid,
+        intent_operation_valid,
+        add_preserve_scope_valid,
+        schedule_progression_valid,
     ]
     return {
         "errors": errors,
@@ -277,6 +410,13 @@ def _validate_mileday_multiturn_plan_output(
             "plan_slot_valid": plan_slot_valid,
             "patch_applied": expected_action == "partial_update",
             "partial_update_scope_valid": partial_update_scope_valid,
+            "operation_effect_valid": operation_effect_valid,
+            "create_subset_scope_valid": create_subset_scope_valid,
+            "intent_action_valid": intent_action_valid,
+            "intent_operation_valid": intent_operation_valid,
+            "fallback_used": fallback_used,
+            "add_preserve_scope_valid": add_preserve_scope_valid,
+            "schedule_progression_valid": schedule_progression_valid,
         },
         "state": {
             "previous_context_used": previous_parsed is not None,
@@ -284,14 +424,36 @@ def _validate_mileday_multiturn_plan_output(
             "completed_milestones_preserved": completed_milestones_preserved,
             "partial_update_scope_valid": partial_update_scope_valid,
             "state_regression_count": state_regression_count,
+            "operation_effect": {
+                "db_operation": db_operation,
+                "expected_operation": expected_operation,
+                "explicit_add_count": explicit_add_count,
+                "explicit_remove_count": explicit_remove_count,
+                "explicit_patch_count": explicit_patch_count,
+                "actual_added_count": actual_added_count,
+                "actual_removed_count": actual_removed_count,
+            },
+            "mutation_safety_check": {
+                "model": model_safety_check,
+                "actual": actual_safety_check,
+                "matches": self_check_matches,
+            },
+            "create_subset_scope": subset_scope_result,
+            "add_preserve_scope": add_preserve_scope_result,
+            "fallback": {
+                "used": fallback_used,
+                "source": intent.get("source") if isinstance(intent.get("source"), str) else "",
+            },
         },
         "schedule_quality": {
             "availability_alignment": availability_alignment,
             "weekday_date_alignment": weekday_date_alignment,
             "deadline_compliance": deadline_compliance,
             "milestone_count_valid": milestone_count_valid,
-            "schedule_progression_valid": None,
+            "schedule_progression_valid": schedule_progression_valid,
             "explanation_alignment": None,
+            "create_subset_scope_valid": create_subset_scope_valid,
+            "time_difficulty_alignment": time_difficulty_result,
         },
     }
 
@@ -319,6 +481,274 @@ def _plan_slot_ids(parsed: dict[str, Any] | None) -> list[str]:
         for item in plan_items
         if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
     ]
+
+
+def _db_operation_for_turn(
+    *,
+    expected_action: str,
+    patch_items: list[Any],
+    add_items: list[Any],
+    remove_slot_ids: list[str],
+) -> str:
+    if expected_action == "create":
+        return "create"
+    operations = []
+    if add_items:
+        operations.append("add")
+    if remove_slot_ids:
+        operations.append("remove")
+    if patch_items:
+        operations.append("rename")
+    if not operations:
+        return "none"
+    return operations[0] if len(operations) == 1 else "partial_update"
+
+
+def _intent_operation_matches_expected(
+    *,
+    intent_operation: str,
+    expected_action: str,
+    expected_operation: str | None,
+    fallback_used: bool,
+) -> bool:
+    if fallback_used or not intent_operation:
+        return True
+    if expected_action == "create":
+        return intent_operation == "none"
+    if expected_operation is None:
+        return True
+    return intent_operation == expected_operation
+
+
+def _validate_add_preserve_scope(
+    intent: dict[str, Any],
+    add_items: list[Any],
+    slots_by_id: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    selector = intent.get("preserve_selector")
+    if not isinstance(selector, dict) or selector.get("type") != "weekday" or not add_items:
+        return {"is_valid": True, "message": "", "expected_weekdays": [], "actual_weekdays": []}
+    expected_weekdays = _weekday_values_from_selector(selector)
+    if not expected_weekdays:
+        return {"is_valid": True, "message": "", "expected_weekdays": [], "actual_weekdays": []}
+    actual_weekdays = {
+        slots_by_id[item["slot_id"]]["day_of_week"]
+        for item in add_items
+        if isinstance(item, dict)
+        and isinstance(item.get("slot_id"), str)
+        and item["slot_id"] in slots_by_id
+    }
+    if actual_weekdays <= expected_weekdays:
+        return {
+            "is_valid": True,
+            "message": "",
+            "expected_weekdays": sorted(expected_weekdays),
+            "actual_weekdays": sorted(actual_weekdays),
+        }
+    return {
+        "is_valid": False,
+        "message": "Add selected slots violate the preserved weekday scope.",
+        "expected_weekdays": sorted(expected_weekdays),
+        "actual_weekdays": sorted(actual_weekdays),
+    }
+
+
+def _weekday_values_from_selector(selector: dict[str, Any]) -> set[str]:
+    values = selector.get("values")
+    raw_values = values if isinstance(values, list) else [selector.get("value")]
+    text = " ".join(str(value) for value in raw_values if value is not None)
+    weekdays = _requested_allowed_days(text)
+    explicit = {
+        value
+        for value in raw_values
+        if isinstance(value, str)
+        for value in [value.strip().lower()]
+        if value in {
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        }
+    }
+    return weekdays | explicit
+
+
+def _validate_time_difficulty_alignment(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    selected_milestones: list[dict[str, Any]],
+    slots_by_id: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    turn = case.turns[turn_id - 1]
+    if turn.expected_action != "create":
+        return {"is_valid": True, "message": "", "required": False}
+    if not _requests_short_long_alignment(turn.content, case.metadata):
+        return {"is_valid": True, "message": "", "required": False}
+    selected_slot_ids = [
+        item["slot_id"]
+        for item in selected_milestones
+        if isinstance(item.get("slot_id"), str) and item["slot_id"] in slots_by_id
+    ]
+    if len(selected_slot_ids) < 2:
+        return {
+            "is_valid": False,
+            "message": "Short/long time planning requires at least two selected slots.",
+            "required": True,
+            "selected_slot_ids": selected_slot_ids,
+        }
+    available_durations = {
+        slot_id: _slot_duration_minutes(slot["time_range"])
+        for slot_id, slot in slots_by_id.items()
+    }
+    selected_durations = [available_durations[slot_id] for slot_id in selected_slot_ids]
+    min_available = min(available_durations.values())
+    max_available = max(available_durations.values())
+    includes_short = min_available in selected_durations
+    includes_long = max_available in selected_durations
+    if includes_short and includes_long:
+        return {
+            "is_valid": True,
+            "message": "",
+            "required": True,
+            "selected_slot_ids": selected_slot_ids,
+            "selected_duration_minutes": selected_durations,
+        }
+    return {
+        "is_valid": False,
+        "message": "Explicit short/long request must include both shortest and longest available slot durations.",
+        "required": True,
+        "selected_slot_ids": selected_slot_ids,
+        "selected_duration_minutes": selected_durations,
+        "min_available_duration": min_available,
+        "max_available_duration": max_available,
+    }
+
+
+def _requests_short_long_alignment(text: str, metadata: dict[str, Any]) -> bool:
+    tags = metadata.get("tags")
+    if isinstance(tags, list) and {"short_slot", "long_slot"} <= {str(tag) for tag in tags}:
+        return True
+    return ("짧" in text and "긴" in text) or ("short" in text.lower() and "long" in text.lower())
+
+
+def _slot_duration_minutes(time_range: str) -> int:
+    start, end = time_range.split("-", maxsplit=1)
+    start_hours, start_minutes = [int(part) for part in start.split(":", maxsplit=1)]
+    end_hours, end_minutes = [int(part) for part in end.split(":", maxsplit=1)]
+    return (end_hours * 60 + end_minutes) - (start_hours * 60 + start_minutes)
+
+
+def _actual_mutation_safety_check(
+    *,
+    db_operation: str,
+    explicit_add_count: int,
+    explicit_remove_count: int,
+    explicit_patch_count: int,
+    requires_clarification: bool,
+) -> str:
+    if requires_clarification:
+        return "ambiguous_request"
+    if db_operation == "create":
+        return "create_scope_checked"
+    if db_operation == "none":
+        return "no_target_matched"
+    if db_operation in {"remove", "rename"}:
+        target_count = explicit_remove_count if db_operation == "remove" else explicit_patch_count
+        if target_count == 1:
+            return "single_target_matched"
+        if target_count > 1:
+            return "multiple_targets_matched"
+        return "no_target_matched"
+    if db_operation == "add":
+        return "single_target_matched" if explicit_add_count == 1 else "multiple_targets_matched"
+    return "multiple_targets_matched"
+
+
+def _validate_create_subset_scope(
+    case: MileDayMultiTurnCase,
+    turn_id: int,
+    selected_milestones: list[dict[str, Any]],
+    slots_by_id: dict[str, dict[str, str]],
+) -> dict[str, Any]:
+    turn = case.turns[turn_id - 1]
+    if turn.expected_action != "create":
+        return {"is_valid": True, "message": "", "expected_day_count": None, "actual_day_count": None}
+
+    request = turn.content
+    selected_days = {
+        slots_by_id[item["slot_id"]]["day_of_week"]
+        for item in selected_milestones
+        if isinstance(item.get("slot_id"), str) and item["slot_id"] in slots_by_id
+    }
+    expected_day_count = _requested_subset_day_count(request)
+    allowed_days = _requested_allowed_days(request)
+
+    if allowed_days and not selected_days <= allowed_days:
+        return {
+            "is_valid": False,
+            "message": "Selected slots include weekdays outside the requested subset.",
+            "expected_day_count": expected_day_count,
+            "actual_day_count": len(selected_days),
+            "allowed_days": sorted(allowed_days),
+            "selected_days": sorted(selected_days),
+        }
+    if expected_day_count is not None and len(selected_days) != expected_day_count:
+        return {
+            "is_valid": False,
+            "message": "Selected slot weekdays do not match the requested subset day count.",
+            "expected_day_count": expected_day_count,
+            "actual_day_count": len(selected_days),
+            "allowed_days": sorted(allowed_days),
+            "selected_days": sorted(selected_days),
+        }
+    return {
+        "is_valid": True,
+        "message": "",
+        "expected_day_count": expected_day_count,
+        "actual_day_count": len(selected_days),
+        "allowed_days": sorted(allowed_days),
+        "selected_days": sorted(selected_days),
+    }
+
+
+def _requested_subset_day_count(text: str) -> int | None:
+    if "주말 중 하루" in text or "주말 중 1일" in text or "주말 중 하루만" in text:
+        return 1
+    if not any(keyword in text for keyword in ("골라", "선택", "중", "그중")):
+        return None
+    for label, count in {"1": 1, "한": 1, "하루": 1, "2": 2, "두": 2, "3": 3, "세": 3}.items():
+        if re.search(rf"{label}\s*일\s*만", text):
+            return count
+    return None
+
+
+def _requested_allowed_days(text: str) -> set[str]:
+    allowed_days: set[str] = set()
+    if "주말" in text:
+        allowed_days.update({"saturday", "sunday"})
+    labels = {
+        "월": "monday",
+        "화": "tuesday",
+        "수": "wednesday",
+        "목": "thursday",
+        "금": "friday",
+        "토": "saturday",
+        "일": "sunday",
+    }
+    for compact, days in {
+        "월수금": {"monday", "wednesday", "friday"},
+        "화목토": {"tuesday", "thursday", "saturday"},
+        "토일": {"saturday", "sunday"},
+    }.items():
+        if compact in text:
+            allowed_days.update(days)
+    for label, day in labels.items():
+        if f"{label}요일" in text:
+            allowed_days.add(day)
+    return allowed_days
 
 
 def _validate_multiturn_availability_alignment(
@@ -387,6 +817,11 @@ def _failure_code_for_check(check: str) -> str:
         "weekday_date_alignment": "DATE_WEEKDAY_MISMATCH",
         "deadline_compliance": "DEADLINE_VIOLATION",
         "db_payload_schema_valid": "PAYLOAD_SCHEMA_ERROR",
+        "create_subset_scope_valid": "CREATE_SUBSET_SCOPE_MISMATCH",
+        "intent_action_valid": "INTENT_CONTRACT_ERROR",
+        "intent_operation_valid": "INTENT_CONTRACT_ERROR",
+        "add_preserve_scope_valid": "PRESERVE_SCOPE_VIOLATION",
+        "schedule_progression_valid": "TIME_DIFFICULTY_MISMATCH",
     }.get(check, "JUDGE_REJECTION")
 
 

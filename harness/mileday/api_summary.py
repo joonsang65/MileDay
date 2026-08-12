@@ -99,6 +99,9 @@ def _mileday_multiturn_measurement_summary(
         1 for item in judge_results if isinstance(item, dict) and item.get("is_aligned") is True
     )
     warning_count = _mileday_multiturn_warning_count(results)
+    fallback_count = _grid_fallback_used_count(results)
+    self_check_mismatches = _grid_self_check_mismatch_count(results)
+    time_difficulty_mismatches = _grid_failure_code_counts(results).get("TIME_DIFFICULTY_MISMATCH", 0)
     db_ready_cases = len(all_turn_pass_cases)
     critical_failures = counts.get(ResultStatus.FAILED.value, 0) + counts.get(ResultStatus.INVALID.value, 0)
     return [
@@ -118,6 +121,9 @@ def _mileday_multiturn_measurement_summary(
         f"| judge_completed | {judge_completed} |",
         f"| judge_is_aligned_count | {judge_aligned} |",
         f"| judge_score_avg | {_format_optional_float(mean(judge_scores) if judge_scores else None)} |",
+        f"| schema_fallback_used | {fallback_count} |",
+        f"| self_check_mismatches | {self_check_mismatches} |",
+        f"| time_difficulty_mismatches | {time_difficulty_mismatches} |",
         f"| avg_latency_ms | {_format_optional_float(mean(latencies) if latencies else None)} |",
         f"| max_latency_ms | {_format_optional_float(max(latencies) if latencies else None)} |",
         f"| avg_ttft_ms | {_format_optional_float(mean(ttfts) if ttfts else None)} |",
@@ -336,6 +342,9 @@ def _write_prompt_test_summary(
     all_turn_pass_cases = _mileday_multiturn_all_turn_pass_cases(results, cases)
     judge_rejects = _grid_judge_reject_count(results)
     failure_codes = _grid_failure_code_counts(results)
+    self_check_mismatches = _grid_self_check_mismatch_count(results)
+    fallback_count = _grid_fallback_used_count(results)
+    time_difficulty_mismatches = failure_codes.get("TIME_DIFFICULTY_MISMATCH", 0)
     avg_latency = _grid_avg_latency_ms(results)
     lines = [
         f"# MileDay Prompt Test Summary: {batch_id}",
@@ -351,8 +360,8 @@ def _write_prompt_test_summary(
         "",
         "## Result",
         "",
-        "| model | passed | invalid | failed | skipped | case completion | all-turn-pass cases | judge rejects | avg latency ms | top failure codes | report | html |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|",
+        "| model | passed | invalid | failed | skipped | case completion | all-turn-pass cases | judge rejects | schema fallback | self-check mismatches | time/difficulty mismatches | avg latency ms | top failure codes | report | html |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|",
         "| "
         + " | ".join(
             [
@@ -364,6 +373,9 @@ def _write_prompt_test_summary(
                 _format_rate_from_counts(len(completed_cases), len(cases)),
                 _format_rate_from_counts(len(all_turn_pass_cases), len(cases)),
                 str(judge_rejects),
+                str(fallback_count),
+                str(self_check_mismatches),
+                str(time_difficulty_mismatches),
                 _format_optional_float(avg_latency),
                 _dict_counter_text(dict(failure_codes.most_common(3))) if failure_codes else "none",
                 f"`{Path(str(item.get('report_path', ''))).as_posix()}`",
@@ -378,7 +390,8 @@ def _write_prompt_test_summary(
         (
             f"- passed={counts.get('passed', 0)}, invalid={counts.get('invalid', 0)}, "
             f"failed={counts.get('failed', 0)}, skipped={counts.get('skipped', 0)}, "
-            f"judge_rejects={judge_rejects}"
+            f"judge_rejects={judge_rejects}, schema_fallback={fallback_count}, "
+            f"time_difficulty_mismatches={time_difficulty_mismatches}"
         ),
     ]
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8", newline="\n")
@@ -424,6 +437,36 @@ def _grid_failure_code_counts(results: list[RequestResult]) -> Counter[str]:
     return counter
 
 
+def _grid_self_check_mismatch_count(results: list[RequestResult]) -> int:
+    count = 0
+    for result in results:
+        validation = result.parsed_output.get("multiturn_validation")
+        if not isinstance(validation, dict):
+            continue
+        state = validation.get("state")
+        if not isinstance(state, dict):
+            continue
+        self_check = state.get("mutation_safety_check")
+        if isinstance(self_check, dict) and self_check.get("model") and self_check.get("matches") is False:
+            count += 1
+    return count
+
+
+def _grid_fallback_used_count(results: list[RequestResult]) -> int:
+    count = 0
+    for result in results:
+        validation = result.parsed_output.get("multiturn_validation")
+        if isinstance(validation, dict):
+            contract = validation.get("contract")
+            if isinstance(contract, dict) and contract.get("fallback_used") is True:
+                count += 1
+                continue
+        parsed_json = result.parsed_output.get("parsed_json")
+        if isinstance(parsed_json, dict) and parsed_json.get("freeform_fallback_used") is True:
+            count += 1
+    return count
+
+
 def _grid_avg_latency_ms(results: list[RequestResult]) -> float | None:
     values = [
         result.metrics.latency_ms
@@ -444,6 +487,10 @@ def _status_counts(results: list[RequestResult]) -> dict[str, int]:
 
 def _counter_text_for_cli(counts: dict[str, int]) -> str:
     return " ".join(f"{key}={counts.get(key, 0)}" for key in ("passed", "invalid", "failed", "skipped"))
+
+
+def _case_pass_text_for_cli(results: list[RequestResult], cases: list[MileDayMultiTurnCase]) -> str:
+    return f"case_pass={len(_mileday_multiturn_all_turn_pass_cases(results, cases))}/{len(cases)}"
 
 
 def _format_optional_float(value: float | None) -> str:
@@ -477,3 +524,7 @@ def status_counts(results: list[RequestResult]) -> dict[str, int]:
 
 def counter_text_for_cli(counts: dict[str, int]) -> str:
     return _counter_text_for_cli(counts)
+
+
+def case_pass_text_for_cli(results: list[RequestResult], cases: list[MileDayMultiTurnCase]) -> str:
+    return _case_pass_text_for_cli(results, cases)

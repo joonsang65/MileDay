@@ -10,6 +10,7 @@ from harness.mileday.api_constants import (
 from harness.mileday.api_intent import (
     extract_schedule_intent_block,
     fallback_schedule_intent,
+    parse_schedule_intent_json,
     parse_schedule_intent_block,
 )
 from harness.mileday.api_plan_builder import (
@@ -40,9 +41,12 @@ def evaluate_api_multiturn_record(
         return base_result
 
     turn = case.turns[turn_id - 1]
-    intent_block = extract_schedule_intent_block(raw_output)
+    json_intent, json_parse_errors = parse_schedule_intent_json(raw_output)
+    intent_block = None if json_intent is not None and not json_parse_errors else extract_schedule_intent_block(raw_output)
     contract: dict[str, Any] = {
         "type": "mileday_multiturn_intent_with_rule_based_payload",
+        "structured_json_used": json_intent is not None and not json_parse_errors,
+        "structured_json_parseable": json_intent is not None and not json_parse_errors,
         "has_schedule_intent_section": "[SCHEDULE_INTENT]" in raw_output or "[??_??]" in raw_output,
         "has_schedule_intent_end": "[/SCHEDULE_INTENT]" in raw_output or "[/??_??]" in raw_output,
         "intent_parseable": False,
@@ -61,16 +65,21 @@ def evaluate_api_multiturn_record(
         "output_contract": contract,
     }
 
-    if intent_block is None:
+    if json_intent is not None and not json_parse_errors:
+        intent = json_intent
+        parse_errors = []
+        contract["freeform_fallback_used"] = False
+    elif intent_block is None:
         intent = fallback_schedule_intent(case, turn_id, raw_output)
         if intent is None:
             return _invalid_mileday_result(
                 base_result,
                 parsed_output={
                     **base_metadata,
-                    "contract_errors": ["Missing [??_??] or [/??_??] section."],
+                    "contract_errors": ["Missing JSON intent object or [SCHEDULE_INTENT] section."],
+                    "json_parse_errors": json_parse_errors,
                 },
-                message="MileDay multiturn output must contain the expected Korean schedule intent block.",
+                message="MileDay multiturn output must contain a JSON schedule intent object or the expected schedule intent block.",
             )
         parse_errors = []
         contract["freeform_fallback_used"] = True
@@ -119,6 +128,7 @@ def evaluate_api_multiturn_record(
     parsed = {
         "action": turn.expected_action,
         "intent": intent,
+        "freeform_fallback_used": bool(contract.get("freeform_fallback_used")),
         "user_message": "",
         "plan_items": plan_items,
         "patch_items": patch_items,

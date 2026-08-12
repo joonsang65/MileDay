@@ -13,60 +13,102 @@ from harness.mileday.dataset import MileDayMultiTurnCase
 from harness.mileday.time_prefix import canonical_title_prefix, date_day_of_week, ko_weekday
 
 
+def api_schedule_intent_response_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["create", "partial_update"]},
+            "operation": {"type": "string", "enum": ["add", "remove", "rename", "none"]},
+            "target": {"type": "string"},
+            "target_selector_type": {
+                "type": "string",
+                "enum": ["slot_id", "slot_id_list", "task_text", "weekday", "position", "duration", "ambiguous"],
+            },
+            "target_selector_value": {"type": "string"},
+            "target_selector_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+            "preserve_selector_type": {
+                "type": "string",
+                "enum": ["none", "slot_id", "slot_id_list", "weekday", "latest_added"],
+            },
+            "preserve_selector_values": {"type": "array", "items": {"type": "string"}},
+            "requires_clarification": {"type": "boolean"},
+            "selected_slot_ids": {"type": "array", "items": {"type": "string"}},
+            "change": {"type": "string"},
+            "tasks": {"type": "array", "items": {"type": "string"}},
+            "mutation_safety_check": {
+                "type": "string",
+                "enum": [
+                    "single_target_matched",
+                    "no_target_matched",
+                    "multiple_targets_matched",
+                    "ambiguous_request",
+                    "create_scope_checked",
+                ],
+            },
+        },
+        "required": [
+            "action",
+            "operation",
+            "target",
+            "target_selector_type",
+            "target_selector_value",
+            "target_selector_confidence",
+            "preserve_selector_type",
+            "preserve_selector_values",
+            "requires_clarification",
+            "selected_slot_ids",
+            "change",
+            "tasks",
+            "mutation_safety_check",
+        ],
+    }
+
+
 def build_api_multiturn_prompt(
     case: MileDayMultiTurnCase,
     turn_id: int,
     transcript: list[dict[str, str]],
 ) -> str:
-    """Build the API-only prompt with stricter partial-update targeting."""
+    """Build the API-only prompt with a compact English output contract."""
 
     turn = case.turns[turn_id - 1]
     allowed_slots = mileday_multiturn_allowed_slots(case)
     reference_date_context = mileday_multiturn_reference_date_context()
     return (
         "You are the MileDay schedule intent parser.\n"
-        "Return only one [SCHEDULE_INTENT] block. Do not return JSON, markdown, explanations, dates, or DB payloads.\n"
+        "Return one JSON object matching the response schema. If no schema is active, return one [SCHEDULE_INTENT] block with the same fields.\n"
+        "Do not return markdown, explanations, DB ids, SQL, or DB payloads.\n"
         "Task names must be Korean and must not include weekdays, dates, AM/PM, or times.\n\n"
-        "[OUTPUT_FORMAT]\n"
-        "[SCHEDULE_INTENT]\n"
-        "action: create or partial_update\n"
-        "target: create target, or exactly one existing slot_id/task for partial_update\n"
-        "change: requested change\n"
-        "tasks:\n"
-        "- Korean task name\n"
-        "[/SCHEDULE_INTENT]\n\n"
-        "[PARTIAL_UPDATE_RULES]\n"
-        "- If the expected action is partial_update, write only the changed task candidate.\n"
-        "- If the user says '하나만', '1개만', '일정 중 하나', or similar, target exactly one existing item.\n"
-        "- Do not target the whole goal title for partial_update unless the user asked to update every item.\n"
-        "- Use a target from [PREVIOUS_PLAN_TARGETS] when previous conversation exists.\n"
-        "- If the request mentions '두 번째 주', choose one item whose slot date is in the second calendar week of the current plan.\n"
-        "- Unmentioned items are preserved by the evaluator, so never rewrite preserved items in tasks.\n\n"
-        "[PARTIAL_UPDATE_SCOPE_MAP]\n"
-        "- single target: '하나만', '1개만', '일정 중 하나만' -> target one slot_id only, tasks has exactly 1 item.\n"
-        "- weekday scope: '수요일 일정만', '화요일만' -> target all matching weekday slot_ids, tasks has one task per target slot.\n"
-        "- weekday group scope: '평일 일정', '주말 일정' -> target all weekday or weekend slot_ids, tasks has one task per target slot.\n"
-        "- last target: '마지막 일정만', '최종 일정만' -> target the latest slot_id only, tasks has exactly 1 item.\n"
-        "- rewrite all task names: '작업명만 다시 정리', '날짜와 시간은 유지하고 작업명만 정리' -> target all existing slot_ids, tasks has one renamed task per existing slot.\n"
-        "- add request: '추가해줘' -> describe only the new task candidate, not existing items.\n"
-        "- remove request: '빼줘', '제외해줘', '삭제해줘' -> target only the item to remove and keep tasks empty.\n\n"
-        "[TARGET_RULES]\n"
-        "- For partial_update, target must name concrete slot_id values from [PREVIOUS_PLAN_TARGETS] whenever available.\n"
-        "- If several slot_ids must change, write them in target separated by commas, for example: target: S001, S004.\n"
-        "- The number of task lines must match the number of changed slot_ids, except remove requests.\n"
-        "- Do not select weekend slots for weekday requests. Do not select weekday slots for weekend requests.\n"
-        "- If the request says '또는' between scopes, prefer the narrower explicit weekday scope over the broader group scope.\n\n"
-        "[PARTIAL_UPDATE_EXAMPLES]\n"
-        "User: 두 번째 주 일정 중 하나만 작업명을 더 구체적으로 바꿔줘.\n"
-        "Output target: one slot_id in the second week only. Output exactly one task.\n"
-        "User: 수요일 또는 평일 일정만 강도를 낮춰줘.\n"
-        "Output target: all Wednesday slot_ids only. Output one softened task per Wednesday slot.\n"
-        "User: 평일 일정의 강도를 낮추고 주말 일정은 그대로 유지해줘.\n"
-        "Output target: all weekday slot_ids only. Never target Saturday or Sunday.\n"
-        "User: 날짜와 시간은 유지하고 작업명만 다시 정리해줘.\n"
-        "Output target: all existing slot_ids. Output one renamed Korean task for each existing slot.\n\n"
-        "[CREATE_RULES]\n"
-        "- For create, write 3 to max_tasks Korean task candidates in a natural preparation sequence.\n\n"
+        "[CONTRACT]\n"
+        "- Keep field names and enum values in English exactly as defined by the schema.\n"
+        "- Translate Korean user intent into action, operation, selectors, selected_slot_ids, and tasks.\n"
+        "- create: selected_slot_ids and tasks are required; their lengths and order must match.\n"
+        "- add: tasks must contain only new milestone titles. Prefer one unused selected_slot_id from [AVAILABLE_SLOTS]. If no safe slot is clear, leave selected_slot_ids empty and use target_selector_type=position or ambiguous.\n"
+        "- remove: tasks must be empty. Select exactly one existing slot from [PREVIOUS_PLAN_TARGETS], or require clarification.\n"
+        "- rename: keep the same date/time and select exactly one existing slot. tasks contains the new title only.\n"
+        "- none: no mutation. Use it for unclear requests, low confidence, or requests that ask not to decide arbitrarily.\n\n"
+        "[SELECTOR_VALUES]\n"
+        "- target_selector_type: slot_id, slot_id_list, task_text, weekday, position, duration, or ambiguous.\n"
+        "- target_selector_value examples: S002, S002,S004, task phrase, monday, saturday, first, last, shortest, longest, none.\n"
+        "- preserve_selector_type: none, slot_id, slot_id_list, weekday, or latest_added.\n"
+        "- mutation_safety_check: create_scope_checked for create; single_target_matched only when exactly one target is clear; ambiguous_request when clarification is needed.\n\n"
+        "[SAFETY]\n"
+        "- Never invent goal_id or milestone_id. The parser resolves DB ids after validation.\n"
+        "- Do not rewrite preserved milestones for add/remove.\n"
+        "- Do not change dates or times for rename.\n"
+        "- Do not use all available slots when the request asks for only a subset.\n\n"
+        "[TIME_PLANNING]\n"
+        "- Read each slot as date, time_range, and duration_minutes.\n"
+        "- Short slots should get light tasks such as review, check, organize, confirm, or memo.\n"
+        "- Long slots should get core tasks such as write, build, solve, implement, rehearse, or analyze.\n"
+        "- If the user maps short/long slots to task types, follow that mapping exactly.\n"
+        "- Create schedules should progress toward the deadline; do not use only the earliest slots when later slots are available.\n"
+        "- Add should use an unused slot after the current plan when possible. If preserve_selector limits scope, add inside that scope.\n\n"
+        "[EXAMPLES]\n"
+        "{\"action\":\"create\",\"operation\":\"none\",\"target\":\"goal schedule\",\"target_selector_type\":\"ambiguous\",\"target_selector_value\":\"none\",\"target_selector_confidence\":\"high\",\"preserve_selector_type\":\"none\",\"preserve_selector_values\":[],\"requires_clarification\":false,\"selected_slot_ids\":[\"S001\",\"S003\"],\"change\":\"create selected milestones\",\"tasks\":[\"자료 범위 확인\",\"최종 점검\"],\"mutation_safety_check\":\"create_scope_checked\"}\n"
+        "{\"action\":\"partial_update\",\"operation\":\"add\",\"target\":\"new milestone\",\"target_selector_type\":\"position\",\"target_selector_value\":\"last\",\"target_selector_confidence\":\"high\",\"preserve_selector_type\":\"none\",\"preserve_selector_values\":[],\"requires_clarification\":false,\"selected_slot_ids\":[\"S006\"],\"change\":\"add one milestone\",\"tasks\":[\"추가 점검 작업\"],\"mutation_safety_check\":\"single_target_matched\"}\n"
+        "{\"action\":\"partial_update\",\"operation\":\"remove\",\"target\":\"S002\",\"target_selector_type\":\"slot_id\",\"target_selector_value\":\"S002\",\"target_selector_confidence\":\"high\",\"preserve_selector_type\":\"none\",\"preserve_selector_values\":[],\"requires_clarification\":false,\"selected_slot_ids\":[],\"change\":\"remove one milestone\",\"tasks\":[],\"mutation_safety_check\":\"single_target_matched\"}\n"
+        "{\"action\":\"partial_update\",\"operation\":\"none\",\"target\":\"needs confirmation\",\"target_selector_type\":\"ambiguous\",\"target_selector_value\":\"none\",\"target_selector_confidence\":\"low\",\"preserve_selector_type\":\"none\",\"preserve_selector_values\":[],\"requires_clarification\":true,\"selected_slot_ids\":[],\"change\":\"do not mutate\",\"tasks\":[],\"mutation_safety_check\":\"ambiguous_request\"}\n\n"
         "[EVALUATION_CONTEXT]\n"
         f"expected_action: {turn.expected_action}\n"
         f"max_tasks: {case.expected.constraints.max_milestones}\n"
@@ -144,9 +186,17 @@ def _ko_allowed_slot_context(slots: list[dict[str, str]]) -> list[dict[str, str]
             "날짜": slot["scheduled_date"],
             "요일": slot["weekday"],
             "시간": slot["time_range"],
+            "duration_minutes": _slot_duration_minutes(slot["time_range"]),
         }
         for index, slot in enumerate(slots, start=1)
     ]
+
+
+def _slot_duration_minutes(time_range: str) -> int:
+    start, end = time_range.split("-", maxsplit=1)
+    start_hour, start_minute = [int(part) for part in start.split(":", maxsplit=1)]
+    end_hour, end_minute = [int(part) for part in end.split(":", maxsplit=1)]
+    return (end_hour * 60 + end_minute) - (start_hour * 60 + start_minute)
 
 
 def mileday_multiturn_reference_date_context() -> dict[str, str]:

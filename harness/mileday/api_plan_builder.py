@@ -8,6 +8,9 @@ from harness.mileday.dataset import MileDayMultiTurnCase
 from harness.mileday.api_prompt import allowed_slots
 
 
+REMOVE_SCORE_THRESHOLD = 2.0
+
+
 def _plan_items_from_mileday_intent(
     case: MileDayMultiTurnCase,
     intent: dict[str, Any],
@@ -19,11 +22,23 @@ def _plan_items_from_mileday_intent(
     if not tasks:
         tasks = [case.input.initial_goal.title]
     existing_dates = {item.scheduled_date for item in case.input.existing_schedule}
-    slots = [
+    candidate_slots = [
         slot
         for slot in allowed_slots(case)
         if slot["scheduled_date"] not in existing_dates
-    ][:item_count]
+    ]
+    slots_by_id = {slot["slot_id"]: slot for slot in candidate_slots}
+    selected_slot_ids = [
+        normalized_slot_id
+        for slot_id in intent.get("selected_slot_ids", [])
+        if isinstance(slot_id, str)
+        for normalized_slot_id in [_normalize_slot_id(slot_id)]
+        if normalized_slot_id in slots_by_id
+    ]
+    if selected_slot_ids:
+        slots = [slots_by_id[slot_id] for slot_id in selected_slot_ids[:item_count]]
+    else:
+        slots = candidate_slots[:item_count]
     plan_items: list[dict[str, str]] = []
     for index, slot in enumerate(slots):
         raw_task = tasks[index] if index < len(tasks) else f"{case.input.initial_goal.title} {index + 1}단계"
@@ -42,6 +57,9 @@ def _patch_items_from_mileday_intent(
     if not isinstance(previous_plan_items, list):
         return []
     request = case.turns[turn_id - 1].content
+    operation = _intent_operation(intent, request)
+    if operation in {"none", "add", "remove"} or _requires_clarification(intent):
+        return []
     if _is_add_request(request):
         return []
     if _is_date_move_request(request):
@@ -53,7 +71,10 @@ def _patch_items_from_mileday_intent(
     if requested_destination_days and not _destination_days_available(case, requested_destination_days):
         return []
 
-    target_slot_ids = _select_mileday_patch_target_slot_ids(case, previous_plan_items, combined_text)
+    selector_slot_ids = _resolve_target_selector(case, previous_plan_items, intent)
+    if selector_slot_ids and len(selector_slot_ids) != 1:
+        return []
+    target_slot_ids = selector_slot_ids or _select_mileday_patch_target_slot_ids(case, previous_plan_items, combined_text)
     if not target_slot_ids:
         return []
     replacement = _replacement_task_from_intent(intent, case)
@@ -67,7 +88,10 @@ def _add_items_from_mileday_intent(
     previous_parsed: dict[str, Any] | None,
 ) -> list[dict[str, str]]:
     request = case.turns[turn_id - 1].content
-    if not _is_add_request(request):
+    operation = _intent_operation(intent, request)
+    if operation in {"none", "remove", "rename"} or _requires_clarification(intent):
+        return []
+    if operation != "add" and (not _is_add_request(request) or _is_ambiguous_mutation_request(request)):
         return []
     previous_plan_items = previous_parsed.get("plan_items") if isinstance(previous_parsed, dict) else []
     if not isinstance(previous_plan_items, list):
@@ -77,14 +101,38 @@ def _add_items_from_mileday_intent(
         for item in previous_plan_items
         if isinstance(item, dict) and isinstance(item.get("slot_id"), str)
     }
+    slots_by_id = {slot["slot_id"]: slot for slot in allowed_slots(case)}
+    raw_selected_slot_ids = [
+        normalized_slot_id
+        for slot_id in intent.get("selected_slot_ids", [])
+        if isinstance(slot_id, str)
+        for normalized_slot_id in [_normalize_slot_id(slot_id)]
+        if normalized_slot_id in slots_by_id and normalized_slot_id not in used_slot_ids
+    ]
+    selected_slot_ids = _filter_add_slots_by_preserve_scope(case, raw_selected_slot_ids, intent)
+    if selected_slot_ids:
+        return [{"slot_id": selected_slot_ids[0], "task": _add_task_from_intent(intent, request, case)}]
+    if raw_selected_slot_ids:
+        return []
+    latest_used_slot = _latest_used_slot_id(used_slot_ids, case)
+    slot_sort_keys = {slot["slot_id"]: slot for slot in allowed_slots(case)}
     for slot in allowed_slots(case):
         if slot["slot_id"] not in used_slot_ids:
-            return [{"slot_id": slot["slot_id"], "task": _task_from_update_request(request, case)}]
+            if latest_used_slot and _slot_sort_key(slot["slot_id"], slot_sort_keys) <= _slot_sort_key(latest_used_slot, slot_sort_keys):
+                continue
+            return [{"slot_id": slot["slot_id"], "task": _add_task_from_intent(intent, request, case)}]
     return []
 
 
 def _is_add_request(text: str) -> bool:
     return any(keyword in text for keyword in ("추가", "넣어", "새로"))
+
+
+def _add_task_from_intent(intent: dict[str, Any], request: str, case: MileDayMultiTurnCase) -> str:
+    tasks = [task for task in intent.get("tasks", []) if isinstance(task, str) and task.strip()]
+    if tasks:
+        return _sanitize_mileday_task(tasks[0], case)
+    return _task_from_update_request(request, case)
 
 
 def _remove_slot_ids_from_mileday_intent(
@@ -94,17 +142,192 @@ def _remove_slot_ids_from_mileday_intent(
     previous_parsed: dict[str, Any] | None,
 ) -> list[str]:
     request = case.turns[turn_id - 1].content
-    if not _is_remove_request(request):
+    operation = _intent_operation(intent, request)
+    if operation in {"none", "add", "rename"} or _requires_clarification(intent):
+        return []
+    if operation != "remove" and (not _is_remove_request(request) or _is_ambiguous_mutation_request(request)):
         return []
     previous_plan_items = previous_parsed.get("plan_items") if isinstance(previous_parsed, dict) else []
     if not isinstance(previous_plan_items, list):
         return []
-    target_text = _target_only_text(f"{intent.get('target', '')} {intent.get('change', '')} {request}")
-    return _select_mileday_patch_target_slot_ids(case, previous_plan_items, target_text)
+    tasks = [task for task in intent.get("tasks", []) if isinstance(task, str) and task.strip()]
+    target_text = f"{intent.get('target', '')} {intent.get('change', '')} {' '.join(tasks)} {request}"
+    selector_slot_ids = _resolve_target_selector(case, previous_plan_items, intent)
+    if _target_selector_confidence(intent) == "low":
+        return []
+    if selector_slot_ids:
+        if len(selector_slot_ids) != 1:
+            return []
+        protected = _resolve_preserve_selector(case, previous_plan_items, intent)
+        return [slot_id for slot_id in selector_slot_ids if slot_id not in protected]
+    return _select_mileday_remove_target_slot_ids(case, previous_plan_items, target_text)
 
 
 def _is_remove_request(text: str) -> bool:
     return any(keyword in text for keyword in ("빼", "제외", "삭제", "없애"))
+
+
+def _is_ambiguous_mutation_request(text: str) -> bool:
+    return (
+        any(keyword in text for keyword in ("추가하거나", "추가 또는", "넣거나", "빼거나", "삭제하거나"))
+        and any(keyword in text for keyword in ("애매", "임의로", "확인", "필요"))
+    )
+
+
+def _intent_operation(intent: dict[str, Any], request: str) -> str:
+    operation = intent.get("operation")
+    if operation in {"add", "remove", "rename", "none"}:
+        return str(operation)
+    if _is_ambiguous_mutation_request(request):
+        return "none"
+    if _is_remove_request(request):
+        return "remove"
+    if _is_add_request(request):
+        return "add"
+    return "rename"
+
+
+def _requires_clarification(intent: dict[str, Any]) -> bool:
+    selector = intent.get("target_selector")
+    return intent.get("requires_clarification") is True or (
+        isinstance(selector, dict) and selector.get("type") == "ambiguous"
+    )
+
+
+def _filter_add_slots_by_preserve_scope(
+    case: MileDayMultiTurnCase,
+    selected_slot_ids: list[str],
+    intent: dict[str, Any],
+) -> list[str]:
+    selector = intent.get("preserve_selector")
+    if not isinstance(selector, dict) or selector.get("type") != "weekday":
+        return selected_slot_ids
+    weekdays = _mentioned_weekday_values(" ".join(str(value) for value in selector.get("values", [])))
+    if not weekdays:
+        value = selector.get("value")
+        weekdays = _mentioned_weekday_values(str(value or ""))
+    if not weekdays:
+        return selected_slot_ids
+    slots_by_id = {slot["slot_id"]: slot for slot in allowed_slots(case)}
+    return [
+        slot_id
+        for slot_id in selected_slot_ids
+        if slots_by_id.get(slot_id, {}).get("day_of_week") in weekdays
+    ]
+
+
+def _resolve_target_selector(
+    case: MileDayMultiTurnCase,
+    previous_plan_items: list[Any],
+    intent: dict[str, Any],
+) -> list[str]:
+    selector = intent.get("target_selector")
+    if not isinstance(selector, dict):
+        return []
+    if selector.get("confidence") == "low":
+        return []
+    return _resolve_selector(case, previous_plan_items, selector)
+
+
+def _target_selector_confidence(intent: dict[str, Any]) -> str:
+    selector = intent.get("target_selector")
+    if isinstance(selector, dict) and isinstance(selector.get("confidence"), str):
+        return selector["confidence"]
+    return ""
+
+
+def _resolve_preserve_selector(
+    case: MileDayMultiTurnCase,
+    previous_plan_items: list[Any],
+    intent: dict[str, Any],
+) -> set[str]:
+    selector = intent.get("preserve_selector")
+    if not isinstance(selector, dict):
+        return set()
+    return set(_resolve_selector(case, previous_plan_items, selector))
+
+
+def _resolve_selector(
+    case: MileDayMultiTurnCase,
+    previous_plan_items: list[Any],
+    selector: dict[str, Any],
+) -> list[str]:
+    slots_by_id = {slot["slot_id"]: slot for slot in allowed_slots(case)}
+    candidates = _remove_candidates(previous_plan_items, slots_by_id)
+    slot_ids = [candidate["slot_id"] for candidate in candidates]
+    selector_type = selector.get("type")
+    value = selector.get("value")
+    values = selector.get("values")
+    if selector_type == "slot_id":
+        raw_values = values if isinstance(values, list) else [value]
+        return [
+            normalized
+            for item in raw_values
+            if isinstance(item, str)
+            for normalized in [_normalize_slot_id(item)]
+            if normalized in slot_ids
+        ]
+    if selector_type == "slot_id_list":
+        raw_values = values if isinstance(values, list) else str(value or "").split(",")
+        return [
+            normalized
+            for item in raw_values
+            if isinstance(item, str)
+            for normalized in [_normalize_slot_id(item)]
+            if normalized in slot_ids
+        ]
+    if selector_type == "weekday":
+        weekdays = _mentioned_weekday_values(str(value or ""))
+        if not weekdays:
+            weekdays = {str(value)}
+        return [
+            candidate["slot_id"]
+            for candidate in candidates
+            if slots_by_id[candidate["slot_id"]]["day_of_week"] in weekdays
+        ]
+    if selector_type == "position":
+        if value == "first":
+            return [slot_ids[0]] if slot_ids else []
+        if value == "last":
+            return [max(slot_ids, key=lambda slot_id: _slot_sort_key(slot_id, slots_by_id))] if slot_ids else []
+        return []
+    if selector_type == "duration":
+        if value == "shortest":
+            slot_id = _duration_extreme_slot_id(candidates, slots_by_id, shortest=True)
+            return [slot_id] if slot_id else []
+        if value == "longest":
+            slot_id = _duration_extreme_slot_id(candidates, slots_by_id, shortest=False)
+            return [slot_id] if slot_id else []
+        return []
+    if selector_type == "task_text":
+        scored = score_remove_candidates(str(value or ""), candidates, slots_by_id)
+        if not scored:
+            return []
+        top_score = scored[0][1]
+        top_slot_ids = [slot_id for slot_id, score in scored if score == top_score]
+        if top_score < REMOVE_SCORE_THRESHOLD or len(top_slot_ids) != 1:
+            return []
+        return [top_slot_ids[0]]
+    if selector_type == "latest_added":
+        return [slot_ids[-1]] if slot_ids else []
+    return []
+
+
+def _normalize_slot_id(value: str) -> str:
+    raw = value.strip()
+    if re.fullmatch(r"S\d{3}", raw):
+        return raw
+    if re.fullmatch(r"\d{1,3}", raw):
+        return f"S{int(raw):03d}"
+    return raw
+
+
+def _latest_used_slot_id(used_slot_ids: set[Any], case: MileDayMultiTurnCase) -> str | None:
+    slots_by_id = {slot["slot_id"]: slot for slot in allowed_slots(case)}
+    valid_slot_ids = [slot_id for slot_id in used_slot_ids if isinstance(slot_id, str) and slot_id in slots_by_id]
+    if not valid_slot_ids:
+        return None
+    return max(valid_slot_ids, key=lambda slot_id: _slot_sort_key(slot_id, slots_by_id))
 
 
 def _is_date_move_request(text: str) -> bool:
@@ -115,14 +338,14 @@ def _is_date_move_request(text: str) -> bool:
 
 
 def _replacement_task_from_intent(intent: dict[str, Any], case: MileDayMultiTurnCase) -> str:
-    request_task = _task_from_update_request(str(intent.get("change") or ""), case)
-    if request_task != case.input.initial_goal.title:
-        return request_task
     tasks = [task for task in intent.get("tasks", []) if isinstance(task, str) and task.strip()]
     for task in tasks:
         if any(placeholder in task for placeholder in ("추가할 작업명", "유지할 작업명", "삭제할 작업명")):
             continue
-        return _sanitize_mileday_task(task, case)
+        return _clean_mileday_task_text(task, case)
+    request_task = _task_from_update_request(str(intent.get("change") or ""), case)
+    if request_task != case.input.initial_goal.title:
+        return request_task
     change = str(intent.get("change") or "").strip()
     if change and not any(placeholder in change for placeholder in ("작업명 목록", "작업 목록")):
         return _sanitize_mileday_task(change, case)
@@ -145,6 +368,17 @@ def _sanitize_mileday_task(task: str, case: MileDayMultiTurnCase) -> str:
     if not cleaned:
         return case.input.initial_goal.title
     return cleaned
+
+
+def _clean_mileday_task_text(task: str, case: MileDayMultiTurnCase) -> str:
+    cleaned = re.sub(r"\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?\s*[~-]\s*\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?", "", task)
+    cleaned = re.sub(r"\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}", "", cleaned)
+    cleaned = re.sub(r"(월|화|수|목|금|토|일)요일\s*(오전|오후)?", "", cleaned)
+    cleaned = cleaned.replace("오전", "").replace("오후", "")
+    cleaned = cleaned.strip(" -~:()")
+    if _contains_disallowed_english_task_text(cleaned):
+        return case.input.initial_goal.title
+    return cleaned or case.input.initial_goal.title
 
 
 def _task_from_update_request(text: str, case: MileDayMultiTurnCase) -> str:
@@ -237,6 +471,275 @@ def _select_mileday_patch_target_slot_ids(
     if _single_patch_target_requested(target_text) and previous_slot_ids:
         return [previous_slot_ids[0]]
     return []
+
+
+def _select_mileday_remove_target_slot_ids(
+    case: MileDayMultiTurnCase,
+    previous_plan_items: list[Any],
+    target_text: str,
+) -> list[str]:
+    slots_by_id = {slot["slot_id"]: slot for slot in allowed_slots(case)}
+    candidates = _remove_candidates(previous_plan_items, slots_by_id)
+    previous_slot_ids = [candidate["slot_id"] for candidate in candidates]
+    if not candidates:
+        return []
+
+    explicit_slot_ids = [
+        slot_id
+        for slot_id in re.findall(r"\bS\d{3}\b", target_text)
+        if slot_id in previous_slot_ids
+    ]
+    if explicit_slot_ids:
+        return list(dict.fromkeys(explicit_slot_ids))
+
+    protected_slot_ids = _protected_remove_slot_ids(target_text, candidates, slots_by_id)
+    target_only_text = _target_only_text(target_text)
+    weekdays = _mentioned_weekday_values(target_only_text)
+    if weekdays:
+        matches = [
+            candidate["slot_id"]
+            for candidate in candidates
+            if candidate["slot_id"] not in protected_slot_ids
+            and candidate["slot_id"] in slots_by_id
+            and slots_by_id[candidate["slot_id"]]["day_of_week"] in weekdays
+        ]
+        return _limit_single_target_if_requested(target_text, matches, slots_by_id)
+
+    if _first_target_requested(target_text):
+        matches = [candidate["slot_id"] for candidate in candidates if candidate["slot_id"] not in protected_slot_ids]
+        return [matches[0]] if matches else []
+    if any(keyword in target_text for keyword in ("마지막", "최종")):
+        matches = [candidate["slot_id"] for candidate in candidates if candidate["slot_id"] not in protected_slot_ids]
+        if not matches:
+            return []
+        return [max(matches, key=lambda slot_id: slots_by_id.get(slot_id, {}).get("scheduled_date", ""))]
+
+    scored = score_remove_candidates(target_text, candidates, slots_by_id, protected_slot_ids)
+    if not scored:
+        return []
+    top_score = scored[0][1]
+    top_slot_ids = [slot_id for slot_id, score in scored if score == top_score]
+    if top_score < REMOVE_SCORE_THRESHOLD or len(top_slot_ids) != 1:
+        return []
+    return [top_slot_ids[0]]
+
+
+def score_remove_candidates(
+    target_text: str,
+    candidates: list[dict[str, str]],
+    slots_by_id: dict[str, dict[str, str]],
+    protected_slot_ids: set[str] | None = None,
+) -> list[tuple[str, float]]:
+    protected = protected_slot_ids or set()
+    scoring_text = _remove_scoring_text(target_text)
+    duplicate_slot_id = _duplicate_remove_candidate(candidates, slots_by_id)
+    shortest_slot_id = _duration_extreme_slot_id(candidates, slots_by_id, shortest=True)
+    longest_slot_id = _duration_extreme_slot_id(candidates, slots_by_id, shortest=False)
+    wants_short = any(keyword in target_text for keyword in ("짧", "효과 없", "효과가 없"))
+    wants_long = any(keyword in target_text for keyword in ("부담", "힘든", "긴 일정", "오래 걸"))
+    wants_duplicate = any(keyword in target_text for keyword in ("중복", "겹치"))
+
+    scored: list[tuple[str, float]] = []
+    for candidate in candidates:
+        slot_id = candidate["slot_id"]
+        if slot_id in protected:
+            continue
+        score = 0.0
+        score += _task_similarity_score(scoring_text, candidate["task"])
+        if wants_short and slot_id == shortest_slot_id:
+            score += 3.0
+        if wants_long and slot_id == longest_slot_id:
+            score += 3.0
+        if wants_duplicate and slot_id == duplicate_slot_id:
+            score += 3.0
+        scored.append((slot_id, score))
+    return sorted(scored, key=lambda item: (-item[1], _slot_sort_key(item[0], slots_by_id)))
+
+
+def _remove_candidates(
+    previous_plan_items: list[Any],
+    slots_by_id: dict[str, dict[str, str]],
+) -> list[dict[str, str]]:
+    candidates: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in previous_plan_items:
+        if not isinstance(item, dict):
+            continue
+        slot_id = item.get("slot_id")
+        task = item.get("task")
+        if (
+            isinstance(slot_id, str)
+            and isinstance(task, str)
+            and slot_id in slots_by_id
+            and slot_id not in seen
+        ):
+            seen.add(slot_id)
+            candidates.append({"slot_id": slot_id, "task": task})
+    return candidates
+
+
+def _protected_remove_slot_ids(
+    target_text: str,
+    candidates: list[dict[str, str]],
+    slots_by_id: dict[str, dict[str, str]],
+) -> set[str]:
+    protected: set[str] = set()
+    for preserve_phrase in re.findall(r"([^.!?\n]*(?:유지|그대로|남겨)[^.!?\n]*)", target_text):
+        protected.update(
+            slot_id
+            for slot_id in re.findall(r"\bS\d{3}\b", preserve_phrase)
+            if any(candidate["slot_id"] == slot_id for candidate in candidates)
+        )
+        weekdays = _mentioned_weekday_values(preserve_phrase)
+        if weekdays:
+            protected.update(
+                candidate["slot_id"]
+                for candidate in candidates
+                if slots_by_id[candidate["slot_id"]]["day_of_week"] in weekdays
+            )
+    if "새로 추가" in target_text or "추가한" in target_text:
+        protected.add(candidates[-1]["slot_id"])
+    return protected
+
+
+def _remove_scoring_text(target_text: str) -> str:
+    without_preserve = re.sub(r"[^.!?\n]*(?:유지|그대로|남겨)[^.!?\n]*", " ", target_text)
+    return _target_only_text(without_preserve) + " " + without_preserve
+
+
+def _task_similarity_score(request_text: str, task_text: str) -> float:
+    request_tokens = _meaningful_korean_tokens(request_text)
+    task_tokens = _meaningful_korean_tokens(task_text)
+    exact_overlap = request_tokens & task_tokens
+    score = len(exact_overlap) * 2.0
+
+    request_compact = _compact_text(request_text)
+    task_compact = _compact_text(task_text)
+    substring_hits = 0
+    for token in request_tokens - exact_overlap:
+        if len(token) >= 2 and token in task_compact:
+            substring_hits += 1
+    for token in task_tokens - exact_overlap:
+        if len(token) >= 2 and token in request_compact:
+            substring_hits += 1
+    if substring_hits:
+        score += min(substring_hits, 2) * 1.5
+    return score
+
+
+def _meaningful_korean_tokens(text: str) -> set[str]:
+    stop_words = {
+        "일정",
+        "작업",
+        "하나",
+        "한개",
+        "한",
+        "개",
+        "빼줘",
+        "빼",
+        "제외",
+        "삭제",
+        "없애",
+        "유지",
+        "그대로",
+        "남겨",
+        "있으면",
+        "너무",
+        "대신",
+        "관련",
+        "요청",
+        "반영",
+    }
+    normalized = re.sub(r"[^0-9A-Za-z가-힣]+", " ", text.lower())
+    tokens = set()
+    for token in normalized.split():
+        stripped = _normalize_korean_token(token.strip())
+        if len(stripped) < 2 or stripped in stop_words or re.fullmatch(r"s\d{3}", stripped):
+            continue
+        tokens.add(stripped)
+    return tokens
+
+
+def _normalize_korean_token(token: str) -> str:
+    suffixes = (
+        "으로",
+        "에서",
+        "에게",
+        "하고",
+        "해줘",
+        "해",
+        "은",
+        "는",
+        "이",
+        "가",
+        "을",
+        "를",
+        "의",
+        "도",
+        "만",
+    )
+    normalized = token
+    for suffix in suffixes:
+        if normalized.endswith(suffix) and len(normalized) > len(suffix) + 1:
+            normalized = normalized[: -len(suffix)]
+            break
+    return normalized
+
+
+def _compact_text(text: str) -> str:
+    return re.sub(r"[^0-9A-Za-z가-힣]+", "", text.lower())
+
+
+def _duration_extreme_slot_id(
+    candidates: list[dict[str, str]],
+    slots_by_id: dict[str, dict[str, str]],
+    *,
+    shortest: bool,
+) -> str | None:
+    durations = [
+        (candidate["slot_id"], _slot_duration_minutes(slots_by_id[candidate["slot_id"]]))
+        for candidate in candidates
+        if candidate["slot_id"] in slots_by_id
+    ]
+    if not durations:
+        return None
+    extreme = min(duration for _, duration in durations) if shortest else max(duration for _, duration in durations)
+    matches = [slot_id for slot_id, duration in durations if duration == extreme]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _slot_duration_minutes(slot: dict[str, str]) -> int:
+    start, end = slot["time_range"].split("-", maxsplit=1)
+    start_hours, start_minutes = [int(part) for part in start.split(":", maxsplit=1)]
+    end_hours, end_minutes = [int(part) for part in end.split(":", maxsplit=1)]
+    return (end_hours * 60 + end_minutes) - (start_hours * 60 + start_minutes)
+
+
+def _duplicate_remove_candidate(
+    candidates: list[dict[str, str]],
+    slots_by_id: dict[str, dict[str, str]],
+) -> str | None:
+    best_pair: tuple[str, str] | None = None
+    best_overlap = 0
+    for left_index, left in enumerate(candidates):
+        left_tokens = _meaningful_korean_tokens(left["task"])
+        for right in candidates[left_index + 1 :]:
+            overlap = len(left_tokens & _meaningful_korean_tokens(right["task"]))
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_pair = (left["slot_id"], right["slot_id"])
+    if best_pair is None or best_overlap == 0:
+        return None
+    return max(best_pair, key=lambda slot_id: _slot_sort_key(slot_id, slots_by_id))
+
+
+def _first_target_requested(text: str) -> bool:
+    return any(keyword in text for keyword in ("첫 일정", "첫번째", "첫 번째", "처음"))
+
+
+def _slot_sort_key(slot_id: str, slots_by_id: dict[str, dict[str, str]]) -> tuple[str, str]:
+    slot = slots_by_id.get(slot_id, {})
+    return (slot.get("scheduled_date", ""), slot_id)
 
 
 def _single_patch_target_requested(text: str) -> bool:
