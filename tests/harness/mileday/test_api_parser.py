@@ -10,6 +10,11 @@ class PassingJudge:
         return ExplanationJudgeResult(is_aligned=True, score=0.95, reason="ok")
 
 
+class FailingIfCalledJudge:
+    def evaluate_multiturn(self, case, turn_id, explanation, parsed_output, previous_output):
+        raise AssertionError("turn-level judge must not run")
+
+
 def _base_result(case_id: str) -> RequestResult:
     return RequestResult(
         run_id="prompt-test-1",
@@ -94,6 +99,42 @@ def test_api_parser_accepts_structured_json_output_for_create():
         {"slot_id": "S003", "task": "최종 점검"},
     ]
     assert result.parsed_output["output_contract"]["structured_json_used"] is True
+
+
+def test_api_parser_can_skip_turn_level_judge_for_case_level_evaluation():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[0]
+
+    result = evaluate_api_multiturn_record(
+        _base_result("multiturn-101-turn-1"),
+        case,
+        1,
+        """
+{
+  "action": "create",
+  "operation": "none",
+  "target": "?꾩껜 ?쇱젙",
+  "target_selector_type": "ambiguous",
+  "target_selector_value": "none",
+  "target_selector_confidence": "high",
+  "preserve_selector_type": "none",
+  "preserve_selector_values": [],
+  "requires_clarification": false,
+  "selected_slot_ids": ["S001", "S002", "S003"],
+  "change": "?쇱젙 ?앹꽦",
+  "tasks": ["?먮즺 踰붿쐞 ?뺤씤", "遺꾩꽍 珥덉븞 ?묒꽦", "理쒖쥌 ?먭?"],
+  "mutation_safety_check": "create_scope_checked"
+}
+""".strip(),
+        previous_parsed=None,
+        explanation_judge=FailingIfCalledJudge(),
+        prompt_version=MILEDAY_API_MULTITURN_PROMPT_VERSION,
+        run_judge=False,
+    )
+
+    assert result.status == ResultStatus.PASSED
+    judge = result.parsed_output["explanation_judge"]
+    assert judge["skipped"] is True
+    assert judge["judge_scope"] == "case_pending"
 
 
 def test_api_parser_rejects_structured_json_action_mismatch():
@@ -256,8 +297,8 @@ def test_api_parser_removes_target_from_new_fixture_by_rule_scoring():
 
     assert result.status == ResultStatus.PASSED
     parsed = result.parsed_output["parsed_json"]
-    assert parsed["remove_slot_ids"] == ["S002"]
-    assert [item["slot_id"] for item in parsed["plan_items"]] == ["S001", "S003"]
+    assert parsed["remove_slot_ids"] == ["S001"]
+    assert [item["slot_id"] for item in parsed["plan_items"]] == ["S002", "S003"]
 
 
 def test_api_parser_keeps_ambiguous_add_remove_request_as_no_op():

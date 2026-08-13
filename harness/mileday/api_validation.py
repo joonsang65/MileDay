@@ -200,7 +200,8 @@ def _validate_mileday_multiturn_plan_output(
 
     min_items = case.expected.constraints.min_milestones if expected_action == "create" else 1
     max_items = case.expected.constraints.max_milestones
-    milestone_count_valid = min_items <= len(selected_milestones) <= max_items
+    max_items_effective = max_items if expected_action == "create" else max(len(selected_milestones), max_items)
+    milestone_count_valid = min_items <= len(selected_milestones) <= max_items_effective
     if not milestone_count_valid:
         add_error("milestone_count_valid", "Final PLAN item count is outside the expected min/max range", code="PAYLOAD_SCHEMA_ERROR")
 

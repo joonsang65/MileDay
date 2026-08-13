@@ -51,7 +51,7 @@ def _append_mileday_multiturn_report(
         f"- fixture: `{MILEDAY_MULTITURN_FIXTURE.as_posix()}`",
         f"- cases: {len(cases)}",
         "- sampling: none",
-        "- judge: required",
+        "- judge: case-level required",
         f"- prompt version: {MILEDAY_MULTITURN_PROMPT_VERSION}",
         "- time storage policy: milestone title prefix",
         "",
@@ -93,10 +93,14 @@ def _mileday_multiturn_measurement_summary(
     judge_scores = [
         float(item["score"])
         for item in judge_results
-        if isinstance(item, dict) and isinstance(item.get("score"), int | float)
+        if isinstance(item, dict)
+        and item.get("skipped") is False
+        and isinstance(item.get("score"), int | float)
     ]
     judge_aligned = sum(
-        1 for item in judge_results if isinstance(item, dict) and item.get("is_aligned") is True
+        1
+        for item in judge_results
+        if isinstance(item, dict) and item.get("skipped") is False and item.get("is_aligned") is True
     )
     warning_count = _mileday_multiturn_warning_count(results)
     fallback_count = _grid_fallback_used_count(results)
@@ -192,7 +196,7 @@ def _mileday_multiturn_failure_summary(results: list[RequestResult]) -> list[str
                     )
         if result.status == ResultStatus.INVALID:
             judge = result.parsed_output.get("explanation_judge")
-            if isinstance(judge, dict) and judge.get("is_aligned") is False:
+            if _is_completed_judge(judge) and judge.get("is_aligned") is False:
                 judge_rejects[str(judge.get("reason", "judge rejected"))] += 1
                 failure_codes["JUDGE_REJECTION"] += 1
             elif result.error is not None:
@@ -413,7 +417,7 @@ def _grid_judge_reject_count(results: list[RequestResult]) -> int:
     count = 0
     for result in results:
         judge = result.parsed_output.get("explanation_judge")
-        if isinstance(judge, dict) and judge.get("is_aligned") is False:
+        if _is_completed_judge(judge) and judge.get("is_aligned") is False:
             count += 1
     return count
 
@@ -432,9 +436,13 @@ def _grid_failure_code_counts(results: list[RequestResult]) -> Counter[str]:
                 if isinstance(code, str)
             )
         judge = result.parsed_output.get("explanation_judge")
-        if isinstance(judge, dict) and judge.get("is_aligned") is False:
+        if _is_completed_judge(judge) and judge.get("is_aligned") is False:
             counter["JUDGE_REJECTION"] += 1
     return counter
+
+
+def _is_completed_judge(judge: object) -> bool:
+    return isinstance(judge, dict) and judge.get("skipped") is not True and judge.get("error") is None
 
 
 def _grid_self_check_mismatch_count(results: list[RequestResult]) -> int:

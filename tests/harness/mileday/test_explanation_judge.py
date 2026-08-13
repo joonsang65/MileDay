@@ -3,9 +3,10 @@ import httpx
 from harness.mileday.explanation_judge import (
     GeminiExplanationJudge,
     build_batch_quality_summary_prompt,
+    build_case_multiturn_explanation_judge_prompt,
     skipped_explanation_judge_result,
 )
-from harness.mileday.dataset import load_mileday_generation_cases
+from harness.mileday.dataset import load_mileday_generation_cases, load_mileday_multiturn_cases
 
 
 def test_gemini_explanation_judge_parses_structured_response(monkeypatch):
@@ -195,6 +196,25 @@ def test_skipped_explanation_judge_result_is_non_blocking():
 
     assert result.skipped is True
     assert result.is_aligned is True
+
+
+def test_case_multiturn_judge_prompt_contains_all_turn_outputs():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[0]
+
+    prompt = build_case_multiturn_explanation_judge_prompt(
+        case,
+        [
+            {"turn_id": 1, "status": "passed", "parsed_json": {"action": "create"}},
+            {"turn_id": 2, "status": "passed", "parsed_json": {"action": "partial_update"}},
+        ],
+    )
+
+    assert "MileDay 멀티턴 일정 생성 결과를 평가하는 LLM judge" in prompt
+    assert "reason은 반드시 자연스러운 한국어 문장" in prompt
+    assert "[EXPECTED_TURNS]" in prompt
+    assert "[PARSER_OUTPUTS]" in prompt
+    assert '"turn_id": 1' in prompt
+    assert '"turn_id": 2' in prompt
 
 
 def test_gemini_batch_quality_summary_uses_selected_prompt_and_schema(monkeypatch):

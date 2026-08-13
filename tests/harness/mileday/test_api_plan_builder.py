@@ -125,7 +125,7 @@ def test_add_request_rejects_selected_slot_outside_preserve_weekday_scope():
         2,
         {
             "operation": "add",
-            "selected_slot_ids": ["S005"],
+            "selected_slot_ids": ["S004"],
             "preserve_selector": {"type": "weekday", "values": ["sunday"]},
             "tasks": ["독서 메모 정리"],
         },
@@ -172,7 +172,7 @@ def test_remove_request_selects_weekday_scope():
         ]
     }
 
-    assert build_remove_slot_ids(case, 2, {"target": "월요일", "change": "제외", "tasks": []}, previous) == ["S003"]
+    assert build_remove_slot_ids(case, 2, {"target": "월요일", "change": "제외", "tasks": []}, previous) == ["S002"]
 
 
 def test_remove_request_selects_latest_slot_for_last_target():
@@ -214,7 +214,7 @@ def test_remove_request_scores_shortest_slot():
         ]
     }
 
-    assert build_remove_slot_ids(case, 2, {"target": "효과 없는 일정", "change": "삭제", "tasks": []}, previous) == ["S003"]
+    assert build_remove_slot_ids(case, 2, {"target": "효과 없는 일정", "change": "삭제", "tasks": []}, previous) == ["S002"]
 
 
 def test_remove_request_scores_longest_slot_for_heavy_request():
@@ -228,7 +228,7 @@ def test_remove_request_scores_longest_slot_for_heavy_request():
         ]
     }
 
-    assert build_remove_slot_ids(case, 2, {"target": "부담 큰 일정", "change": "제외", "tasks": []}, previous) == ["S002"]
+    assert build_remove_slot_ids(case, 2, {"target": "부담 큰 일정", "change": "제외", "tasks": []}, previous) == ["S001"]
 
 
 def test_remove_request_scores_task_similarity():

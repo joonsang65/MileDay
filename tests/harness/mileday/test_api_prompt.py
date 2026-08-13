@@ -24,12 +24,15 @@ def test_api_prompt_has_flash_lite_partial_update_rules():
     assert "[SAFETY]" in prompt
     assert "[TIME_PLANNING]" in prompt
     assert "[EXAMPLES]" in prompt
+    assert "[PLAN_SLOT_BASELINE]" in prompt
+    assert "last_plan_slot_id" in prompt
+    assert "choose an unused AVAILABLE_SLOTS slot_id greater than last_plan_slot_id" in prompt
     assert "Keep field names and enum values in English" in prompt
     assert "target_selector_type" in prompt
     assert "requires_clarification" in prompt
     assert "selected_slot_ids" in prompt
     assert "Never invent goal_id or milestone_id" in prompt
-    assert "Prefer one unused selected_slot_id" in prompt
+    assert "Choose one unused selected_slot_id" in prompt
     assert "remove: tasks must be empty" in prompt
     assert "rename: keep the same date/time" in prompt
     assert "Do not rewrite preserved milestones" in prompt

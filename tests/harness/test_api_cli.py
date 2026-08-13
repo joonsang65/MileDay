@@ -60,7 +60,9 @@ def test_test_api_runs_flash_lite_only(monkeypatch, tmp_path):
             self.model = model
             self.base_url = base_url
 
-        def evaluate_multiturn(self, case, turn_id, explanation, parsed_output, previous_output):
+        def evaluate_case_multiturn(self, case, turn_outputs):
+            assert len(turn_outputs) == len(case.turns)
+            assert all(output["status"] == "passed" for output in turn_outputs)
             return ExplanationJudgeResult(is_aligned=True, score=0.95, reason="ok")
 
     class MockGeminiRuntime:
@@ -151,12 +153,14 @@ def test_test_api_runs_flash_lite_only(monkeypatch, tmp_path):
     result = CliRunner().invoke(app, ["test_api", "--limit", "1"])
 
     assert result.exit_code == 0
-    assert "batch_id=prompt-test-1" in result.stdout
-    assert f"model={MILEDAY_API_MODEL_ID}" in result.stdout
-    assert f"sleep_seconds={MILEDAY_API_SLEEP_SECONDS:g}" in result.stdout
-    assert "db_write=enabled" in result.stdout
-    assert f"prompt_version={MILEDAY_API_MULTITURN_PROMPT_VERSION}" in result.stdout
-    assert "case_pass=1/1 passed=" in result.stdout
+    assert "| batch_id       | prompt-test-1" in result.stdout
+    assert f"| model          | {MILEDAY_API_MODEL_ID}" in result.stdout
+    assert f"| sleep_seconds  | {MILEDAY_API_SLEEP_SECONDS:g}" in result.stdout
+    assert "| db_write       | enabled" in result.stdout
+    assert f"| prompt_version | {MILEDAY_API_MULTITURN_PROMPT_VERSION}" in result.stdout
+    assert "| case_pass   | 1/1" in result.stdout
+    assert "| passed      | 2" in result.stdout
+    assert "| stored      | 2" in result.stdout
     assert [runtime.api_key for runtime in runtimes] == ["shared-key"]
     assert [runtime.requests[0].model_tag for runtime in runtimes] == [MILEDAY_API_MODEL_ID]
     assert runtimes[0].requests[0].options == {"thinking_level": "minimal"}
@@ -204,7 +208,7 @@ def test_test_api_write_no_skips_db_writer(monkeypatch, tmp_path):
         def __init__(self, api_key, model, base_url):
             pass
 
-        def evaluate_multiturn(self, case, turn_id, explanation, parsed_output, previous_output):
+        def evaluate_case_multiturn(self, case, turn_outputs):
             return ExplanationJudgeResult(is_aligned=True, score=0.95, reason="ok")
 
     class MockGeminiRuntime:
@@ -236,7 +240,7 @@ def test_test_api_write_no_skips_db_writer(monkeypatch, tmp_path):
     result = CliRunner().invoke(app, ["test_api", "--limit", "1", "--write-no"])
 
     assert result.exit_code == 0
-    assert "db_write=disabled" in result.stdout
+    assert "| db_write       | disabled" in result.stdout
     assert not (tmp_path / "artifacts" / "runs" / "prompt-test-1" / "db_manifest.json").exists()
 
 

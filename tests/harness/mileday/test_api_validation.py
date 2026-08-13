@@ -188,8 +188,8 @@ def test_validation_accepts_short_long_create_with_duration_extremes():
     parsed = {
         "action": "create",
         "plan_items": [
+            {"slot_id": "S001", "task": "개념 정리"},
             {"slot_id": "S002", "task": "모의고사 풀이"},
-            {"slot_id": "S003", "task": "가벼운 복습"},
         ],
         "patch_items": [],
         "add_items": [],
@@ -363,6 +363,36 @@ def test_validation_builds_add_mutation_payload():
     ]
 
 
+def test_validation_allows_add_to_exceed_case_max_milestone_count():
+    case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[3]
+    previous = {
+        "plan_items": [
+            {"slot_id": "S001", "task": "실제 작성 작업"},
+            {"slot_id": "S002", "task": "실제 작성 작업"},
+            {"slot_id": "S003", "task": "자료 확인"},
+            {"slot_id": "S004", "task": "실제 작성 작업"},
+            {"slot_id": "S005", "task": "실제 작성 작업"},
+            {"slot_id": "S050", "task": "실제 작성 작업"},
+        ],
+        "db_payload": {"milestones": []},
+    }
+    parsed = {
+        "action": "partial_update",
+        "intent": {"action": "partial_update", "operation": "add"},
+        "plan_items": [],
+        "patch_items": [],
+        "add_items": [{"slot_id": "S006", "task": "참고문헌 정리"}],
+        "remove_slot_ids": [],
+        "requires_confirmation": True,
+    }
+
+    result = validate_api_multiturn_plan_output(case, 2, parsed, previous)
+
+    assert result["contract"]["operation_effect_valid"] is True
+    assert result["schedule_quality"]["milestone_count_valid"] is True
+    assert "milestone_count_valid" not in result["deterministic_validation"]["failed_check_names"]
+
+
 def test_validation_rejects_add_outside_preserve_weekday_scope():
     case = load_mileday_multiturn_cases("tests/fixtures/mileday/test_api.json")[5]
     previous = {
@@ -378,7 +408,7 @@ def test_validation_rejects_add_outside_preserve_weekday_scope():
         },
         "plan_items": [],
         "patch_items": [],
-        "add_items": [{"slot_id": "S005", "task": "독서 메모 정리"}],
+            "add_items": [{"slot_id": "S004", "task": "독서 메모 정리"}],
         "remove_slot_ids": [],
         "requires_confirmation": True,
     }

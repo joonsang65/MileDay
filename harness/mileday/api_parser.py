@@ -36,6 +36,7 @@ def evaluate_api_multiturn_record(
     previous_parsed: dict[str, Any] | None,
     explanation_judge: ExplanationJudge | None,
     prompt_version: str = MILEDAY_API_MULTITURN_PROMPT_VERSION,
+    run_judge: bool = True,
 ) -> RequestResult:
     if base_result.error is not None:
         return base_result
@@ -160,6 +161,21 @@ def evaluate_api_multiturn_record(
             base_result,
             parsed_output=parsed_output,
             message=f"MileDay multiturn deterministic validation failed: {failed_check_text}.",
+        )
+
+    if not run_judge:
+        skipped_judge = skipped_explanation_judge_result().model_dump(mode="json")
+        skipped_judge["reason"] = "Turn-level judge skipped; accumulated case output will be judged once per case."
+        skipped_judge["judge_scope"] = "case_pending"
+        return base_result.model_copy(
+            update={
+                "status": ResultStatus.PASSED,
+                "parsed_output": {
+                    **parsed_output,
+                    "judge_scope": "case_pending",
+                    "explanation_judge": skipped_judge,
+                },
+            }
         )
 
     if explanation_judge is None:

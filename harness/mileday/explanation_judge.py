@@ -55,6 +55,13 @@ class ExplanationJudge(Protocol):
     ) -> ExplanationJudgeResult:
         """Judge whether a multiturn response preserves state and applies the current request."""
 
+    def evaluate_case_multiturn(
+        self,
+        case: MileDayMultiTurnCase,
+        turn_outputs: list[dict[str, Any]],
+    ) -> ExplanationJudgeResult:
+        """Judge accumulated parser output once for the full multiturn case."""
+
 
 class GeminiExplanationJudge:
     """Gemini-backed judge for MileDay explanation and milestone alignment."""
@@ -123,6 +130,25 @@ class GeminiExplanationJudge:
             )
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             return _failed_explanation_judge_result(f"Gemini multiturn explanation judge failed: {exc}")
+
+    def evaluate_case_multiturn(
+        self,
+        case: MileDayMultiTurnCase,
+        turn_outputs: list[dict[str, Any]],
+    ) -> ExplanationJudgeResult:
+        payload = _gemini_json_payload(
+            build_case_multiturn_explanation_judge_prompt(case, turn_outputs),
+            _judge_response_schema(),
+        )
+        try:
+            response_json = self._post_generate_content(payload)
+            return _parse_gemini_judge_response(response_json)
+        except httpx.HTTPStatusError as exc:
+            return _failed_explanation_judge_result(
+                f"Gemini case-level multiturn explanation judge failed: {exc}. Response body: {_response_error_detail(exc.response)}"
+            )
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            return _failed_explanation_judge_result(f"Gemini case-level multiturn explanation judge failed: {exc}")
 
     def summarize_batch_quality(self, context: dict[str, Any]) -> BatchQualitySummaryResult:
         payload = _gemini_json_payload(
@@ -280,6 +306,69 @@ def build_multiturn_explanation_judge_prompt(
     )
 
 
+def build_case_multiturn_explanation_judge_prompt(
+    case: MileDayMultiTurnCase,
+    turn_outputs: list[dict[str, Any]],
+) -> str:
+    expected_turns = [
+        {
+            "turn_id": turn.turn_id,
+            "user_request": turn.content,
+            "expected_action": turn.expected_action,
+            "expected_operation": turn.expected_operation,
+            "expected": _dump_optional_model(getattr(turn, "expected", None)),
+        }
+        for turn in case.turns
+    ]
+    compact_outputs = [
+        {
+            "turn_id": output.get("turn_id"),
+            "status": output.get("status"),
+            "parsed_json": output.get("parsed_json"),
+            "validation": output.get("multiturn_validation"),
+            "explanation": output.get("explanation"),
+        }
+        for output in turn_outputs
+    ]
+    return (
+        "당신은 MileDay 멀티턴 일정 생성 결과를 평가하는 LLM judge입니다.\n"
+        "각 turn은 이미 deterministic parsing/validation을 통과했습니다. 누적된 case 전체 동작만 평가하세요.\n"
+        "제공된 사용자 요청, expected metadata, parser outputs, validation results만 근거로 판단하세요.\n"
+        "출력은 JSON 객체 하나만 반환하세요. markdown, 코드블록, 추가 설명은 출력하지 마세요.\n"
+        '필드: {"is_aligned": boolean, "score": number, "reason": string, "critical_failures": string[], "dimension_scores": object}\n'
+        "reason은 반드시 자연스러운 한국어 문장으로 작성하세요. 영어로 작성하지 마세요.\n"
+        "critical_failures의 코드값은 아래 정의된 영문 코드를 그대로 사용하세요.\n"
+        "score는 0.0~1.0입니다. score가 0.9 이상이고 critical_failures가 비어 있을 때만 is_aligned=true로 판단하세요.\n"
+        "dimension_scores에는 current_request_applied, target_scope_correct, unmentioned_items_preserved, date_time_preserved, payload_explanation_consistent, confirmation_required를 0.0~1.0 점수로 넣으세요.\n"
+        "\n"
+        "[CRITICAL_FAILURES]\n"
+        "- WRONG_TARGET_SCOPE: 사용자가 요청한 대상 밖의 slot을 변경함.\n"
+        "- OVER_PATCHED_SINGLE_TARGET: 정확히 하나의 대상만 변경해야 하는데 여러 slot을 변경함.\n"
+        "- PRESERVED_ITEM_CHANGED: 유지해야 하는 slot을 변경함.\n"
+        "- DATE_TIME_CHANGED: 사용자가 task/title 변경만 요청했는데 날짜나 시간을 변경함.\n"
+        "- PAYLOAD_EXPLANATION_MISMATCH: parser payload와 사용자용 설명이 서로 다름.\n"
+        "- UNSAFE_MUTATION: create/add/remove/rename/none operation 효과가 사용자 요청과 맞지 않음.\n"
+        "\n"
+        "[CASE_ID]\n"
+        f"{case.case_id}\n"
+        "\n"
+        "[GOAL]\n"
+        f"{json.dumps(case.input.initial_goal.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}\n"
+        "\n"
+        "[AVAILABILITY]\n"
+        f"{json.dumps([item.model_dump(mode='json') for item in case.input.availability], ensure_ascii=False, sort_keys=True)}\n"
+        "\n"
+        "[EXISTING_SCHEDULE]\n"
+        f"{json.dumps([item.model_dump(mode='json') for item in case.input.existing_schedule], ensure_ascii=False, sort_keys=True)}\n"
+        "\n"
+        "[EXPECTED_TURNS]\n"
+        f"{json.dumps(expected_turns, ensure_ascii=False, sort_keys=True)}\n"
+        "\n"
+        "[PARSER_OUTPUTS]\n"
+        f"{json.dumps(compact_outputs, ensure_ascii=False, sort_keys=True)}\n"
+    )
+
+
 def build_batch_quality_summary_prompt(context: dict[str, Any]) -> str:
     return (
         "당신은 MileDay 로컬 LLM 평가 결과를 정리하는 품질 분석가입니다.\n"
@@ -373,6 +462,12 @@ def _parse_batch_quality_summary_response(response_json: dict[str, Any]) -> Batc
         risk_signals=[str(item) for item in parsed.get("risk_signals", [])],
         improvement_actions=[str(item) for item in parsed.get("improvement_actions", [])],
     )
+
+
+def _dump_optional_model(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    return value
 
 
 def _parse_gemini_json_text(response_json: dict[str, Any]) -> dict[str, Any]:

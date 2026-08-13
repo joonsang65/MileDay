@@ -83,7 +83,7 @@ def build_api_multiturn_prompt(
         "- Keep field names and enum values in English exactly as defined by the schema.\n"
         "- Translate Korean user intent into action, operation, selectors, selected_slot_ids, and tasks.\n"
         "- create: selected_slot_ids and tasks are required; their lengths and order must match.\n"
-        "- add: tasks must contain only new milestone titles. Prefer one unused selected_slot_id from [AVAILABLE_SLOTS]. If no safe slot is clear, leave selected_slot_ids empty and use target_selector_type=position or ambiguous.\n"
+        "- add: tasks must contain only new milestone titles. Choose one unused selected_slot_id from [AVAILABLE_SLOTS] after last_plan_slot_id when possible. If no safe slot is clear, leave selected_slot_ids empty and use target_selector_type=position or ambiguous.\n"
         "- remove: tasks must be empty. Select exactly one existing slot from [PREVIOUS_PLAN_TARGETS], or require clarification.\n"
         "- rename: keep the same date/time and select exactly one existing slot. tasks contains the new title only.\n"
         "- none: no mutation. Use it for unclear requests, low confidence, or requests that ask not to decide arbitrarily.\n\n"
@@ -103,7 +103,7 @@ def build_api_multiturn_prompt(
         "- Long slots should get core tasks such as write, build, solve, implement, rehearse, or analyze.\n"
         "- If the user maps short/long slots to task types, follow that mapping exactly.\n"
         "- Create schedules should progress toward the deadline; do not use only the earliest slots when later slots are available.\n"
-        "- Add should use an unused slot after the current plan when possible. If preserve_selector limits scope, add inside that scope.\n\n"
+        "- Add should use an unused slot after the current plan when possible. Use [PLAN_SLOT_BASELINE].last_plan_slot_id as the baseline, then choose a later available slot id. If preserve_selector limits scope, add inside that scope.\n\n"
         "[EXAMPLES]\n"
         "{\"action\":\"create\",\"operation\":\"none\",\"target\":\"goal schedule\",\"target_selector_type\":\"ambiguous\",\"target_selector_value\":\"none\",\"target_selector_confidence\":\"high\",\"preserve_selector_type\":\"none\",\"preserve_selector_values\":[],\"requires_clarification\":false,\"selected_slot_ids\":[\"S001\",\"S003\"],\"change\":\"create selected milestones\",\"tasks\":[\"자료 범위 확인\",\"최종 점검\"],\"mutation_safety_check\":\"create_scope_checked\"}\n"
         "{\"action\":\"partial_update\",\"operation\":\"add\",\"target\":\"new milestone\",\"target_selector_type\":\"position\",\"target_selector_value\":\"last\",\"target_selector_confidence\":\"high\",\"preserve_selector_type\":\"none\",\"preserve_selector_values\":[],\"requires_clarification\":false,\"selected_slot_ids\":[\"S006\"],\"change\":\"add one milestone\",\"tasks\":[\"추가 점검 작업\"],\"mutation_safety_check\":\"single_target_matched\"}\n"
@@ -122,6 +122,8 @@ def build_api_multiturn_prompt(
         f"{json.dumps(_ko_allowed_slot_context(allowed_slots), ensure_ascii=False, sort_keys=True)}\n\n"
         "[PREVIOUS_PLAN_TARGETS]\n"
         f"{_api_previous_plan_targets(case, transcript)}\n\n"
+        "[PLAN_SLOT_BASELINE]\n"
+        f"{json.dumps(_api_plan_slot_baseline(case, transcript), ensure_ascii=False, sort_keys=True)}\n\n"
         "[PREVIOUS_CONVERSATION]\n"
         f"{mileday_multiturn_transcript_text(transcript)}\n\n"
         "[USER_REQUEST]\n"
@@ -147,6 +149,29 @@ def _api_previous_plan_targets(case: MileDayMultiTurnCase, transcript: list[dict
             task = match.group(2).strip()
             lines.append(f"- {slot_id} | {slot['scheduled_date']} | {slot['weekday']} | {task}")
     return "\n".join(lines) if lines else "none"
+
+
+def _api_plan_slot_baseline(case: MileDayMultiTurnCase, transcript: list[dict[str, str]]) -> dict[str, str | list[str]]:
+    plan_slot_ids = _previous_plan_slot_ids(case, transcript)
+    return {
+        "last_plan_slot_id": plan_slot_ids[-1] if plan_slot_ids else "none",
+        "current_plan_slot_ids": plan_slot_ids,
+        "add_rule": "For add, choose an unused AVAILABLE_SLOTS slot_id greater than last_plan_slot_id when possible.",
+    }
+
+
+def _previous_plan_slot_ids(case: MileDayMultiTurnCase, transcript: list[dict[str, str]]) -> list[str]:
+    if not transcript:
+        return []
+    valid_slot_ids = {slot["slot_id"] for slot in mileday_multiturn_allowed_slots(case)}
+    slot_ids: list[str] = []
+    for message in transcript:
+        if message.get("role") != "assistant":
+            continue
+        for slot_id in re.findall(r"\bS\d{3}\b", message.get("content", "")):
+            if slot_id in valid_slot_ids and slot_id not in slot_ids:
+                slot_ids.append(slot_id)
+    return slot_ids
 
 
 def mileday_multiturn_transcript_text(transcript: list[dict[str, str]]) -> str:
