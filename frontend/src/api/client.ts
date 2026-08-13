@@ -7,6 +7,8 @@ import type {
   CalendarWeekData,
   Goal,
   GoalCreatePayload,
+  AiScheduleDraft,
+  AiScheduleDraftRequest,
   GoalUpdatePayload,
   Milestone,
   MilestoneCreatePayload,
@@ -180,6 +182,13 @@ export class MileDayApiClient {
   updateSettings(payload: UserSettingsUpdatePayload): Promise<UserSettings> {
     return this.request<UserSettings>("/settings", {
       method: "PATCH",
+      body: payload,
+    });
+  }
+
+  createScheduleDraft(payload: AiScheduleDraftRequest): Promise<AiScheduleDraft> {
+    return this.request<AiScheduleDraft>("/ai/schedule/draft", {
+      method: "POST",
       body: payload,
     });
   }

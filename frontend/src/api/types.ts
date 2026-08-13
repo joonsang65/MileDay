@@ -134,3 +134,44 @@ export type CalendarDateData = {
   goals: Goal[];
   milestones: Milestone[];
 };
+
+export type AiScheduleAvailability = {
+  date: string;
+  available_minutes: number;
+};
+
+export type AiScheduleDraftRequest = {
+  prompt: string;
+  today: string;
+  timezone: string;
+  availability: AiScheduleAvailability[];
+};
+
+export type AiScheduleDraftMilestone = {
+  client_id: string;
+  title: string;
+  scheduled_date: string;
+  selected: boolean;
+};
+
+export type AiScheduleDraft = {
+  goal: {
+    title: string;
+    deadline: string;
+  };
+  milestones: AiScheduleDraftMilestone[];
+  planning_preference: {
+    intensity: "relaxed" | "balanced" | "intensive";
+    preferred_days: string[];
+  };
+  validation: {
+    is_valid: boolean;
+    failure_codes: string[];
+    warnings: string[];
+  };
+  create_goal_payload: {
+    goal: GoalCreatePayload;
+    milestones: (MilestoneCreatePayload & { is_completed?: boolean })[];
+    write_policy: "user_confirmation_required";
+  };
+};
