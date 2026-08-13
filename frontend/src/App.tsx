@@ -4,23 +4,26 @@ import type {
   CalendarDateData,
   CalendarMonthData,
   CalendarWeekData,
-  Goal,
   GoalCreatePayload,
+  AiScheduleDraft,
+  AiScheduleDraftRequest,
   GoalUpdatePayload,
-  Milestone,
   MilestoneCreatePayload,
   MilestoneUpdatePayload,
   UserSettings,
   UserSettingsUpdatePayload,
 } from "@/api/types";
 import { AuthPanel } from "@/components/AuthPanel";
+import { AiSchedulePanel } from "@/components/AiSchedulePanel";
 import { CalendarBoard } from "@/components/CalendarBoard";
 import { CalendarHeader } from "@/components/CalendarHeader";
-import { CreationPanel } from "@/components/CreationPanel";
 import { DateDetail } from "@/components/DateDetail";
+import { FloatingPanel } from "@/components/FloatingPanel";
+import { ManualCreatePanel } from "@/components/ManualCreatePanel";
+import { QuickActionPopover } from "@/components/QuickActionPopover";
 import { SettingsPanel } from "@/components/SettingsPanel";
-import { TodayList } from "@/components/TodayList";
 import { useCalendarStore, type CalendarMode } from "@/store/calendarStore";
+import { useUiStore } from "@/store/uiStore";
 import {
   getWeekStartDate,
   getMonthLabel,
@@ -75,11 +78,9 @@ export default function App() {
     null,
   );
   const [dateDetail, setDateDetail] = useState<CalendarDateData | null>(null);
-  const [todayMilestones, setTodayMilestones] = useState<Milestone[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
   const [userSettings, setUserSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [hasAppliedInitialSettings, setHasAppliedInitialSettings] = useState(false);
+  const { overlayMode, openQuickMenu, openManualCreate, openAiCreate, openSettings, closeOverlay } = useUiStore();
 
   const headerLabel = useMemo(() => {
     if (mode === "month") {
@@ -87,6 +88,19 @@ export default function App() {
     }
     return getWeekLabel(parseDateKey(visibleDate));
   }, [mode, visibleDate]);
+
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
+  const draftAvailability = useMemo<AiScheduleDraftRequest["availability"]>(() => {
+    const sourceDates = (calendarData?.days ?? [])
+      .map((day) => day.date)
+      .filter((date) => date >= todayKey)
+      .slice(0, 45);
+    const dates = sourceDates.length > 0 ? sourceDates : [selectedDate >= todayKey ? selectedDate : todayKey];
+    return Array.from(new Set(dates)).map((date) => ({
+      date,
+      available_minutes: 120,
+    }));
+  }, [calendarData?.days, selectedDate, todayKey]);
 
   const applySettingsToCalendar = useCallback(
     (settings: UserSettings) => {
@@ -108,14 +122,12 @@ export default function App() {
     setRequestState({ isLoading: true, message: null, notice: null });
     try {
       const visible = parseDateKey(visibleDate);
-      const [settings, calendar, detail, today, goalList] = await Promise.all([
+      const [settings, calendar, detail] = await Promise.all([
         apiClient.getSettings(),
         mode === "month"
           ? apiClient.getMonthCalendar(visible.getFullYear(), visible.getMonth() + 1)
           : apiClient.getWeekCalendar(getWeekStartDate(visibleDate, weekStartsOn)),
         apiClient.getDateCalendar(selectedDate),
-        apiClient.getTodayMilestones(),
-        apiClient.listGoals(),
       ]);
       setUserSettings(settings);
       if (!hasAppliedInitialSettings) {
@@ -124,8 +136,6 @@ export default function App() {
       }
       setCalendarData(calendar);
       setDateDetail(detail);
-      setTodayMilestones(today);
-      setGoals(goalList);
       setRequestState({ isLoading: false, message: null, notice: null });
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
@@ -147,6 +157,21 @@ export default function App() {
   useEffect(() => {
     void loadCalendar();
   }, [loadCalendar]);
+
+  useEffect(() => {
+    if (overlayMode === "none") {
+      return undefined;
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeOverlay();
+      }
+    }
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [closeOverlay, overlayMode]);
 
   async function handleLogin(email: string, password: string) {
     setRequestState({ isLoading: true, message: null, notice: null });
@@ -179,10 +204,8 @@ export default function App() {
     setIsAuthenticated(false);
     setCalendarData(null);
     setDateDetail(null);
-    setTodayMilestones([]);
-    setGoals([]);
     setUserSettings(DEFAULT_USER_SETTINGS);
-    setIsSettingsOpen(false);
+    closeOverlay();
     setHasAppliedInitialSettings(false);
   }
 
@@ -234,12 +257,18 @@ export default function App() {
     }
   }
 
-  async function handleCreateMilestones(goalId: string, payloads: MilestoneCreatePayload[]) {
+  async function handleCreateAiDraft(payload: AiScheduleDraftRequest): Promise<AiScheduleDraft> {
+    return apiClient.createScheduleDraft(payload);
+  }
+
+  async function handleSaveAiDraft(goalPayload: GoalCreatePayload, milestonePayloads: MilestoneCreatePayload[]) {
     setRequestState({ isLoading: true, message: null, notice: null });
     try {
-      for (const payload of payloads) {
-        await apiClient.createMilestone(goalId, payload);
+      const goal = await apiClient.createGoal(goalPayload);
+      for (const payload of milestonePayloads) {
+        await apiClient.createMilestone(goal.id, payload);
       }
+      closeOverlay();
       await loadCalendar();
     } catch (error) {
       setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error), notice: null });
@@ -322,11 +351,21 @@ export default function App() {
         onNext={() => handleMove(1)}
         onToday={handleToday}
         onRefresh={loadCalendar}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={openSettings}
+        onOpenQuickMenu={openQuickMenu}
         language={userSettings.language}
       />
+      {overlayMode === "quick-menu" ? (
+        <>
+          <button type="button" className="quick-menu-backdrop" aria-label="메뉴 닫기" onClick={closeOverlay} />
+          <QuickActionPopover
+            onManualCreate={openManualCreate}
+            onAiCreate={openAiCreate}
+          />
+        </>
+      ) : null}
       {requestState.message ? <p className="toast-error">{requestState.message}</p> : null}
-      <div className="workspace">
+      <div className="workspace planner-workspace">
         <div className="primary-pane">
           <CalendarBoard
             mode={mode}
@@ -338,42 +377,49 @@ export default function App() {
             onSelectDate={handleSelectDate}
           />
         </div>
-        <aside className="side-pane">
-          {isSettingsOpen ? (
-            <SettingsPanel
-              settings={userSettings}
-              isLoading={requestState.isLoading}
-              onSave={handleUpdateSettings}
-              onClose={() => setIsSettingsOpen(false)}
-              onLogout={handleLogout}
-            />
-          ) : (
-            <>
-              <TodayList
-                milestones={todayMilestones}
-                isLoading={requestState.isLoading && todayMilestones.length === 0}
-                onToggleMilestone={handleToggleMilestone}
-              />
-              <DateDetail
-                detail={dateDetail}
-                isLoading={requestState.isLoading && !dateDetail}
-                onToggleMilestone={handleToggleMilestone}
-                onUpdateGoal={handleUpdateGoal}
-                onDeleteGoal={handleDeleteGoal}
-                onUpdateMilestone={handleUpdateMilestone}
-                onDeleteMilestone={handleDeleteMilestone}
-              />
-              <CreationPanel
-                goals={goals}
-                selectedDate={selectedDate}
-                isLoading={requestState.isLoading}
-                onCreateGoal={handleCreateGoal}
-                onCreateMilestones={handleCreateMilestones}
-              />
-            </>
-          )}
-        </aside>
+        <DateDetail
+          detail={dateDetail}
+          isLoading={requestState.isLoading && !dateDetail}
+          isTodaySelected={selectedDate === todayKey}
+          onGoToday={handleToday}
+          onToggleMilestone={handleToggleMilestone}
+          onUpdateGoal={handleUpdateGoal}
+          onDeleteGoal={handleDeleteGoal}
+          onUpdateMilestone={handleUpdateMilestone}
+          onDeleteMilestone={handleDeleteMilestone}
+        />
       </div>
+      {overlayMode === "settings" ? (
+        <FloatingPanel title="설정" onClose={closeOverlay}>
+          <SettingsPanel
+            settings={userSettings}
+            isLoading={requestState.isLoading}
+            onSave={handleUpdateSettings}
+            onClose={closeOverlay}
+            onLogout={handleLogout}
+          />
+        </FloatingPanel>
+      ) : null}
+      {overlayMode === "manual-create" ? (
+        <ManualCreatePanel
+          selectedDate={selectedDate}
+          isLoading={requestState.isLoading}
+          onCreateGoal={handleCreateGoal}
+          onClose={closeOverlay}
+        />
+      ) : null}
+      {overlayMode === "ai-create" ? (
+        <AiSchedulePanel
+          selectedDate={selectedDate}
+          today={todayKey}
+          timezone={userSettings.timezone}
+          availability={draftAvailability}
+          isSaving={requestState.isLoading}
+          onCreateDraft={handleCreateAiDraft}
+          onSaveDraft={handleSaveAiDraft}
+          onClose={closeOverlay}
+        />
+      ) : null}
     </main>
   );
 }

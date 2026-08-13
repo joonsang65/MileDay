@@ -1,7 +1,7 @@
-import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Settings } from "lucide-react";
 
-import type { CalendarMode } from "@/store/calendarStore";
 import type { Language } from "@/api/types";
+import type { CalendarMode } from "@/store/calendarStore";
 
 type CalendarHeaderProps = {
   label: string;
@@ -13,6 +13,7 @@ type CalendarHeaderProps = {
   onToday: () => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
+  onOpenQuickMenu: () => void;
   language: Language;
 };
 
@@ -26,16 +27,37 @@ export function CalendarHeader({
   onToday,
   onRefresh,
   onOpenSettings,
+  onOpenQuickMenu,
   language,
 }: CalendarHeaderProps) {
   const text = language === "en"
-    ? { modeLabel: "Calendar view", month: "Month", week: "Week", today: "Today", previous: "Previous", next: "Next", refresh: "Refresh", settings: "Settings" }
-    : { modeLabel: "캘린더 표시 방식", month: "월", week: "주", today: "오늘", previous: "이전", next: "다음", refresh: "새로고침", settings: "설정" };
+    ? {
+        modeLabel: "Calendar view",
+        month: "Month",
+        week: "Week",
+        today: "Today",
+        previous: "Previous",
+        next: "Next",
+        refresh: "Refresh",
+        settings: "Settings",
+        add: "Add schedule",
+      }
+    : {
+        modeLabel: "캘린더 표시 방식",
+        month: "월",
+        week: "주",
+        today: "오늘",
+        previous: "이전",
+        next: "다음",
+        refresh: "새로고침",
+        settings: "설정",
+        add: "일정 만들기",
+      };
 
   return (
     <header className="app-header">
       <div className="header-title">
-        <p className="eyebrow">MileDay</p>
+        <p className="eyebrow">MILEDAY</p>
         <h1>{label}</h1>
       </div>
       <div className="header-actions">
@@ -76,6 +98,9 @@ export function CalendarHeader({
         </button>
         <button type="button" className="icon-button" onClick={onOpenSettings} title={text.settings}>
           <Settings size={17} aria-hidden="true" />
+        </button>
+        <button type="button" className="add-button" onClick={onOpenQuickMenu} title={text.add}>
+          <Plus size={19} aria-hidden="true" />
         </button>
       </div>
     </header>

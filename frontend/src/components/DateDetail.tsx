@@ -6,6 +6,8 @@ import type { CalendarDateData, Goal, GoalUpdatePayload, Milestone, MilestoneUpd
 type DateDetailProps = {
   detail?: CalendarDateData | null;
   isLoading: boolean;
+  isTodaySelected?: boolean;
+  onGoToday?: () => void;
   onToggleMilestone: (milestoneId: string, isCompleted: boolean) => void;
   onUpdateGoal: (goalId: string, payload: GoalUpdatePayload) => Promise<void>;
   onDeleteGoal: (goalId: string) => Promise<void>;
@@ -65,6 +67,8 @@ function getDateGoalGroups(detail?: CalendarDateData | null): DateGoalGroup[] {
 export function DateDetail({
   detail,
   isLoading,
+  isTodaySelected = false,
+  onGoToday,
   onToggleMilestone,
   onUpdateGoal,
   onDeleteGoal,
@@ -81,10 +85,17 @@ export function DateDetail({
   }
 
   return (
-    <section className="detail-panel" aria-label="날짜 상세">
-      <div className="panel-heading">
-        <h2>날짜 상세</h2>
-        <span>{detail?.date ?? "-"}</span>
+    <section className="detail-panel day-view-panel" aria-label="하루 보기">
+      <div className="panel-heading day-view-heading">
+        <div>
+          <h2>하루 보기</h2>
+          <span>{detail?.date ?? "-"}</span>
+        </div>
+        {onGoToday ? (
+          <button type="button" className="ghost-button compact" onClick={onGoToday} disabled={isTodaySelected}>
+            오늘로
+          </button>
+        ) : null}
       </div>
       {isLoading ? <p className="muted-text">불러오는 중입니다.</p> : null}
       {detail ? (
@@ -98,9 +109,9 @@ export function DateDetail({
           <div className="section-block">
             <h3>목표</h3>
             {goalGroups.length === 0 ? (
-              <p className="empty-text">연결된 목표가 없습니다.</p>
+              <p className="empty-text">연결된 일정이 없습니다.</p>
             ) : (
-              <ul className="plain-list">
+              <ul className="plain-list day-view-list">
                 {goalGroups.map((group) => (
                   <li key={group.id} className="goal-group">
                     {group.goal ? (
@@ -292,7 +303,7 @@ function MilestoneEditor({
       return;
     }
     if (!scheduledDate) {
-      setValidationMessage("예정일을 선택해 주세요.");
+      setValidationMessage("일정일을 선택해 주세요.");
       return;
     }
     await onSave({
@@ -309,7 +320,7 @@ function MilestoneEditor({
         <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
       </label>
       <label>
-        예정일
+        일정일
         <input
           type="date"
           value={scheduledDate}

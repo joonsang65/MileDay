@@ -5,9 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { CalendarHeader } from "./CalendarHeader";
 
 describe("CalendarHeader", () => {
-  it("로그아웃 버튼 대신 설정 버튼을 제공한다", async () => {
+  it("설정과 일정 만들기 액션을 제공한다", async () => {
     const user = userEvent.setup();
     const onOpenSettings = vi.fn();
+    const onOpenQuickMenu = vi.fn();
+
     render(
       <CalendarHeader
         label="2026.07"
@@ -19,13 +21,17 @@ describe("CalendarHeader", () => {
         onToday={vi.fn()}
         onRefresh={vi.fn()}
         onOpenSettings={onOpenSettings}
+        onOpenQuickMenu={onOpenQuickMenu}
         language="ko"
       />,
     );
 
     expect(screen.queryByTitle("로그아웃")).not.toBeInTheDocument();
+
     await user.click(screen.getByTitle("설정"));
+    await user.click(screen.getByTitle("일정 만들기"));
 
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(onOpenQuickMenu).toHaveBeenCalledTimes(1);
   });
 });
