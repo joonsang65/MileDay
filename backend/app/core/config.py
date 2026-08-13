@@ -45,6 +45,18 @@ class Settings(BaseModel):
         )
     )
 
+    # Gemini API is used only by the backend AI draft endpoint.
+    gemini_api_key: str | None = Field(default_factory=lambda: getenv("GEMINI_API_KEY"))
+    gemini_api_base_url: str = Field(
+        default_factory=lambda: getenv(
+            "GEMINI_API_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta",
+        )
+    )
+    gemini_schedule_model: str = Field(
+        default_factory=lambda: getenv("GEMINI_SCHEDULE_MODEL", "gemini-3.5-flash-lite")
+    )
+
     # 같은 Supabase 프로젝트를 쓰는 통합 테스트 안전장치
     integration_tests_enabled: bool = Field(
         default_factory=lambda: env_bool("ENABLE_INTEGRATION_TESTS")
