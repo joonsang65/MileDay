@@ -1,4 +1,4 @@
-from harness.html_reporting import generate_mileday_multiturn_html_report
+from harness.html_reporting import generate_ai_draft_html_report, generate_mileday_multiturn_html_report
 from harness.reporting import generate_markdown_report
 from harness.results import ResultStore
 from harness.schemas import EvaluationError, FailureCategory, RequestResult, ResultStatus, RuntimeMetrics
@@ -168,3 +168,88 @@ def test_mileday_multiturn_html_report_renders_summary_and_details(tmp_path):
     assert "[월 19:00-21:00] 조깅" in text
     assert "AVAILABILITY_VIOLATION" in text
     assert "Safety Gate" in text
+
+
+def test_mileday_multiturn_html_report_excludes_skipped_turn_judge_scores(tmp_path):
+    store = ResultStore(tmp_path / "runs")
+    _stored_result(
+        store,
+        run_id="case-judge-run",
+        dataset_id="mileday-multiturn-schedule",
+        case_id="multiturn-001-turn-1",
+        parsed_output={
+            "case_id": "multiturn-001",
+            "turn_id": 1,
+            "evaluation_family": "mileday_multiturn",
+            "explanation_judge": {
+                "score": 0.0,
+                "reason": "Turn-level judge skipped; accumulated case output will be judged once per case.",
+                "is_aligned": True,
+                "skipped": True,
+            },
+        },
+    )
+    _stored_result(
+        store,
+        run_id="case-judge-run",
+        dataset_id="mileday-multiturn-schedule",
+        case_id="multiturn-001-turn-2",
+        parsed_output={
+            "case_id": "multiturn-001",
+            "turn_id": 2,
+            "evaluation_family": "mileday_multiturn",
+            "explanation_judge": {
+                "score": 0.95,
+                "reason": "case ok",
+                "is_aligned": True,
+                "skipped": False,
+            },
+        },
+    )
+
+    text = generate_mileday_multiturn_html_report("case-judge-run", tmp_path / "runs").read_text(encoding="utf-8")
+
+    assert "0.950" in text
+    assert "0.475" not in text
+
+
+def test_ai_draft_html_report_renders_draft_details(tmp_path):
+    store = ResultStore(tmp_path / "runs")
+    _stored_result(
+        store,
+        run_id="draft-run",
+        model_id="gemini-3.5-flash-lite",
+        dataset_id="mileday-ai-schedule-draft",
+        case_id="draft-001",
+        parsed_output={
+            "evaluation_family": "mileday_ai_draft",
+            "case_id": "draft-001",
+            "draft": {
+                "goal": {"title": "데이터 분석 과제", "deadline": "2026-09-30"},
+                "milestones": [
+                    {"title": "자료 수집", "scheduled_date": "2026-08-22"},
+                    {"title": "분석 수행", "scheduled_date": "2026-09-06"},
+                ],
+                "planning_preference": {"intensity": "relaxed", "preferred_days": ["saturday", "sunday"]},
+            },
+            "draft_validation": {"is_valid": True, "failure_codes": []},
+            "draft_judge": {"score": 0.95, "reason": "좋은 초안입니다.", "is_aligned": True},
+            "create_payload_preview": {
+                "goal": {"title": "데이터 분석 과제", "deadline": "2026-09-30"},
+                "milestones": [{"title": "자료 수집", "scheduled_date": "2026-08-22"}],
+            },
+            "sql_preview": "INSERT INTO public.goals ...",
+        },
+    )
+
+    path = generate_ai_draft_html_report("draft-run", tmp_path / "runs")
+    text = path.read_text(encoding="utf-8")
+
+    assert path.name == "report.html"
+    assert "MileDay AI 일정 초안 리포트" in text
+    assert "draft-001" in text
+    assert "데이터 분석 과제" in text
+    assert "자료 수집" in text
+    assert "좋은 초안입니다." in text
+    assert "Create payload preview" in text
+    assert "SQL preview" in text

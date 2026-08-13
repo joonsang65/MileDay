@@ -8,6 +8,7 @@ import typer
 from pydantic import ValidationError
 
 from harness.config import load_settings
+from harness.mileday.ai_draft_runner import run_prompt_test_draft
 from harness.mileday.api_constants import MILEDAY_MULTITURN_FIXTURE
 from harness.mileday.api_runner import (
     MILEDAY_API_MODEL_ID,
@@ -129,6 +130,23 @@ def test_api(
         fixture=MILEDAY_MULTITURN_FIXTURE,
         limit=limit,
         write_db=not write_no,
+    )
+
+
+@app.command("test_draft")
+def test_draft(
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", help="Optional positive limit for draft cases to execute."),
+    ] = None,
+) -> None:
+    """Run the MileDay AI schedule draft prompt/parser test."""
+
+    if limit is not None and limit <= 0:
+        raise typer.BadParameter("limit must be positive.")
+    run_prompt_test_draft(
+        settings=load_settings(),
+        limit=limit,
     )
 
 

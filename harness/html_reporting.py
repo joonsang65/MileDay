@@ -27,6 +27,73 @@ def generate_mileday_multiturn_html_report(
     return path
 
 
+def generate_ai_draft_html_report(
+    run_id: str,
+    runs_dir: str | Path = Path("artifacts") / "runs",
+) -> Path:
+    """저장된 MileDay AI 일정 초안 run artifact를 HTML로 렌더링합니다."""
+
+    store = ResultStore(runs_dir)
+    report_input = load_report_input(run_id, store)
+    html = render_ai_draft_html_report(report_input.run_id, report_input.results)
+    path = report_input.run_dir / "report.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(html, encoding="utf-8", newline="\n")
+    return path
+
+
+def render_ai_draft_html_report(run_id: str, results: tuple[RequestResult, ...]) -> str:
+    sorted_results = sorted(results, key=_result_sort_key)
+    counts = Counter(result.status.value for result in sorted_results)
+    judge_scores = [
+        float(judge["score"])
+        for result in sorted_results
+        if isinstance(judge := result.parsed_output.get("draft_judge"), dict)
+        and judge.get("error") is None
+        and isinstance(judge.get("score"), int | float)
+    ]
+    validation_failures = _draft_validation_failure_counts(sorted_results)
+    body = [
+        "<!doctype html>",
+        '<html lang="ko">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        f"<title>MileDay AI 일정 초안 리포트 - {escape(run_id)}</title>",
+        "<style>",
+        _stylesheet(),
+        "</style>",
+        "</head>",
+        "<body>",
+        '<main class="page">',
+        '<section class="hero">',
+        "<div>",
+        "<p>Harness HTML Report</p>",
+        f"<h1>{escape(run_id)}</h1>",
+        "</div>",
+        f'<span class="status status-{_overall_status(counts)}">{escape(_overall_status_label(counts))}</span>',
+        "</section>",
+        _summary_grid(
+            {
+                "전체 case": len(sorted_results),
+                "passed": counts.get(ResultStatus.PASSED.value, 0),
+                "invalid": counts.get(ResultStatus.INVALID.value, 0),
+                "failed": counts.get(ResultStatus.FAILED.value, 0),
+                "skipped": counts.get(ResultStatus.SKIPPED.value, 0),
+                "case pass": f"{counts.get(ResultStatus.PASSED.value, 0)} / {len(sorted_results)}",
+                "judge 평균": _format_number(mean(judge_scores) if judge_scores else None),
+                "평균 latency": _format_ms(_mean_metric(sorted_results, "latency_ms")),
+            }
+        ),
+        _draft_failure_section(validation_failures, sorted_results),
+        _draft_case_sections(sorted_results),
+        "</main>",
+        "</body>",
+        "</html>",
+    ]
+    return "\n".join(body) + "\n"
+
+
 def render_mileday_multiturn_html_report(run_id: str, results: tuple[RequestResult, ...]) -> str:
     sorted_results = sorted(results, key=_result_sort_key)
     grouped = _group_by_case(sorted_results)
@@ -34,7 +101,7 @@ def render_mileday_multiturn_html_report(run_id: str, results: tuple[RequestResu
     judge_scores = [
         float(judge["score"])
         for result in sorted_results
-        if isinstance((judge := result.parsed_output.get("explanation_judge")), dict)
+        if _is_completed_judge(judge := result.parsed_output.get("explanation_judge"))
         and isinstance(judge.get("score"), int | float)
     ]
     completed_cases = [
@@ -107,6 +174,113 @@ def _summary_grid(items: dict[str, object]) -> str:
             "</article>"
         )
     return '<section class="metrics">' + "\n".join(cards) + "</section>"
+
+
+def _draft_failure_section(failure_codes: Counter[str], results: list[RequestResult]) -> str:
+    invalid_rows = []
+    for result in results:
+        if result.status not in {ResultStatus.INVALID, ResultStatus.FAILED, ResultStatus.SKIPPED}:
+            continue
+        validation = result.parsed_output.get("draft_validation")
+        judge = result.parsed_output.get("draft_judge")
+        message = result.error.message if result.error is not None else ""
+        if not message and isinstance(judge, dict):
+            message = str(judge.get("reason", ""))
+        invalid_rows.append(
+            "<tr>"
+            f"<td>{escape(result.case_id)}</td>"
+            f'<td><span class="status status-{escape(result.status.value)}">{escape(result.status.value)}</span></td>'
+            f"<td>{escape(_failure_codes(validation))}</td>"
+            f"<td>{escape(message or '원인 없음')}</td>"
+            "</tr>"
+        )
+    code_rows = "".join(
+        f"<tr><td>{escape(code)}</td><td>{count}</td></tr>"
+        for code, count in sorted(failure_codes.items())
+    )
+    if not code_rows:
+        code_rows = '<tr><td colspan="2">없음</td></tr>'
+    if not invalid_rows:
+        invalid_rows.append('<tr><td colspan="4">invalid, failed, skipped 결과가 없습니다.</td></tr>')
+    return (
+        '<section class="panel">'
+        "<h2>실패 분석</h2>"
+        "<h3>Validation failure code</h3>"
+        '<div class="table-wrap"><table>'
+        "<thead><tr><th>failure code</th><th>건수</th></tr></thead>"
+        f"<tbody>{code_rows}</tbody>"
+        "</table></div>"
+        "<h3>검토 대상 case</h3>"
+        '<div class="table-wrap"><table>'
+        "<thead><tr><th>case</th><th>상태</th><th>failure codes</th><th>사유</th></tr></thead>"
+        f"<tbody>{''.join(invalid_rows)}</tbody>"
+        "</table></div>"
+        "</section>"
+    )
+
+
+def _draft_case_sections(results: list[RequestResult]) -> str:
+    sections = ['<section class="case-list">', "<h2>Case별 초안 상세</h2>"]
+    for result in results:
+        parsed = result.parsed_output
+        draft = parsed.get("draft") if isinstance(parsed.get("draft"), dict) else {}
+        validation = parsed.get("draft_validation")
+        judge = parsed.get("draft_judge")
+        goal = draft.get("goal") if isinstance(draft.get("goal"), dict) else {}
+        milestones = draft.get("milestones") if isinstance(draft.get("milestones"), list) else []
+        preference = (
+            draft.get("planning_preference")
+            if isinstance(draft.get("planning_preference"), dict)
+            else {}
+        )
+        judge_score = judge.get("score") if isinstance(judge, dict) else None
+        judge_reason = judge.get("reason") if isinstance(judge, dict) else ""
+        raw_path = result.raw_output_path.as_posix() if result.raw_output_path is not None else ""
+        sections.append(
+            '<article class="case">'
+            '<header class="case-head">'
+            f"<h3>{escape(result.case_id)}</h3>"
+            f'<span class="status status-{escape(result.status.value)}">{escape(result.status.value)}</span>'
+            "</header>"
+            '<div class="turn-grid">'
+            f"<div><span>judge</span><strong>{escape(_format_number(judge_score))}</strong></div>"
+            f"<div><span>latency</span><strong>{escape(_format_ms(result.metrics.latency_ms))}</strong></div>"
+            f"<div><span>deadline</span><strong>{escape(str(goal.get('deadline') or '없음'))}</strong></div>"
+            f"<div><span>milestones</span><strong>{len(milestones)}</strong></div>"
+            "</div>"
+            f'<p class="message"><b>Goal</b><br>{escape(str(goal.get("title") or "없음"))}</p>'
+            f"{_draft_milestone_table(milestones)}"
+            f"{_detail('Planning preference', _json_text(preference))}"
+            f"{_tag_list('failure codes', _validation_codes(validation))}"
+            f"{_detail('Judge reason', judge_reason)}"
+            f"{_detail('Create payload preview', _json_text(parsed.get('create_payload_preview')))}"
+            f"{_detail('SQL preview', parsed.get('sql_preview'))}"
+            f"{_raw_link(raw_path)}"
+            "</article>"
+        )
+    sections.append("</section>")
+    return "\n".join(sections)
+
+
+def _draft_milestone_table(milestones: list[Any]) -> str:
+    if not milestones:
+        return '<p class="muted">milestone 없음</p>'
+    rows = []
+    for item in milestones:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            "<tr>"
+            f"<td>{escape(str(item.get('scheduled_date') or ''))}</td>"
+            f"<td>{escape(str(item.get('title') or ''))}</td>"
+            "</tr>"
+        )
+    return (
+        '<div class="table-wrap"><table>'
+        "<thead><tr><th>date</th><th>milestone</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody>"
+        "</table></div>"
+    )
 
 
 def _failure_section(results: list[RequestResult]) -> str:
@@ -199,8 +373,8 @@ def _turn_card(result: RequestResult) -> str:
     failure_codes = _nested(validation, "deterministic_validation", "failure_codes") or []
     raw_path = result.raw_output_path.as_posix() if result.raw_output_path is not None else ""
     user_message = parsed.get("user_message") or parsed.get("explanation") or ""
-    judge_score = judge.get("score") if isinstance(judge, dict) else None
-    judge_reason = judge.get("reason") if isinstance(judge, dict) else ""
+    judge_score = judge.get("score") if _is_completed_judge(judge) else None
+    judge_reason = judge.get("reason") if _is_completed_judge(judge) else ""
     return (
         '<section class="turn">'
         '<div class="turn-head">'
@@ -246,9 +420,26 @@ def _failure_taxonomy(results: list[RequestResult]) -> tuple[Counter[str], list[
                         }
                     )
         judge = result.parsed_output.get("explanation_judge")
-        if isinstance(judge, dict) and judge.get("is_aligned") is False:
+        if _is_completed_judge(judge) and judge.get("is_aligned") is False:
             failure_codes["JUDGE_REJECTION"] += 1
     return failure_codes, safety_rows
+
+
+def _draft_validation_failure_counts(results: list[RequestResult]) -> Counter[str]:
+    counter: Counter[str] = Counter()
+    for result in results:
+        validation = result.parsed_output.get("draft_validation")
+        if isinstance(validation, dict):
+            counter.update(
+                code
+                for code in validation.get("failure_codes", [])
+                if isinstance(code, str)
+            )
+    return counter
+
+
+def _is_completed_judge(judge: Any) -> bool:
+    return isinstance(judge, dict) and judge.get("skipped") is not True and judge.get("error") is None
 
 
 def _tag_list(label: str, values: list[Any]) -> str:
@@ -256,6 +447,20 @@ def _tag_list(label: str, values: list[Any]) -> str:
         return ""
     tags = "".join(f"<span>{escape(str(value))}</span>" for value in values)
     return f'<div class="tags"><b>{escape(label)}</b>{tags}</div>'
+
+
+def _validation_codes(validation: object) -> list[Any]:
+    if not isinstance(validation, dict):
+        return []
+    codes = validation.get("failure_codes")
+    return codes if isinstance(codes, list) else []
+
+
+def _failure_codes(validation: object) -> str:
+    codes = _validation_codes(validation)
+    if not codes:
+        return "없음"
+    return ", ".join(str(code) for code in codes)
 
 
 def _detail(summary: str, text: object) -> str:

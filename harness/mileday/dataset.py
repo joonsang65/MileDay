@@ -14,6 +14,7 @@ from harness.schemas import FailureCategory
 
 DEFAULT_DATASET_ID = "mileday-schedule"
 MULTITURN_DATASET_ID = "mileday-multiturn-schedule"
+AI_DRAFT_DATASET_ID = "mileday-ai-schedule-draft"
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 LOCALE_PATTERN = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
 TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
@@ -334,6 +335,89 @@ class MileDayMultiTurnCase(BaseModel):
         return self
 
 
+class AiDraftAvailabilityDate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str
+    available_minutes: int = Field(gt=0)
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, value: str) -> str:
+        return _valid_date(value, field_name="availability.date")
+
+
+class AiDraftExpected(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    deadline_latest: str
+    milestone_count_min: int | None = Field(default=None, ge=1)
+    milestone_count_max: int | None = Field(default=None, ge=1)
+    preferred_weekdays: list[DAY_OF_WEEK] = Field(default_factory=list)
+    intensity: Literal["relaxed", "balanced", "intensive"] | None = None
+    allow_single_milestone: bool = False
+
+    @field_validator("deadline_latest")
+    @classmethod
+    def _validate_deadline_latest(cls, value: str) -> str:
+        return _valid_date(value, field_name="expected.deadline_latest")
+
+    @model_validator(mode="after")
+    def _validate_count_bounds(self) -> "AiDraftExpected":
+        if (
+            self.milestone_count_min is not None
+            and self.milestone_count_max is not None
+            and self.milestone_count_max < self.milestone_count_min
+        ):
+            raise ValueError("milestone_count_max must be greater than or equal to milestone_count_min")
+        return self
+
+
+class AiScheduleDraftCase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_id: Literal["mileday-ai-schedule-draft"]
+    case_id: str = Field(min_length=1)
+    locale: str
+    timezone: str
+    user_prompt: str = Field(min_length=1)
+    today: str
+    availability: list[AiDraftAvailabilityDate] = Field(min_length=1)
+    expected: AiDraftExpected
+    metadata: dict[str, Any]
+
+    @field_validator("case_id", "user_prompt")
+    @classmethod
+    def _strip_nonblank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("value must not be blank")
+        return stripped
+
+    @field_validator("locale")
+    @classmethod
+    def _validate_locale(cls, value: str) -> str:
+        stripped = value.strip()
+        if not LOCALE_PATTERN.fullmatch(stripped):
+            raise ValueError("locale must use language-region format such as ko-KR")
+        return stripped
+
+    @field_validator("timezone")
+    @classmethod
+    def _validate_timezone(cls, value: str) -> str:
+        stripped = value.strip()
+        try:
+            ZoneInfo(stripped)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"timezone is not available: {stripped}") from exc
+        return stripped
+
+    @field_validator("today")
+    @classmethod
+    def _validate_today(cls, value: str) -> str:
+        return _valid_date(value, field_name="today")
+
+
 def load_mileday_generation_cases(source_path: str | Path) -> list[MileDayGenerationCase]:
     path = Path(source_path)
     rows = _load_rows(path)
@@ -370,6 +454,26 @@ def load_mileday_multiturn_cases(source_path: str | Path) -> list[MileDayMultiTu
             raise MileDayDatasetError(
                 FailureCategory.DATASET_SCHEMA_CHANGED,
                 f"Invalid MileDay multiturn case at row {index}: {exc}",
+            ) from exc
+    return cases
+
+
+def load_ai_schedule_draft_cases(source_path: str | Path) -> list[AiScheduleDraftCase]:
+    path = Path(source_path)
+    rows = _load_rows(path)
+    if not rows:
+        raise MileDayDatasetError(
+            FailureCategory.DATASET_SCHEMA_CHANGED,
+            f"MileDay AI draft dataset file contains no cases: {path}",
+        )
+    cases: list[AiScheduleDraftCase] = []
+    for index, row in enumerate(rows, start=1):
+        try:
+            cases.append(AiScheduleDraftCase.model_validate(row))
+        except ValidationError as exc:
+            raise MileDayDatasetError(
+                FailureCategory.DATASET_SCHEMA_CHANGED,
+                f"Invalid MileDay AI draft case at row {index}: {exc}",
             ) from exc
     return cases
 

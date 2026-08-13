@@ -4,11 +4,13 @@ import pytest
 
 from harness.mileday.dataset import (
     DEFAULT_DATASET_ID,
+    AI_DRAFT_DATASET_ID,
     GOAL_DB_FIELDS,
     MILESTONE_DB_FIELDS,
     MULTITURN_DATASET_ID,
     MileDayDatasetError,
     load_mileday_generation_cases,
+    load_ai_schedule_draft_cases,
     load_mileday_multiturn_cases,
     summarize_mileday_multiturn_fixture_quality,
     validate_mileday_multiturn_fixture_quality,
@@ -19,6 +21,7 @@ from harness.schemas import FailureCategory
 FIXTURE_PATH = Path("tests/fixtures/mileday/synthetic_schedule.jsonl")
 MULTITURN_FIXTURE_PATH = Path("tests/fixtures/mileday/multiturn_schedule.jsonl")
 MULTITURN_PRETTY_FIXTURE_PATH = Path("tests/fixtures/mileday/multiturn_schedule.pretty.json")
+AI_DRAFT_FIXTURE_PATH = Path("tests/fixtures/mileday/ai_schedule_draft.json")
 
 
 def test_loads_synthetic_fixture_cases_without_network_or_app_state():
@@ -40,6 +43,27 @@ def test_loads_synthetic_fixture_cases_without_network_or_app_state():
     assert cases[0].expected.latest_allowed_date == "2026-09-30"
     assert cases[0].expected.required_fields == ["title", "scheduled_date"]
     assert cases[0].metadata == {"source": "synthetic", "version": "v1", "domain": "study"}
+
+
+def test_loads_ai_schedule_draft_fixture_for_service_draft_flow():
+    cases = load_ai_schedule_draft_cases(AI_DRAFT_FIXTURE_PATH)
+
+    assert len(cases) == 30
+    assert cases[0].dataset_id == AI_DRAFT_DATASET_ID
+    assert cases[0].case_id == "draft-001"
+    assert cases[0].timezone == "Asia/Seoul"
+    assert cases[0].expected.milestone_count_min == 3
+    assert cases[0].expected.milestone_count_max == 5
+    assert cases[0].expected.intensity == "relaxed"
+    assert cases[0].expected.preferred_weekdays == ["saturday", "sunday"]
+    assert {case.metadata["group"] for case in cases} == {
+        "availability",
+        "basic",
+        "count",
+        "edge",
+        "intensity",
+        "weekday",
+    }
 
 
 def test_loads_multiturn_fixture_with_db_payload_contract_and_required_judge():

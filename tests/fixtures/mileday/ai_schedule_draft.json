@@ -1,0 +1,696 @@
+[
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-001",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "9월 말까지 데이터 분석 과제를 끝내고 싶어. 주말 위주로 3~5개 정도만 너무 빡빡하지 않게 잡아줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-22", "available_minutes": 240},
+      {"date": "2026-08-29", "available_minutes": 300},
+      {"date": "2026-09-06", "available_minutes": 240},
+      {"date": "2026-09-13", "available_minutes": 300},
+      {"date": "2026-09-27", "available_minutes": 240}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-30",
+      "milestone_count_min": 3,
+      "milestone_count_max": 5,
+      "preferred_weekdays": ["saturday", "sunday"],
+      "intensity": "relaxed",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "basic", "domain": "study"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-002",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "10월 20일까지 포트폴리오 사이트 1차 버전을 만들고 싶어. 평일 저녁 중심으로 적당히 나눠줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-31", "available_minutes": 120},
+      {"date": "2026-09-07", "available_minutes": 150},
+      {"date": "2026-09-21", "available_minutes": 180},
+      {"date": "2026-10-05", "available_minutes": 180},
+      {"date": "2026-10-19", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-10-20",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["monday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "basic", "domain": "portfolio"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-003",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "11월 중순 발표 준비를 해야 해. 자료 조사부터 리허설까지 자연스럽게 이어지게 해줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-02", "available_minutes": 90},
+      {"date": "2026-09-16", "available_minutes": 120},
+      {"date": "2026-10-07", "available_minutes": 180},
+      {"date": "2026-10-28", "available_minutes": 150},
+      {"date": "2026-11-11", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-11-15",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "basic", "domain": "presentation"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-004",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "12월 18일까지 자격증 실기 준비를 끝내야 해. 핵심 연습 위주로 초안을 만들어줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-05", "available_minutes": 240},
+      {"date": "2026-10-03", "available_minutes": 300},
+      {"date": "2026-10-31", "available_minutes": 240},
+      {"date": "2026-11-28", "available_minutes": 300},
+      {"date": "2026-12-12", "available_minutes": 240}
+    ],
+    "expected": {
+      "deadline_latest": "2026-12-18",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["saturday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "basic", "domain": "certification"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-005",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "내년 1월 말까지 졸업 논문 초안을 쓰고 싶어. 조사, 목차, 본문, 검토 단계로 나눠줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-14", "available_minutes": 180},
+      {"date": "2026-10-12", "available_minutes": 180},
+      {"date": "2026-11-09", "available_minutes": 240},
+      {"date": "2026-12-14", "available_minutes": 240},
+      {"date": "2027-01-20", "available_minutes": 180}
+    ],
+    "expected": {
+      "deadline_latest": "2027-01-31",
+      "milestone_count_min": 4,
+      "milestone_count_max": 5,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "basic", "domain": "writing"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-006",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "9월 25일까지 팀 프로젝트 기획안을 만들 거야. 역할 정리와 최종 제출까지 빠지지 않게 잡아줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-25", "available_minutes": 120},
+      {"date": "2026-09-01", "available_minutes": 150},
+      {"date": "2026-09-08", "available_minutes": 150},
+      {"date": "2026-09-15", "available_minutes": 180},
+      {"date": "2026-09-22", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-25",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["tuesday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "basic", "domain": "project"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-007",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "10월 15일까지 알고리즘 스터디 계획을 딱 3개 마일스톤으로 만들어줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-26", "available_minutes": 90},
+      {"date": "2026-09-09", "available_minutes": 120},
+      {"date": "2026-09-23", "available_minutes": 120},
+      {"date": "2026-10-14", "available_minutes": 90}
+    ],
+    "expected": {
+      "deadline_latest": "2026-10-15",
+      "milestone_count_min": 3,
+      "milestone_count_max": 3,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "count", "domain": "study"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-008",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "11월 말까지 영어 면접 준비를 4~6개 정도로 나눠줘. 너무 촘촘하진 않았으면 해.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-03", "available_minutes": 120},
+      {"date": "2026-09-17", "available_minutes": 120},
+      {"date": "2026-10-01", "available_minutes": 150},
+      {"date": "2026-10-22", "available_minutes": 150},
+      {"date": "2026-11-12", "available_minutes": 150},
+      {"date": "2026-11-26", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-11-30",
+      "milestone_count_min": 4,
+      "milestone_count_max": 6,
+      "preferred_weekdays": [],
+      "intensity": "relaxed",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "count", "domain": "career"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-009",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "9월 18일까지 독서 모임 발제를 2개 일정으로만 준비하고 싶어.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-28", "available_minutes": 90},
+      {"date": "2026-09-11", "available_minutes": 120},
+      {"date": "2026-09-18", "available_minutes": 60}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-18",
+      "milestone_count_min": 2,
+      "milestone_count_max": 2,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "count", "domain": "reading"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-010",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "내년 2월까지 앱 출시 준비를 5개 마일스톤으로 정리해줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-21", "available_minutes": 180},
+      {"date": "2026-10-19", "available_minutes": 180},
+      {"date": "2026-11-23", "available_minutes": 240},
+      {"date": "2026-12-21", "available_minutes": 240},
+      {"date": "2027-01-18", "available_minutes": 180},
+      {"date": "2027-02-15", "available_minutes": 180}
+    ],
+    "expected": {
+      "deadline_latest": "2027-02-28",
+      "milestone_count_min": 5,
+      "milestone_count_max": 5,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "count", "domain": "product"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-011",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "9월 6일까지 짧은 발표 준비라서 1~2개 일정이면 충분해.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-23", "available_minutes": 80},
+      {"date": "2026-09-06", "available_minutes": 80}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-06",
+      "milestone_count_min": 1,
+      "milestone_count_max": 2,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": true
+    },
+    "metadata": {"group": "count", "domain": "presentation"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-012",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "토요일이나 일요일 중 가능한 날 위주로 블로그 리뉴얼 계획을 잡아줘. 10월 말까지면 돼.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-05", "available_minutes": 180},
+      {"date": "2026-09-12", "available_minutes": 180},
+      {"date": "2026-10-04", "available_minutes": 240},
+      {"date": "2026-10-18", "available_minutes": 240}
+    ],
+    "expected": {
+      "deadline_latest": "2026-10-31",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["saturday", "sunday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "weekday", "domain": "portfolio"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-013",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "월수금 중에 가능한 날을 골라서 운동 루틴 만들기 계획을 세워줘. 9월 말까지.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-24", "available_minutes": 60},
+      {"date": "2026-09-02", "available_minutes": 60},
+      {"date": "2026-09-11", "available_minutes": 90},
+      {"date": "2026-09-21", "available_minutes": 90}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-30",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["monday", "wednesday", "friday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "weekday", "domain": "health"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-014",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "평일 중 가능한 날로만 12월 초까지 회계 시험 준비 일정을 추천해줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-14", "available_minutes": 120},
+      {"date": "2026-10-05", "available_minutes": 150},
+      {"date": "2026-10-28", "available_minutes": 150},
+      {"date": "2026-11-18", "available_minutes": 180},
+      {"date": "2026-11-30", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-12-05",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "weekday", "domain": "certification"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-015",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "화목토 중에서 여행 준비 일정을 잡아줘. 11월 20일 출발 전까지 끝내고 싶어.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-03", "available_minutes": 90},
+      {"date": "2026-09-19", "available_minutes": 180},
+      {"date": "2026-10-06", "available_minutes": 120},
+      {"date": "2026-10-24", "available_minutes": 180},
+      {"date": "2026-11-12", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-11-20",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["tuesday", "thursday", "saturday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "weekday", "domain": "travel"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-016",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "가능하면 금요일에 몰아서 10월 9일까지 과제 제출 준비를 끝내고 싶어.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-28", "available_minutes": 120},
+      {"date": "2026-09-11", "available_minutes": 150},
+      {"date": "2026-09-25", "available_minutes": 150},
+      {"date": "2026-10-09", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-10-09",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["friday"],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "weekday", "domain": "study"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-017",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "내년 3월까지 머신러닝 기초를 여유 있게 익히고 싶어. 일정 사이 간격이 있었으면 해.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-20", "available_minutes": 240},
+      {"date": "2026-10-25", "available_minutes": 240},
+      {"date": "2026-11-29", "available_minutes": 240},
+      {"date": "2027-01-10", "available_minutes": 240},
+      {"date": "2027-02-21", "available_minutes": 240}
+    ],
+    "expected": {
+      "deadline_latest": "2027-03-01",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": ["sunday"],
+      "intensity": "relaxed",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "intensity", "domain": "study"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-018",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "9월 10일까지 급하게 공모전 제출 준비를 끝내야 해. 가능한 빠르게 앞쪽 일정으로 잡아줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-17", "available_minutes": 180},
+      {"date": "2026-08-24", "available_minutes": 180},
+      {"date": "2026-08-31", "available_minutes": 150},
+      {"date": "2026-09-07", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-10",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "intensive",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "intensity", "domain": "contest"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-019",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "12월 말까지 개인 프로젝트를 무리하지 않는 속도로 진행하고 싶어.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-06", "available_minutes": 180},
+      {"date": "2026-10-04", "available_minutes": 180},
+      {"date": "2026-11-01", "available_minutes": 180},
+      {"date": "2026-12-06", "available_minutes": 180},
+      {"date": "2026-12-27", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-12-31",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "relaxed",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "intensity", "domain": "product"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-020",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "10월 말까지 자료구조 복습을 균형 있게 진행하고 싶어.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-01", "available_minutes": 120},
+      {"date": "2026-09-15", "available_minutes": 120},
+      {"date": "2026-09-29", "available_minutes": 120},
+      {"date": "2026-10-13", "available_minutes": 120},
+      {"date": "2026-10-27", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-10-31",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "intensity", "domain": "study"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-021",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "이번 달 안에 채용 과제 구현을 빠르게 끝내야 해. 초반에 집중해서 잡아줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-15", "available_minutes": 300},
+      {"date": "2026-08-17", "available_minutes": 180},
+      {"date": "2026-08-22", "available_minutes": 240},
+      {"date": "2026-08-29", "available_minutes": 180}
+    ],
+    "expected": {
+      "deadline_latest": "2026-08-31",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "intensive",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "intensity", "domain": "career"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-022",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "가용 날짜 안에서만 9월 말까지 수학 문제풀이 계획을 만들어줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-20", "available_minutes": 90},
+      {"date": "2026-09-03", "available_minutes": 90},
+      {"date": "2026-09-17", "available_minutes": 90}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-30",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "availability", "domain": "study"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-023",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "11월 초까지 깃허브 README랑 배포 문서를 정리해야 해. 가능한 날짜 중에서만 골라줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-10", "available_minutes": 90},
+      {"date": "2026-10-01", "available_minutes": 120},
+      {"date": "2026-10-22", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-11-05",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "availability", "domain": "portfolio"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-024",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "가용한 날이 별로 없으니까 10월 4일까지 발표 자료 준비를 그 안에서만 잡아줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-06", "available_minutes": 150},
+      {"date": "2026-10-04", "available_minutes": 180}
+    ],
+    "expected": {
+      "deadline_latest": "2026-10-04",
+      "milestone_count_min": 1,
+      "milestone_count_max": 2,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": true
+    },
+    "metadata": {"group": "availability", "domain": "presentation"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-025",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "내년 4월까지 백엔드 리팩토링 계획을 세우되, 내가 준 날짜 밖으로는 잡지 마.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-10-14", "available_minutes": 180},
+      {"date": "2026-12-16", "available_minutes": 180},
+      {"date": "2027-02-10", "available_minutes": 240},
+      {"date": "2027-04-14", "available_minutes": 180}
+    ],
+    "expected": {
+      "deadline_latest": "2027-04-30",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "availability", "domain": "engineering"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-026",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "9월 13일까지 짧게 자기소개서 초안을 만들고 검토하고 싶어. 가능한 날짜 안에서만.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-30", "available_minutes": 120},
+      {"date": "2026-09-13", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-09-13",
+      "milestone_count_min": 2,
+      "milestone_count_max": 2,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "availability", "domain": "career"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-027",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "8월 말까지 서류 하나만 제출하면 돼. 너무 거창하게 만들지 말고 간단하게 해줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-21", "available_minutes": 60},
+      {"date": "2026-08-28", "available_minutes": 60}
+    ],
+    "expected": {
+      "deadline_latest": "2026-08-31",
+      "milestone_count_min": 1,
+      "milestone_count_max": 2,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": true
+    },
+    "metadata": {"group": "edge", "domain": "admin"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-028",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "정확한 마감일은 말 안 했지만 10월 안에는 블로그 글 세 편을 준비하고 싶어.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-09-12", "available_minutes": 120},
+      {"date": "2026-09-26", "available_minutes": 120},
+      {"date": "2026-10-10", "available_minutes": 120},
+      {"date": "2026-10-24", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-10-31",
+      "milestone_count_min": 3,
+      "milestone_count_max": 3,
+      "preferred_weekdays": [],
+      "intensity": "balanced",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "edge", "domain": "writing"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-029",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "이번 주말에 방 정리 계획을 하나나 두 개 정도만 추천해줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-08-15", "available_minutes": 150},
+      {"date": "2026-08-16", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2026-08-16",
+      "milestone_count_min": 1,
+      "milestone_count_max": 2,
+      "preferred_weekdays": ["saturday", "sunday"],
+      "intensity": "balanced",
+      "allow_single_milestone": true
+    },
+    "metadata": {"group": "edge", "domain": "life"}
+  },
+  {
+    "dataset_id": "mileday-ai-schedule-draft",
+    "case_id": "draft-030",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "user_prompt": "내년 8월까지 장기적으로 영어 회화 실력을 올리고 싶어. 너무 빡빡하지 않게 큰 단계만 잡아줘.",
+    "today": "2026-08-14",
+    "availability": [
+      {"date": "2026-10-04", "available_minutes": 120},
+      {"date": "2026-12-06", "available_minutes": 120},
+      {"date": "2027-02-07", "available_minutes": 120},
+      {"date": "2027-04-04", "available_minutes": 120},
+      {"date": "2027-06-06", "available_minutes": 120},
+      {"date": "2027-08-01", "available_minutes": 120}
+    ],
+    "expected": {
+      "deadline_latest": "2027-08-31",
+      "milestone_count_min": null,
+      "milestone_count_max": null,
+      "preferred_weekdays": [],
+      "intensity": "relaxed",
+      "allow_single_milestone": false
+    },
+    "metadata": {"group": "edge", "domain": "language"}
+  }
+]
