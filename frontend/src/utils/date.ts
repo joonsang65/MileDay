@@ -22,17 +22,21 @@ export function parseDateKey(value: string): Date {
   return parseISO(value);
 }
 
-export function getMonthLabel(value: Date): string {
-  return format(value, "yyyy.MM");
+export function getMonthLabel(value: Date, language: "ko" | "en" = "ko"): string {
+  return language === "en" ? format(value, "MMM yyyy") : format(value, "yyyy.MM");
 }
 
-export function getWeekLabel(startDate: Date): string {
+export function getWeekLabel(startDate: Date, language: "ko" | "en" = "ko"): string {
   const endDate = addDays(startDate, 6);
-  return `${format(startDate, "MM.dd")} - ${format(endDate, "MM.dd")}`;
+  return language === "en"
+    ? `${format(startDate, "MMM d")} - ${format(endDate, "MMM d")}`
+    : `${format(startDate, "MM.dd")} - ${format(endDate, "MM.dd")}`;
 }
 
-export function getWeekdayLabels(weekStartsOn: 0 | 1): string[] {
-  const labels = ["일", "월", "화", "수", "목", "금", "토"];
+export function getWeekdayLabels(weekStartsOn: 0 | 1, language: "ko" | "en" = "ko"): string[] {
+  const labels = language === "en"
+    ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    : ["일", "월", "화", "수", "목", "금", "토"];
   return weekStartsOn === 0 ? labels : [...labels.slice(1), labels[0]];
 }
 

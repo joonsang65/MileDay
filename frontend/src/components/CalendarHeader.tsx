@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Settings } from "lucide-react";
 
 import type { Language } from "@/api/types";
 import type { CalendarMode } from "@/store/calendarStore";
@@ -6,12 +6,10 @@ import type { CalendarMode } from "@/store/calendarStore";
 type CalendarHeaderProps = {
   label: string;
   mode: CalendarMode;
-  isLoading: boolean;
   onModeChange: (mode: CalendarMode) => void;
   onPrevious: () => void;
   onNext: () => void;
   onToday: () => void;
-  onRefresh: () => void;
   onOpenSettings: () => void;
   onOpenQuickMenu: () => void;
   language: Language;
@@ -20,12 +18,10 @@ type CalendarHeaderProps = {
 export function CalendarHeader({
   label,
   mode,
-  isLoading,
   onModeChange,
   onPrevious,
   onNext,
   onToday,
-  onRefresh,
   onOpenSettings,
   onOpenQuickMenu,
   language,
@@ -33,12 +29,11 @@ export function CalendarHeader({
   const text = language === "en"
     ? {
         modeLabel: "Calendar view",
-        month: "Month",
-        week: "Week",
+        month: "MO",
+        week: "WK",
         today: "Today",
         previous: "Previous",
         next: "Next",
-        refresh: "Refresh",
         settings: "Settings",
         add: "Add schedule",
       }
@@ -49,7 +44,6 @@ export function CalendarHeader({
         today: "오늘",
         previous: "이전",
         next: "다음",
-        refresh: "새로고침",
         settings: "설정",
         add: "일정 만들기",
       };
@@ -57,7 +51,6 @@ export function CalendarHeader({
   return (
     <header className="app-header">
       <div className="header-title">
-        <p className="eyebrow">MILEDAY</p>
         <h1>{label}</h1>
       </div>
       <div className="header-actions">
@@ -87,19 +80,10 @@ export function CalendarHeader({
         <button type="button" className="icon-button" onClick={onNext} title={text.next}>
           <ChevronRight size={18} aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          className="icon-button"
-          onClick={onRefresh}
-          disabled={isLoading}
-          title={text.refresh}
-        >
-          <RefreshCw size={17} aria-hidden="true" />
-        </button>
-        <button type="button" className="icon-button" onClick={onOpenSettings} title={text.settings}>
+        <button type="button" className="icon-button" data-testid="settings-button" onClick={onOpenSettings} title={text.settings}>
           <Settings size={17} aria-hidden="true" />
         </button>
-        <button type="button" className="add-button" onClick={onOpenQuickMenu} title={text.add}>
+        <button type="button" className="add-button" data-testid="quick-add-button" onClick={onOpenQuickMenu} title={text.add}>
           <Plus size={19} aria-hidden="true" />
         </button>
       </div>

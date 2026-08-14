@@ -7,6 +7,9 @@ type FloatingPanelProps = {
   footer?: ReactNode;
   onClose: () => void;
   labelledBy?: string;
+  placement?: "side" | "center";
+  chrome?: "banded" | "plain";
+  closeLabel?: string;
 };
 
 export function FloatingPanel({
@@ -15,13 +18,16 @@ export function FloatingPanel({
   footer,
   onClose,
   labelledBy = "floating-panel-title",
+  placement = "side",
+  chrome = "banded",
+  closeLabel = "닫기",
 }: FloatingPanelProps) {
   return (
-    <div className="floating-layer" role="presentation">
-      <section className="floating-panel" role="dialog" aria-modal="false" aria-labelledby={labelledBy}>
+    <div className={`floating-layer ${placement}`} role="presentation">
+      <section className={`floating-panel ${chrome}`} role="dialog" aria-modal="false" aria-labelledby={labelledBy}>
         <header className="floating-panel-header">
           <h2 id={labelledBy}>{title}</h2>
-          <button type="button" className="icon-button compact-icon" onClick={onClose} title="닫기">
+          <button type="button" className="icon-button compact-icon" onClick={onClose} title={closeLabel}>
             <X size={16} aria-hidden="true" />
           </button>
         </header>

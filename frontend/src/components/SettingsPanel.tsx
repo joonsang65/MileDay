@@ -1,16 +1,24 @@
 import { FormEvent, useEffect, useState } from "react";
-import { LogOut, Save, X } from "lucide-react";
+import { ExternalLink, LogOut, Save } from "lucide-react";
 
 import type { CalendarView, HolidayDisplay, Language, UserSettings, UserSettingsUpdatePayload } from "@/api/types";
 
+type LocalUiSettings = {
+  baseFontSize: number;
+  goalFontSize: number;
+  resizeEnabled: boolean;
+};
+
 type SettingsPanelProps = {
   settings: UserSettings;
+  localUiSettings?: LocalUiSettings;
   isLoading: boolean;
   autoLaunch?: {
     get: () => Promise<{ openAtLogin: boolean }>;
     set: (openAtLogin: boolean) => Promise<{ openAtLogin: boolean }>;
   };
   onSave: (payload: UserSettingsUpdatePayload) => Promise<void>;
+  onLocalUiSettingsChange?: (payload: Partial<LocalUiSettings>) => Promise<void>;
   onClose: () => void;
   onLogout: () => void;
 };
@@ -31,11 +39,17 @@ const labels = {
     language: "언어",
     korean: "한국어",
     english: "English",
-    autoLaunch: "Windows 시작 시 자동 실행",
+    baseFontSize: "기본 글자 크기(px)",
+    goalFontSize: "목표 글자 크기(px)",
+    resizeEnabled: "창 크기 조정",
+    resizeHint: "켜져 있을 때만 창 모서리를 마우스로 잡아 크기를 조정할 수 있습니다.",
+    autoLaunch: "컴퓨터 시작 시 자동 실행",
+    autoLaunchHint: "컴퓨터를 켜면 MileDay가 자동으로 시작됩니다.",
     autoLaunchUnavailable: "현재 실행 환경에서는 자동 실행 설정을 사용할 수 없습니다.",
     autoLaunchError: "자동 실행 설정을 변경하지 못했습니다.",
     save: "저장",
     saving: "저장 중",
+    survey: "MVP 설문 참여",
     close: "닫기",
     logout: "로그아웃",
   },
@@ -52,30 +66,42 @@ const labels = {
     sunday: "Sunday",
     monday: "Monday",
     language: "Language",
-    korean: "한국어",
+    korean: "Korean",
     english: "English",
+    baseFontSize: "Base font size (px)",
+    goalFontSize: "Goal font size (px)",
+    resizeEnabled: "Window resizing",
+    resizeHint: "When enabled, drag a window edge or corner to resize the widget.",
     autoLaunch: "Open at Windows login",
+    autoLaunchHint: "MileDay opens automatically after you turn on this computer and sign in.",
     autoLaunchUnavailable: "Auto launch is unavailable in this runtime.",
     autoLaunchError: "Could not update auto launch.",
     save: "Save",
     saving: "Saving",
+    survey: "Open MVP survey",
     close: "Close",
     logout: "Log out",
   },
 };
 
+const SURVEY_URL = "https://forms.gle/TKJzzzX1y39eFNDWA";
+
 export function SettingsPanel({
   settings,
+  localUiSettings = { baseFontSize: 14, goalFontSize: 13, resizeEnabled: false },
   isLoading,
   autoLaunch = window.mileday?.autoLaunch,
   onSave,
-  onClose,
+  onLocalUiSettingsChange,
   onLogout,
 }: SettingsPanelProps) {
   const [calendarView, setCalendarView] = useState<CalendarView>(settings.calendar_view);
   const [holidayDisplay, setHolidayDisplay] = useState<HolidayDisplay>(settings.holiday_display);
   const [weekStartsOn, setWeekStartsOn] = useState<0 | 1>(settings.week_starts_on);
   const [language, setLanguage] = useState<Language>(settings.language);
+  const [baseFontSize, setBaseFontSize] = useState(localUiSettings.baseFontSize);
+  const [goalFontSize, setGoalFontSize] = useState(localUiSettings.goalFontSize);
+  const [resizeEnabled, setResizeEnabled] = useState(localUiSettings.resizeEnabled);
   const [openAtLogin, setOpenAtLogin] = useState(false);
   const [isAutoLaunchLoading, setIsAutoLaunchLoading] = useState(false);
   const [autoLaunchMessage, setAutoLaunchMessage] = useState<string | null>(null);
@@ -89,9 +115,15 @@ export function SettingsPanel({
   }, [settings]);
 
   useEffect(() => {
+    setBaseFontSize(localUiSettings.baseFontSize);
+    setGoalFontSize(localUiSettings.goalFontSize);
+    setResizeEnabled(localUiSettings.resizeEnabled);
+  }, [localUiSettings]);
+
+  useEffect(() => {
     let isMounted = true;
     if (!autoLaunch) {
-      setAutoLaunchMessage("현재 실행 환경에서는 자동 실행 설정을 사용할 수 없습니다.");
+      setAutoLaunchMessage(text.autoLaunchUnavailable);
       return;
     }
 
@@ -106,7 +138,7 @@ export function SettingsPanel({
       })
       .catch(() => {
         if (isMounted) {
-          setAutoLaunchMessage("자동 실행 설정을 변경하지 못했습니다.");
+          setAutoLaunchMessage(text.autoLaunchError);
         }
       })
       .finally(() => {
@@ -148,20 +180,29 @@ export function SettingsPanel({
     }
   }
 
+  async function handleBaseFontSizeChange(nextValue: string) {
+    const value = Number(nextValue);
+    setBaseFontSize(value);
+    if (Number.isFinite(value)) {
+      await onLocalUiSettingsChange?.({ baseFontSize: value });
+    }
+  }
+
+  async function handleGoalFontSizeChange(nextValue: string) {
+    const value = Number(nextValue);
+    setGoalFontSize(value);
+    if (Number.isFinite(value)) {
+      await onLocalUiSettingsChange?.({ goalFontSize: value });
+    }
+  }
+
+  async function handleResizeEnabledChange(nextValue: boolean) {
+    setResizeEnabled(nextValue);
+    await onLocalUiSettingsChange?.({ resizeEnabled: nextValue });
+  }
+
   return (
     <section className="settings-panel" aria-label={text.title}>
-      <div className="panel-heading">
-        <h2>{text.title}</h2>
-        <button
-          type="button"
-          className="icon-button compact-icon"
-          onClick={onClose}
-          title={text.close}
-          disabled={isLoading}
-        >
-          <X size={15} aria-hidden="true" />
-        </button>
-      </div>
       <form className="settings-form" onSubmit={handleSubmit}>
         <label>
           {text.calendarView}
@@ -208,6 +249,42 @@ export function SettingsPanel({
             <option value="en">{text.english}</option>
           </select>
         </label>
+        <label>
+          {text.baseFontSize}
+          <input
+            type="number"
+            min={10}
+            max={32}
+            step={1}
+            value={baseFontSize}
+            disabled={isLoading}
+            onChange={(event) => void handleBaseFontSizeChange(event.target.value)}
+          />
+        </label>
+        <label>
+          {text.goalFontSize}
+          <input
+            type="number"
+            min={10}
+            max={32}
+            step={1}
+            value={goalFontSize}
+            disabled={isLoading}
+            onChange={(event) => void handleGoalFontSizeChange(event.target.value)}
+          />
+        </label>
+        <label className="toggle-row settings-toggle-row">
+          <input
+            type="checkbox"
+            checked={resizeEnabled}
+            disabled={isLoading || !onLocalUiSettingsChange}
+            onChange={(event) => void handleResizeEnabledChange(event.target.checked)}
+          />
+          <span>
+            <strong>{text.resizeEnabled}</strong>
+            <small>{text.resizeHint}</small>
+          </span>
+        </label>
         <label className="toggle-row settings-toggle-row">
           <input
             type="checkbox"
@@ -215,7 +292,10 @@ export function SettingsPanel({
             disabled={isAutoLaunchLoading || !autoLaunch}
             onChange={(event) => void handleAutoLaunchChange(event.target.checked)}
           />
-          {text.autoLaunch}
+          <span>
+            <strong>{text.autoLaunch}</strong>
+            <small>{text.autoLaunchHint}</small>
+          </span>
         </label>
         {autoLaunchMessage ? <p className="muted-text">{autoLaunchMessage}</p> : null}
         <button type="submit" className="primary-button compact" disabled={isLoading}>
@@ -223,6 +303,10 @@ export function SettingsPanel({
           {isLoading ? text.saving : text.save}
         </button>
       </form>
+      <a className="survey-button" href={SURVEY_URL} target="_blank" rel="noreferrer">
+        <ExternalLink size={16} aria-hidden="true" />
+        {text.survey}
+      </a>
       <button type="button" className="danger-button settings-logout" onClick={onLogout} disabled={isLoading}>
         <LogOut size={15} aria-hidden="true" />
         {text.logout}
