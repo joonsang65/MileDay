@@ -3,6 +3,12 @@ from __future__ import annotations
 from repositories.calendar import CalendarRepository
 
 
+GOAL_SELECT_COLUMNS = "id,user_id,title,deadline,is_recurring,recurrence_type,color,created_at,updated_at"
+MILESTONE_SELECT_COLUMNS = (
+    "id,goal_id,user_id,title,color,scheduled_date,is_completed,created_at,updated_at,goals(title)"
+)
+
+
 class FakeResponse:
     def __init__(self, data):
         self.data = data
@@ -77,7 +83,7 @@ def test_calendar_repository_applies_goal_deadline_range_filters() -> None:
     table_name, query = latest_query(client)
     assert table_name == "goals"
     assert query.calls == [
-        ("select", "*"),
+        ("select", GOAL_SELECT_COLUMNS),
         ("eq", "user_id", "user-1"),
         ("gte", "deadline", "2026-07-01"),
         ("lte", "deadline", "2026-07-31"),
@@ -98,7 +104,7 @@ def test_calendar_repository_applies_milestone_scheduled_date_range_filters() ->
     table_name, query = latest_query(client)
     assert table_name == "milestones"
     assert query.calls == [
-        ("select", "*, goals(title)"),
+        ("select", MILESTONE_SELECT_COLUMNS),
         ("eq", "user_id", "user-1"),
         ("gte", "scheduled_date", "2026-07-01"),
         ("lte", "scheduled_date", "2026-07-31"),
@@ -117,7 +123,7 @@ def test_calendar_repository_applies_exact_date_filters() -> None:
     table_name, query = latest_query(client)
     assert table_name == "goals"
     assert query.calls == [
-        ("select", "*"),
+        ("select", GOAL_SELECT_COLUMNS),
         ("eq", "user_id", "user-1"),
         ("eq", "deadline", "2026-07-10"),
         ("order", "created_at"),
@@ -130,7 +136,7 @@ def test_calendar_repository_applies_exact_date_filters() -> None:
     table_name, query = latest_query(client)
     assert table_name == "milestones"
     assert query.calls == [
-        ("select", "*, goals(title)"),
+        ("select", MILESTONE_SELECT_COLUMNS),
         ("eq", "user_id", "user-1"),
         ("eq", "scheduled_date", "2026-07-10"),
         ("order", "created_at"),

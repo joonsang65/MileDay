@@ -13,20 +13,23 @@ await runPerfFlow({
   runIteration: async ({ page, markApiStart }) => {
     const panel = await openSettingsPanel(page);
     const firstWeekday = page.locator(".weekday-row span").first();
-    const currentFirstWeekday = (await firstWeekday.textContent())?.trim();
-    const nextWeekStart = currentFirstWeekday === "일" ? "1" : "0";
-    const expectedFirstWeekday = nextWeekStart === "1" ? "월" : "일";
+    const currentFirstWeekday = (await firstWeekday.textContent())?.trim() ?? "";
+    const weekStartSelect = panel.locator(".settings-form select").nth(2);
+    const currentWeekStart = await weekStartSelect.inputValue();
+    const nextWeekStart = currentWeekStart === "1" ? "0" : "1";
 
-    await panel.locator(".settings-form select").nth(2).selectOption(nextWeekStart);
+    await weekStartSelect.selectOption(nextWeekStart);
 
     markApiStart();
     const startedAt = performance.now();
     await Promise.all([
-      firstWeekday.filter({ hasText: expectedFirstWeekday }).waitFor({
-        state: "visible",
-        timeout: config.timeoutMs,
-      }),
-      panel.getByRole("button", { name: /저장|Save|저장 중|Saving/ }).click(),
+      page.waitForFunction(
+        ({ previous }) =>
+          document.querySelector(".weekday-row span")?.textContent?.trim() !== previous,
+        { previous: currentFirstWeekday },
+        { timeout: config.timeoutMs },
+      ),
+      panel.getByRole("button", { name: /저장|Save|Saving/ }).click(),
     ]);
 
     return {

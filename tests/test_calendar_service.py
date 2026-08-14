@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from services.calendar_service import CalendarService
+from services.calendar_service import CalendarService, clear_month_calendar_cache
 
 
 def goal_row(**overrides):
@@ -190,3 +190,34 @@ def test_calendar_service_builds_week_days_from_start_date() -> None:
         ("goals", "user-1", "2026-07-08", "2026-07-14"),
         ("milestones", "user-1", "2026-07-08", "2026-07-14"),
     ]
+
+
+def test_calendar_service_returns_cached_month_when_refresh_fails() -> None:
+    clear_month_calendar_cache()
+    repository = InMemoryCalendarRepository()
+    service = CalendarService(repository=repository, holiday_service=FakeHolidayService())
+
+    first = service.get_month_calendar(
+        user_id="user-1",
+        year=2026,
+        month=7,
+        today=date(2026, 7, 10),
+    )
+
+    class FailingCalendarRepository(InMemoryCalendarRepository):
+        def list_goals_by_deadline_range(self, *, user_id, start_date, end_date):
+            raise RuntimeError("RemoteProtocolError: server disconnected")
+
+    failing_service = CalendarService(
+        repository=FailingCalendarRepository(),
+        holiday_service=FakeHolidayService(),
+    )
+
+    fallback = failing_service.get_month_calendar(
+        user_id="user-1",
+        year=2026,
+        month=7,
+        today=date(2026, 7, 10),
+    )
+
+    assert fallback == first

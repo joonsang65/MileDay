@@ -79,6 +79,47 @@ def test_supabase_db_health_checks_goal_columns_used_by_app(
     ]
 
 
+def test_execute_supabase_read_retries_connection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.supabase as supabase_module
+
+    class RemoteProtocolError(Exception):
+        pass
+
+    calls = {"operation": 0, "reset": 0}
+
+    def flaky_operation():
+        calls["operation"] += 1
+        if calls["operation"] == 1:
+            raise RemoteProtocolError("server disconnected")
+        return "ok"
+
+    def fake_reset() -> None:
+        calls["reset"] += 1
+
+    monkeypatch.setattr(supabase_module, "reset_supabase_admin_client", fake_reset)
+    monkeypatch.setattr(supabase_module.time, "sleep", lambda _: None)
+
+    assert supabase_module.execute_supabase_read(flaky_operation) == "ok"
+    assert calls == {"operation": 2, "reset": 1}
+
+
+def test_execute_supabase_read_does_not_retry_non_transient_errors() -> None:
+    import core.supabase as supabase_module
+
+    calls = {"operation": 0}
+
+    def failing_operation():
+        calls["operation"] += 1
+        raise ValueError("bad query")
+
+    with pytest.raises(ValueError, match="bad query"):
+        supabase_module.execute_supabase_read(failing_operation)
+
+    assert calls == {"operation": 1}
+
+
 def test_supabase_admin_client_requires_service_role_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

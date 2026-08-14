@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from functools import lru_cache
 from typing import Any
 from urllib.parse import quote, urlencode
 from urllib.request import urlopen
@@ -158,5 +159,6 @@ class HolidayService:
         return months
 
 
+@lru_cache
 def get_holiday_service() -> HolidayService:
     return HolidayService()

@@ -54,6 +54,7 @@ class FakeAuthClient:
         self.get_user_response: dict | None = None
         self.login_error: Exception | None = None
         self.get_user_error: Exception | None = None
+        self.get_user_errors: list[Exception] = []
 
     def sign_up(self, payload: dict[str, str]) -> dict:
         self.sign_up_payload = payload
@@ -74,6 +75,8 @@ class FakeAuthClient:
 
     def get_user(self, token: str) -> dict:
         self.user_token = token
+        if self.get_user_errors:
+            raise self.get_user_errors.pop(0)
         if self.get_user_error:
             raise self.get_user_error
         return self.get_user_response or {
@@ -168,6 +171,21 @@ def test_get_user_maps_invalid_expired_and_unavailable_tokens() -> None:
     client.auth.get_user_error = FakeAuthError("upstream timeout", status=503)
     with pytest.raises(SupabaseUnavailableError):
         service.get_user("access-token")
+
+
+def test_get_user_retries_retryable_auth_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeSupabaseClient()
+    service = AuthService(client)
+    sleeps: list[float] = []
+    client.auth.get_user_errors = [
+        FakeAuthError("RemoteProtocolError: server disconnected", status=503),
+    ]
+    monkeypatch.setattr("services.auth_service.time.sleep", sleeps.append)
+
+    user = service.get_user("access-token")
+
+    assert user.id == "user-1"
+    assert sleeps == [0.1]
 
 
 def test_get_user_rejects_empty_or_missing_user_data() -> None:

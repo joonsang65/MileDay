@@ -77,6 +77,7 @@ export async function runPerfFlow({
           ...result,
           duration_ms: durationMs,
           api: tracker.events.slice(apiStartIndex),
+          api_summary: summarizeApiAttempts(tracker.events.slice(apiStartIndex)),
           created_at: createdAt,
         });
         console.log(`[${iteration}/${config.iterations}] ${durationMs}ms ${result.label ?? ""}`.trim());
@@ -87,6 +88,7 @@ export async function runPerfFlow({
           flow,
           iteration,
           api: tracker.events.slice(apiStartIndex),
+          api_summary: summarizeApiAttempts(tracker.events.slice(apiStartIndex)),
           error: getErrorText(error),
           created_at: createdAt,
         });
@@ -126,16 +128,16 @@ export async function prepareLoggedInSession(page) {
     );
   }
 
-  const quickAddButton = page.getByRole("button", { name: "빠른 추가" });
+  const quickAddButton = page.getByTestId("quick-add-button");
   if (await quickAddButton.isVisible().catch(() => false)) {
     await waitForAppIdle(page);
     return;
   }
 
   const authForm = page.locator("form.auth-form");
-  await authForm.getByLabel("이메일").fill(config.email);
-  await authForm.getByLabel("비밀번호", { exact: true }).fill(config.password);
-  await authForm.getByRole("button", { name: "로그인" }).click();
+  await authForm.locator("input[type='email']").fill(config.email);
+  await authForm.locator("input[type='password']").first().fill(config.password);
+  await authForm.locator("button[type='submit']").click();
   await quickAddButton.waitFor({
     state: "visible",
     timeout: config.timeoutMs,
@@ -144,17 +146,17 @@ export async function prepareLoggedInSession(page) {
 }
 
 export async function ensureQuickAddOpen(page) {
-  const toggle = page.getByRole("button", { name: "빠른 추가" });
+  const toggle = page.getByTestId("quick-add-button");
   await toggle.waitFor({ state: "visible", timeout: config.timeoutMs });
   const expanded = await toggle.getAttribute("aria-expanded");
-  if (expanded !== "true") {
+  if (expanded !== "true" && !(await page.locator(".quick-action-popover").isVisible().catch(() => false))) {
     await toggle.click();
   }
 }
 
 export async function reloadCalendarReady(page) {
   await page.reload({ waitUntil: "domcontentloaded", timeout: config.timeoutMs });
-  await page.getByRole("button", { name: "빠른 추가" }).waitFor({
+  await page.getByTestId("quick-add-button").waitFor({
     state: "visible",
     timeout: config.timeoutMs,
   });
@@ -220,30 +222,28 @@ export async function apiRequestInPage(page, path, { method = "GET", body } = {}
 }
 
 export function getGoalForm(page) {
-  return page
-    .locator("form.creation-form")
-    .filter({ has: page.getByRole("heading", { name: "목표" }) });
+  return page.locator("#manual-create-form");
 }
 
 export function getMilestoneForm(page) {
-  return page
-    .locator("form.creation-form")
-    .filter({ has: page.getByLabel("예정일") });
+  return page.locator("#manual-create-form");
 }
 
-export async function openMilestoneForm(page) {
+export async function openManualCreateForm(page) {
   await ensureQuickAddOpen(page);
-  const form = getMilestoneForm(page);
+  const form = getGoalForm(page);
   if (await form.isVisible().catch(() => false)) {
     return form;
   }
-  await page.getByRole("button", { name: "마일스톤 추가" }).click();
+  await page.locator(".quick-action-popover button").first().click();
   await form.waitFor({ state: "visible", timeout: config.timeoutMs });
   return form;
 }
 
+export const openMilestoneForm = openManualCreateForm;
+
 export async function openSettingsPanel(page) {
-  const settingsButton = page.locator("button[title='설정'], button[title='Settings']").first();
+  const settingsButton = page.getByTestId("settings-button");
   await settingsButton.waitFor({ state: "visible", timeout: config.timeoutMs });
   await settingsButton.click();
   const panel = page.locator(".settings-panel");
@@ -297,6 +297,38 @@ function createApiTracker(page) {
   });
 
   return { events };
+}
+
+function summarizeApiAttempts(events) {
+  const byRequest = new Map();
+  for (const event of events) {
+    const key = `${event.method} ${event.url}`;
+    const group = byRequest.get(key) ?? [];
+    group.push(event);
+    byRequest.set(key, group);
+  }
+
+  let recovered5xx = 0;
+  let unrecovered5xx = 0;
+  for (const attempts of byRequest.values()) {
+    const failures = attempts.filter((event) => event.status >= 500).length;
+    if (failures === 0) {
+      continue;
+    }
+    const finalStatus = attempts[attempts.length - 1].status;
+    if (finalStatus < 500) {
+      recovered5xx += failures;
+    } else {
+      unrecovered5xx += failures;
+    }
+  }
+
+  return {
+    total_calls: events.length,
+    raw_5xx: events.filter((event) => event.status >= 500).length,
+    recovered_5xx: recovered5xx,
+    unrecovered_5xx: unrecovered5xx,
+  };
 }
 
 async function writeResult(outputFile, result) {

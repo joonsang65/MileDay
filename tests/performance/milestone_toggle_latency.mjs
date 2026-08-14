@@ -30,18 +30,39 @@ await runPerfFlow({
       .first();
     await milestoneRow.waitFor({ state: "visible", timeout: config.timeoutMs });
 
+    const toggle = milestoneRow.getByTestId("milestone-toggle");
+    await toggle.waitFor({ state: "visible", timeout: config.timeoutMs });
+
     markApiStart();
     const startedAt = performance.now();
-    await Promise.all([
-      milestoneRow.getByTitle("미완료로 변경").waitFor({
-        state: "visible",
-        timeout: config.timeoutMs,
-      }),
-      milestoneRow.getByTitle("완료로 변경").click(),
-    ]);
+    const serverResponse = page.waitForResponse(
+      (response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "PATCH" &&
+          url.pathname === `/milestones/${milestone.id}/complete`
+        );
+      },
+      { timeout: config.timeoutMs },
+    ).then(
+      () => ({ ok: true, error: null }),
+      (error) => ({ ok: false, error }),
+    );
+    await toggle.click();
+    await page
+      .locator(
+        `[data-testid="milestone-toggle"][data-milestone-id="${milestone.id}"][aria-pressed="true"]`,
+      )
+      .waitFor({ state: "visible", timeout: config.timeoutMs });
+    const visualDurationMs = performance.now() - startedAt;
+    const serverResult = await serverResponse;
+    if (!serverResult.ok) {
+      throw serverResult.error;
+    }
 
     return {
-      duration_ms: performance.now() - startedAt,
+      duration_ms: visualDurationMs,
+      server_duration_ms: performance.now() - startedAt,
       label: milestoneTitle,
       title: milestoneTitle,
       goal_title: goalTitle,

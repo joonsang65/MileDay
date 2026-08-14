@@ -4,7 +4,7 @@ import pytest
 
 from exceptions.settings import SettingsUpdateFailedError
 from schemas.settings_schemas import SettingsUpdateRequest
-from services.settings_service import DEFAULT_SETTINGS, SettingsService
+from services.settings_service import DEFAULT_SETTINGS, SettingsService, clear_settings_cache
 
 
 class InMemorySettingsRepository:
@@ -31,6 +31,7 @@ class InMemorySettingsRepository:
 
 
 def test_settings_service_creates_default_row_when_missing() -> None:
+    clear_settings_cache()
     repository = InMemorySettingsRepository()
     service = SettingsService(repository=repository)
 
@@ -42,6 +43,7 @@ def test_settings_service_creates_default_row_when_missing() -> None:
 
 
 def test_settings_service_updates_only_given_fields() -> None:
+    clear_settings_cache()
     repository = InMemorySettingsRepository()
     repository.rows["user-1"] = {"user_id": "user-1", **DEFAULT_SETTINGS}
     service = SettingsService(repository=repository)
@@ -74,6 +76,8 @@ def test_settings_service_updates_only_given_fields() -> None:
 
 
 def test_settings_service_raises_when_update_result_is_empty() -> None:
+    clear_settings_cache()
+
     class FailingRepository(InMemorySettingsRepository):
         def update(self, *, user_id: str, payload: dict):
             return None
@@ -87,3 +91,15 @@ def test_settings_service_raises_when_update_result_is_empty() -> None:
             user_id="user-1",
             body=SettingsUpdateRequest(calendar_view="week"),
         )
+
+
+def test_settings_service_uses_cached_settings_for_repeated_reads() -> None:
+    clear_settings_cache()
+    repository = InMemorySettingsRepository()
+    repository.rows["user-1"] = {"user_id": "user-1", **DEFAULT_SETTINGS}
+    service = SettingsService(repository=repository)
+
+    assert service.get_settings(user_id="user-1")["calendar_view"] == "month"
+    repository.rows["user-1"]["calendar_view"] = "week"
+
+    assert service.get_settings(user_id="user-1")["calendar_view"] == "month"

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import calendar
+from copy import deepcopy
 from collections import defaultdict
 from datetime import date, timedelta
+import time
 from typing import Any
 
 from repositories.calendar import CalendarRepository, get_calendar_repository
 from services.holiday_service import HolidayService, get_holiday_service
+
+CALENDAR_CACHE_TTL_SECONDS = 60
+_month_calendar_cache: dict[tuple[str, int, int], tuple[float, dict[str, Any]]] = {}
 
 
 class CalendarService:
@@ -26,38 +31,47 @@ class CalendarService:
         month: int,
         today: date | None = None,
     ) -> dict[str, Any]:
-        first_day, last_day = self._month_range(year=year, month=month)
-        goals = self.repository.list_goals_by_deadline_range(
-            user_id=user_id,
-            start_date=first_day.isoformat(),
-            end_date=last_day.isoformat(),
-        )
-        milestones = [
-            self._with_goal_title(row)
-            for row in self.repository.list_milestones_by_scheduled_date_range(
+        cache_key = (user_id, year, month)
+        try:
+            first_day, last_day = self._month_range(year=year, month=month)
+            goals = self.repository.list_goals_by_deadline_range(
                 user_id=user_id,
                 start_date=first_day.isoformat(),
                 end_date=last_day.isoformat(),
             )
-        ]
-        holidays = self.holiday_service.get_holidays_for_range(
-            start_date=first_day,
-            end_date=last_day,
-        )
-        return {
-            "year": year,
-            "month": month,
-            "days": self._build_days(
+            milestones = [
+                self._with_goal_title(row)
+                for row in self.repository.list_milestones_by_scheduled_date_range(
+                    user_id=user_id,
+                    start_date=first_day.isoformat(),
+                    end_date=last_day.isoformat(),
+                )
+            ]
+            holidays = self.holiday_service.get_holidays_for_range(
                 start_date=first_day,
                 end_date=last_day,
-                goals=goals,
-                milestones=milestones,
-                holidays=holidays,
-                today=today or date.today(),
-            ),
-            "goals": goals,
-            "milestones": milestones,
-        }
+            )
+            calendar_data = {
+                "year": year,
+                "month": month,
+                "days": self._build_days(
+                    start_date=first_day,
+                    end_date=last_day,
+                    goals=goals,
+                    milestones=milestones,
+                    holidays=holidays,
+                    today=today or date.today(),
+                ),
+                "goals": goals,
+                "milestones": milestones,
+            }
+            _set_cached_month_calendar(cache_key, calendar_data)
+            return calendar_data
+        except Exception:
+            cached = _get_cached_month_calendar(cache_key)
+            if cached:
+                return cached
+            raise
 
     def get_week_calendar(
         self,
@@ -210,3 +224,25 @@ class CalendarService:
 
 def get_calendar_service() -> CalendarService:
     return CalendarService()
+
+
+def _get_cached_month_calendar(cache_key: tuple[str, int, int]) -> dict[str, Any] | None:
+    cached = _month_calendar_cache.get(cache_key)
+    if not cached:
+        return None
+    cached_at, calendar_data = cached
+    if time.monotonic() - cached_at > CALENDAR_CACHE_TTL_SECONDS:
+        _month_calendar_cache.pop(cache_key, None)
+        return None
+    return deepcopy(calendar_data)
+
+
+def _set_cached_month_calendar(cache_key: tuple[str, int, int], calendar_data: dict[str, Any]) -> None:
+    _month_calendar_cache[cache_key] = (time.monotonic(), deepcopy(calendar_data))
+
+
+def clear_month_calendar_cache(cache_key: tuple[str, int, int] | None = None) -> None:
+    if cache_key is None:
+        _month_calendar_cache.clear()
+        return
+    _month_calendar_cache.pop(cache_key, None)

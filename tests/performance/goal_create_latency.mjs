@@ -2,8 +2,8 @@ import { performance } from "node:perf_hooks";
 
 import {
   config,
-  ensureQuickAddOpen,
   getGoalForm,
+  openManualCreateForm,
   runPerfFlow,
 } from "./perf_lib.mjs";
 
@@ -14,9 +14,9 @@ await runPerfFlow({
   runIteration: async ({ page, iteration, markApiStart }) => {
     const title = `perf goal ${Date.now()}-${iteration}`;
 
-    await ensureQuickAddOpen(page);
+    await openManualCreateForm(page);
     const goalForm = getGoalForm(page);
-    await goalForm.getByLabel("제목").fill(title);
+    await goalForm.locator("input[type='text']").fill(title);
 
     markApiStart();
     const startedAt = performance.now();
@@ -26,7 +26,7 @@ await runPerfFlow({
         state: "visible",
         timeout: config.timeoutMs,
       }),
-      goalForm.getByRole("button", { name: /목표 추가|추가 중/ }).click(),
+      page.locator("button[form='manual-create-form']").click(),
     ]);
 
     return {
