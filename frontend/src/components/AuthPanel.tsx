@@ -27,6 +27,7 @@ const AUTH_LANGUAGE_KEY = "mileday.auth_language";
 const authText = {
   ko: {
     appDescription: "매일의 목표와 할 일을 달력 위에서 가볍게 정리하는 위젯입니다.",
+    pocNotice: "POC 테스트 환경에서는 서버가 가동되는 데 약 1분 정도 걸릴 수 있습니다.",
     login: "로그인",
     signup: "회원가입",
     authMode: "인증 방식",
@@ -112,6 +113,7 @@ const authText = {
   },
   en: {
     appDescription: "A lightweight desktop widget for organizing daily goals and tasks on a calendar.",
+    pocNotice: "In the POC test environment, the server may take about 1 minute to start.",
     login: "Log in",
     signup: "Sign up",
     authMode: "Authentication mode",
@@ -313,6 +315,7 @@ export function AuthPanel({
       <section className="auth-panel" aria-labelledby="auth-title">
         <div className="brand-mark">MileDay</div>
         <p className="auth-description">{text.appDescription}</p>
+        <p className="auth-poc-notice">{text.pocNotice}</p>
         <div className="auth-heading">
           <h1 id="auth-title">{mode === "login" ? text.login : text.signup}</h1>
           <div className="auth-tabs" role="group" aria-label={text.authMode}>

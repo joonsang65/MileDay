@@ -157,6 +157,18 @@ button:disabled {
   line-height: 1.45;
 }
 
+.auth-poc-notice {
+  margin: -12px 0 24px;
+  padding: 10px 12px;
+  border: 1px solid #e5d2a7;
+  border-radius: 8px;
+  color: #725c25;
+  background: #fff7db;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .auth-panel h1,
 .app-header h1,
 .panel-heading h2 {
