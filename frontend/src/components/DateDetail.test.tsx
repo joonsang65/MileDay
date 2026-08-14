@@ -92,7 +92,7 @@ describe("DateDetail", () => {
     expect(onDeleteMilestone).toHaveBeenCalledWith("milestone-1");
   });
 
-  it("마감 목표가 없는 날짜도 마일스톤의 연결 목표를 목표 집계에 포함한다", () => {
+  it("마감 목표가 없는 날짜의 마일스톤도 연결 목표를 목표 집계에 포함한다", () => {
     renderDateDetail({
       detail: {
         ...detail,
@@ -112,7 +112,7 @@ describe("DateDetail", () => {
     expect(screen.getAllByText("작업 0/1")).toHaveLength(2);
     expect(screen.getByText("프로그램 일지")).toBeInTheDocument();
     expect(screen.getByText("제출")).toBeInTheDocument();
-    expect(screen.queryByText("연결된 목표가 없습니다.")).not.toBeInTheDocument();
+    expect(screen.queryByText("연결된 일정이 없습니다.")).not.toBeInTheDocument();
   });
 
   it("수정 폼의 제목이 공백이면 저장 API를 호출하지 않는다", async () => {

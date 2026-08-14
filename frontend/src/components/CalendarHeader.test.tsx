@@ -14,12 +14,10 @@ describe("CalendarHeader", () => {
       <CalendarHeader
         label="2026.07"
         mode="month"
-        isLoading={false}
         onModeChange={vi.fn()}
         onPrevious={vi.fn()}
         onNext={vi.fn()}
         onToday={vi.fn()}
-        onRefresh={vi.fn()}
         onOpenSettings={onOpenSettings}
         onOpenQuickMenu={onOpenQuickMenu}
         language="ko"

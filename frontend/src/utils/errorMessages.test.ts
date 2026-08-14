@@ -21,4 +21,18 @@ describe("getUserFacingErrorMessage", () => {
       "서버에 연결하지 못했습니다.",
     );
   });
+
+  it("언어가 영어이면 영어 메시지로 표시한다", () => {
+    const error = new ApiClientError({
+      code: "AUTH_INVALID_CREDENTIALS",
+      message: "Invalid login credentials.",
+      status: 401,
+      detail: null,
+    });
+
+    expect(getUserFacingErrorMessage(error, "en")).toBe("Please check your email or password.");
+    expect(getUserFacingErrorMessage(new TypeError("Failed to fetch"), "en")).toBe(
+      "Could not connect to the server.",
+    );
+  });
 });

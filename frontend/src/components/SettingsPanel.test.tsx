@@ -23,20 +23,24 @@ const settings: UserSettings = {
 };
 
 describe("SettingsPanel", () => {
-  it("설정 저장 payload를 전달하고 하단 로그아웃 버튼을 제공한다", async () => {
+  it("saves server settings and local widget UI settings separately", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
+    const onLocalUiSettingsChange = vi.fn().mockResolvedValue(undefined);
     const onLogout = vi.fn();
     const autoLaunch = {
       get: vi.fn().mockResolvedValue({ openAtLogin: false }),
       set: vi.fn().mockResolvedValue({ openAtLogin: true }),
     };
+
     render(
       <SettingsPanel
         settings={settings}
+        localUiSettings={{ baseFontSize: 14, goalFontSize: 13, resizeEnabled: false }}
         isLoading={false}
         autoLaunch={autoLaunch}
         onSave={onSave}
+        onLocalUiSettingsChange={onLocalUiSettingsChange}
         onClose={vi.fn()}
         onLogout={onLogout}
       />,
@@ -46,6 +50,11 @@ describe("SettingsPanel", () => {
     await user.selectOptions(screen.getByLabelText("휴일 표현"), "weekend_like");
     await user.selectOptions(screen.getByLabelText("주 시작 요일"), "0");
     await user.selectOptions(screen.getByLabelText("언어"), "en");
+    await user.clear(screen.getByLabelText("Base font size (px)"));
+    await user.type(screen.getByLabelText("Base font size (px)"), "16");
+    await user.clear(screen.getByLabelText("Goal font size (px)"));
+    await user.type(screen.getByLabelText("Goal font size (px)"), "18");
+    await user.click(screen.getByLabelText("Window resizing"));
     await user.click(screen.getByLabelText("Open at Windows login"));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -57,6 +66,9 @@ describe("SettingsPanel", () => {
       week_starts_on: 0,
       language: "en",
     });
+    expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ baseFontSize: 16 });
+    expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ goalFontSize: 18 });
+    expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ resizeEnabled: true });
 
     const panel = screen.getByRole("region", { name: "Settings" });
     await user.click(within(panel).getByRole("button", { name: "Log out" }));

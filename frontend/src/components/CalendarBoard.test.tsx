@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CalendarBoard } from "./CalendarBoard";
 
 describe("CalendarBoard", () => {
-  it("목표와 마일스톤 집계를 날짜 칸에 표시하고 날짜 선택을 전달한다", async () => {
+  it("shows holiday and goal progress text without aggregate metric badges", async () => {
     const onSelectDate = vi.fn();
     render(
       <CalendarBoard
@@ -20,14 +20,14 @@ describe("CalendarBoard", () => {
             date: "2026-07-10",
             is_today: true,
             is_holiday: true,
-            holiday_name: "제헌절",
+            holiday_name: "광복절",
             goal_count: 1,
             milestone_count: 2,
             completed_milestone_count: 1,
             goals: [
               {
                 id: "goal-1",
-                title: "포트폴리오 준비",
+                title: "아동센터 작성",
                 deadline: "2026-07-10",
                 is_recurring: false,
                 recurrence_type: null,
@@ -40,8 +40,8 @@ describe("CalendarBoard", () => {
               {
                 id: "milestone-1",
                 goal_id: "goal-1",
-                goal_title: "포트폴리오 준비",
-                title: "이력서 초안 작성",
+                goal_title: "아동센터 작성",
+                title: "초안 작성",
                 color: "#D97706",
                 scheduled_date: "2026-07-10",
                 is_completed: false,
@@ -49,7 +49,7 @@ describe("CalendarBoard", () => {
               {
                 id: "milestone-2",
                 goal_id: "goal-1",
-                goal_title: "포트폴리오 준비",
+                goal_title: "아동센터 작성",
                 title: "검토",
                 color: "#E11D48",
                 scheduled_date: "2026-07-10",
@@ -61,17 +61,17 @@ describe("CalendarBoard", () => {
       />,
     );
 
-    expect(screen.getByText("목표 1")).toBeInTheDocument();
-    expect(screen.getByText("작업 1/2")).toBeInTheDocument();
-    expect(screen.getByText("제헌절")).toBeInTheDocument();
-    expect(screen.getByText("포트폴리오 준비 작업 1/2")).toBeInTheDocument();
-    expect(screen.queryByText("이력서 초안 작성")).not.toBeInTheDocument();
+    expect(screen.queryByText("목표 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("작업 1/2")).not.toBeInTheDocument();
+    expect(screen.getByText("광복절")).toBeInTheDocument();
+    expect(screen.getByText("아동센터 작성 1/2")).toBeInTheDocument();
+    expect(screen.queryByText("초안 작성")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /10 목표 1 작업 1\/2/i }));
+    await userEvent.click(screen.getByRole("button", { name: /10 광복절/i }));
     expect(onSelectDate).toHaveBeenCalledWith("2026-07-10");
   });
 
-  it("마일스톤만 있는 날짜도 연결된 목표 단위로 묶어 보여준다", () => {
+  it("groups orphan milestone text by goal title while individual milestone titles stay hidden", () => {
     render(
       <CalendarBoard
         mode="month"
@@ -106,10 +106,9 @@ describe("CalendarBoard", () => {
       />,
     );
 
-    expect(screen.getByText("목표 1")).toBeInTheDocument();
-    expect(screen.getByText("일")).toBeInTheDocument();
-    expect(screen.getByText("작업 0/1")).toBeInTheDocument();
-    expect(screen.getByText("프로그램 일지 작업 0/1")).toBeInTheDocument();
+    expect(screen.queryByText("목표 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("작업 0/1")).not.toBeInTheDocument();
+    expect(screen.getByText("프로그램 일지 0/1")).toBeInTheDocument();
     expect(screen.queryByText("숨김 휴일")).not.toBeInTheDocument();
     expect(screen.queryByText("제출")).not.toBeInTheDocument();
   });
