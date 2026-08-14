@@ -374,6 +374,7 @@ export function AuthPanel({
             <label className="auth-remember">
               <input
                 type="checkbox"
+                aria-label={text.rememberLogin}
                 checked={rememberLogin}
                 onChange={(event) => setRememberLogin(event.target.checked)}
                 disabled={isLoading}

@@ -1,4 +1,4 @@
-import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
@@ -7,8 +7,8 @@ const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
     build: {
+      externalizeDeps: true,
       rollupOptions: {
         input: {
           main: resolve(rootDir, "electron/main.ts"),
@@ -17,8 +17,8 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
+      externalizeDeps: true,
       rollupOptions: {
         input: {
           preload: resolve(rootDir, "electron/preload.ts"),

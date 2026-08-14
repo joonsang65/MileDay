@@ -33,12 +33,12 @@ type ResizeSession = {
   };
 };
 
-const MIN_WINDOW_WIDTH = 560;
-const MIN_WINDOW_HEIGHT = 440;
+const MIN_WINDOW_WIDTH = 381;
+const MIN_WINDOW_HEIGHT = 299;
 
 const DEFAULT_UI_SETTINGS: LocalUiSettings = {
-  baseFontSize: 14,
-  goalFontSize: 13,
+  baseFontSize: 10,
+  goalFontSize: 10,
   resizeEnabled: false,
 };
 

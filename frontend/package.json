@@ -1,12 +1,18 @@
 {
   "name": "mileday-frontend",
   "version": "0.1.0",
+  "productName": "MileDay",
+  "description": "A lightweight desktop widget for organizing daily goals and tasks on a calendar.",
+  "author": "노준상",
   "private": true,
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "tsc --noEmit && electron-vite build",
+    "dist": "npm run build && npm run verify:package-api && electron-builder --win",
+    "pack": "npm run build && npm run verify:package-api && electron-builder --win --dir",
+    "verify:package-api": "node scripts/verify-package-api.mjs",
     "preview": "electron-vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,10 +25,7 @@
     "perf:cleanup": "node ../tests/performance/cleanup_test_data.mjs"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
     "date-fns": "^4.1.0",
-    "electron": "^33.2.1",
-    "electron-vite": "^2.3.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -38,14 +41,50 @@
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
+    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.20",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "eslint": "^9.17.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "jsdom": "^25.0.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
+  },
+  "build": {
+    "appId": "com.joonsang65.mileday",
+    "productName": "MileDay",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "win": {
+      "icon": "build/mileday_icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MileDay"
+    },
+    "files": [
+      "out/**",
+      "package.json"
+    ]
   }
 }

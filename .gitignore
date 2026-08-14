@@ -39,6 +39,9 @@ supabase/.temp/
 node_modules/
 dist/
 build/
+!frontend/build/
+!frontend/build/mileday_icon.ico
+!frontend/build/mileday_icon.png
 out/
 .vite/
 .next/

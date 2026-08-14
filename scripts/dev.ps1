@@ -14,6 +14,7 @@ $BackendOutLog = Join-Path $LogDir "dev_backend.out.log"
 $BackendErrLog = Join-Path $LogDir "dev_backend.err.log"
 $HealthUrl = "http://${BackendHost}:${BackendPort}/health"
 $DbHealthUrl = "http://${BackendHost}:${BackendPort}/health/db"
+$FrontendEnvPath = Join-Path $FrontendDir ".env"
 
 function Assert-PathExists {
     param(
@@ -63,6 +64,34 @@ function Test-HttpOk {
     }
 }
 
+function Get-FrontendApiBaseUrl {
+    if (-not (Test-Path -LiteralPath $FrontendEnvPath)) {
+        return ""
+    }
+
+    $Match = Get-Content -LiteralPath $FrontendEnvPath |
+        Where-Object { $_ -match "^\s*VITE_API_BASE_URL\s*=" } |
+        Select-Object -First 1
+
+    if (-not $Match) {
+        return ""
+    }
+
+    return ($Match -replace "^\s*VITE_API_BASE_URL\s*=", "").Trim().Trim('"').Trim("'")
+}
+
+function Test-IsLocalApiBaseUrl {
+    param(
+        [string]$ApiBaseUrl
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ApiBaseUrl)) {
+        return $true
+    }
+
+    return $ApiBaseUrl -match "^https?://(localhost|127\.0\.0\.1|\[::1\])(:|/|$)"
+}
+
 function Stop-ProcessTree {
     param(
         [int]$ProcessId
@@ -97,30 +126,38 @@ else {
 
 $BackendProcess = $null
 $StartedBackend = $false
+$ApiBaseUrl = Get-FrontendApiBaseUrl
+$UseLocalBackend = Test-IsLocalApiBaseUrl -ApiBaseUrl $ApiBaseUrl
 
 try {
-    if (Test-HttpOk -Url $HealthUrl) {
-        Write-Host "Backend is already healthy: $HealthUrl"
+    if (-not $UseLocalBackend) {
+        Write-Host "Using remote API: $ApiBaseUrl"
+        Write-Host "Skipping local backend startup. Starting frontend."
     }
     else {
-        Write-Host "Starting backend: $HealthUrl"
-        $BackendProcess = Start-Process `
-            -FilePath "python" `
-            -ArgumentList @("-m", "uvicorn", "main:app", "--host", $BackendHost, "--port", "$BackendPort", "--reload") `
-            -WorkingDirectory $BackendDir `
-            -RedirectStandardOutput $BackendOutLog `
-            -RedirectStandardError $BackendErrLog `
-            -WindowStyle Hidden `
-            -PassThru
-        $StartedBackend = $true
+        if (Test-HttpOk -Url $HealthUrl) {
+            Write-Host "Backend is already healthy: $HealthUrl"
+        }
+        else {
+            Write-Host "Starting backend: $HealthUrl"
+            $BackendProcess = Start-Process `
+                -FilePath "python" `
+                -ArgumentList @("-m", "uvicorn", "main:app", "--host", $BackendHost, "--port", "$BackendPort", "--reload") `
+                -WorkingDirectory $BackendDir `
+                -RedirectStandardOutput $BackendOutLog `
+                -RedirectStandardError $BackendErrLog `
+                -WindowStyle Hidden `
+                -PassThru
+            $StartedBackend = $true
 
-        Wait-HttpOk -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds -Description "Backend health check"
+            Wait-HttpOk -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds -Description "Backend health check"
+        }
+
+        Write-Host "Checking backend DB health: $DbHealthUrl"
+        Wait-HttpOk -Url $DbHealthUrl -TimeoutSeconds $HealthTimeoutSeconds -Description "Backend DB health check"
+
+        Write-Host "Backend and DB health checks passed. Starting frontend."
     }
-
-    Write-Host "Checking backend DB health: $DbHealthUrl"
-    Wait-HttpOk -Url $DbHealthUrl -TimeoutSeconds $HealthTimeoutSeconds -Description "Backend DB health check"
-
-    Write-Host "Backend and DB health checks passed. Starting frontend."
 
     Push-Location $FrontendDir
     try {

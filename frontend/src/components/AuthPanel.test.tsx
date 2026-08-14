@@ -94,7 +94,7 @@ describe("AuthPanel", () => {
     await user.click(screen.getByLabelText("자동 로그인"));
     await user.type(screen.getByLabelText("이메일"), "user@example.com");
     await user.type(screen.getByLabelText("비밀번호", { selector: "input" }), "password123");
-    await user.click(screen.getByRole("button", { name: "로그인" }));
+    await user.click(within(screen.getByLabelText("이메일").closest("form")!).getByRole("button", { name: "로그인" }));
 
     expect(onLogin).toHaveBeenCalledWith("user@example.com", "password123", false);
   });
@@ -175,7 +175,7 @@ describe("AuthPanel", () => {
 
     await user.type(screen.getByLabelText("Email"), "junsang2704a");
     await user.type(screen.getByLabelText("Password", { selector: "input" }), "password123");
-    await user.click(screen.getByRole("button", { name: "Log in" }));
+    await user.click(within(screen.getByLabelText("Email").closest("form")!).getByRole("button", { name: "Log in" }));
 
     expect(screen.getByText("Please enter a valid email address.")).toBeInTheDocument();
     expect(onLogin).not.toHaveBeenCalled();

@@ -276,6 +276,7 @@ export function SettingsPanel({
         <label className="toggle-row settings-toggle-row">
           <input
             type="checkbox"
+            aria-label={text.resizeEnabled}
             checked={resizeEnabled}
             disabled={isLoading || !onLocalUiSettingsChange}
             onChange={(event) => void handleResizeEnabledChange(event.target.checked)}
@@ -288,6 +289,7 @@ export function SettingsPanel({
         <label className="toggle-row settings-toggle-row">
           <input
             type="checkbox"
+            aria-label={text.autoLaunch}
             checked={openAtLogin}
             disabled={isAutoLaunchLoading || !autoLaunch}
             onChange={(event) => void handleAutoLaunchChange(event.target.checked)}
