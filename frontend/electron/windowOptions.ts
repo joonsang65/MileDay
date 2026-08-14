@@ -1,12 +1,17 @@
 import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
 
-export function createMainWindowOptions(baseDir: string): BrowserWindowConstructorOptions {
+export function createMainWindowOptions(
+  baseDir: string,
+  windowBounds?: { x?: number; y?: number; width: number; height: number },
+): BrowserWindowConstructorOptions {
   return {
-    width: 900,
-    height: 620,
-    minWidth: 760,
-    minHeight: 540,
+    ...(windowBounds?.x !== undefined ? { x: windowBounds.x } : {}),
+    ...(windowBounds?.y !== undefined ? { y: windowBounds.y } : {}),
+    width: windowBounds?.width ?? 900,
+    height: windowBounds?.height ?? 620,
+    minWidth: 560,
+    minHeight: 440,
     frame: false,
     resizable: false,
     minimizable: false,

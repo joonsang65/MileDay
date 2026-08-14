@@ -12,6 +12,19 @@ function mockFetch(payload: unknown, ok = true, status = 200) {
   return fetchMock;
 }
 
+function mockFetchSequence(responses: { payload: unknown; ok: boolean; status: number }[]) {
+  const fetchMock = vi.fn();
+  for (const response of responses) {
+    fetchMock.mockResolvedValueOnce({
+      ok: response.ok,
+      status: response.status,
+      json: vi.fn().mockResolvedValue(response.payload),
+    });
+  }
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 describe("MileDayApiClient", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -385,5 +398,38 @@ describe("MileDayApiClient", () => {
       requestId: "req-2",
       detail: { message: "Could not find the 'color' column" },
     });
+  });
+
+  it("retries transient GET upstream errors", async () => {
+    vi.useFakeTimers();
+    const fetchMock = mockFetchSequence([
+      {
+        ok: false,
+        status: 502,
+        payload: {
+          success: false,
+          error: { code: "UPSTREAM_DISCONNECTED", message: "Upstream disconnected." },
+        },
+      },
+      {
+        ok: true,
+        status: 200,
+        payload: {
+          success: true,
+          data: { date: "2026-07-10", is_today: false, goal_count: 0, milestone_count: 0, completed_milestone_count: 0, goals: [], milestones: [] },
+        },
+      },
+    ]);
+
+    const client = new MileDayApiClient({
+      baseUrl: "http://api.test",
+      accessToken: "access-token",
+    });
+
+    const resultPromise = client.getDateCalendar("2026-07-10");
+    await vi.advanceTimersByTimeAsync(100);
+    await expect(resultPromise).resolves.toMatchObject({ date: "2026-07-10" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 });

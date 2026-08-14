@@ -24,4 +24,20 @@ describe("createMainWindowOptions", () => {
       nodeIntegration: false,
     });
   });
+
+  it("uses saved window position and size when bounds are provided", () => {
+    const options = createMainWindowOptions("C:/app/out/main", {
+      x: 120,
+      y: 80,
+      width: 560,
+      height: 440,
+    });
+
+    expect(options).toMatchObject({
+      x: 120,
+      y: 80,
+      width: 560,
+      height: 440,
+    });
+  });
 });

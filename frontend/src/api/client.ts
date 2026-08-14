@@ -19,6 +19,8 @@ import type {
 } from "./types";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+const ACCESS_TOKEN_STORAGE_KEY = "mileday.access_token";
 
 export class ApiClientError extends Error {
   code: string;
@@ -54,7 +56,7 @@ export class MileDayApiClient {
 
   constructor({
     baseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL,
-    accessToken = localStorage.getItem("mileday.access_token"),
+    accessToken = window.mileday?.authToken ? null : localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY),
   }: {
     baseUrl?: string;
     accessToken?: string | null;
@@ -65,10 +67,19 @@ export class MileDayApiClient {
 
   setAccessToken(accessToken: string | null): void {
     this.accessToken = accessToken;
+  }
+
+  async loadStoredAccessToken(): Promise<boolean> {
+    const accessToken = await readPersistedAccessToken();
+    this.accessToken = accessToken;
+    return Boolean(accessToken);
+  }
+
+  async persistAccessToken(accessToken: string | null): Promise<void> {
     if (accessToken) {
-      localStorage.setItem("mileday.access_token", accessToken);
+      await writePersistedAccessToken(accessToken);
     } else {
-      localStorage.removeItem("mileday.access_token");
+      await clearPersistedAccessToken();
     }
   }
 
@@ -76,13 +87,14 @@ export class MileDayApiClient {
     return Boolean(this.accessToken);
   }
 
-  async login(email: string, password: string): Promise<AuthSession> {
+  async login(email: string, password: string, rememberLogin = true): Promise<AuthSession> {
     const session = await this.request<AuthSession>("/auth/login", {
       method: "POST",
       auth: false,
       body: { email, password },
     });
     this.setAccessToken(session.access_token);
+    await this.persistAccessToken(rememberLogin ? session.access_token : null);
     return session;
   }
 
@@ -101,6 +113,7 @@ export class MileDayApiClient {
       });
     } finally {
       this.setAccessToken(null);
+      await this.persistAccessToken(null);
     }
   }
 
@@ -201,6 +214,33 @@ export class MileDayApiClient {
       auth?: boolean;
     } = {},
   ): Promise<T> {
+    const method = options.method ?? "GET";
+    const maxAttempts = method === "GET" ? 3 : 1;
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await this.requestOnce<T>(path, { ...options, method });
+      } catch (error) {
+        lastError = error;
+        if (!this.shouldRetry(error, attempt, maxAttempts)) {
+          throw error;
+        }
+        await delay(attempt === 1 ? 100 : 300);
+      }
+    }
+
+    throw lastError;
+  }
+
+  private async requestOnce<T>(
+    path: string,
+    options: {
+      method: string;
+      body?: unknown;
+      auth?: boolean;
+    },
+  ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -210,7 +250,7 @@ export class MileDayApiClient {
     }
 
     const response = await fetch(`${this.baseUrl}${path}`, {
-      method: options.method ?? "GET",
+      method: options.method,
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -229,6 +269,48 @@ export class MileDayApiClient {
 
     return (payload as ApiEnvelope<T>).data;
   }
+
+  private shouldRetry(error: unknown, attempt: number, maxAttempts: number): boolean {
+    if (attempt >= maxAttempts) {
+      return false;
+    }
+    if (error instanceof ApiClientError) {
+      return RETRYABLE_STATUSES.has(error.status);
+    }
+    return error instanceof TypeError;
+  }
 }
 
 export const apiClient = new MileDayApiClient();
+
+async function readPersistedAccessToken(): Promise<string | null> {
+  if (window.mileday?.authToken) {
+    return window.mileday.authToken.get();
+  }
+  return localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+}
+
+async function writePersistedAccessToken(accessToken: string): Promise<void> {
+  if (window.mileday?.authToken) {
+    const saved = await window.mileday.authToken.set(accessToken);
+    if (!saved) {
+      throw new Error("Secure token storage is unavailable.");
+    }
+    localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+}
+
+async function clearPersistedAccessToken(): Promise<void> {
+  if (window.mileday?.authToken) {
+    await window.mileday.authToken.clear();
+  }
+  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
