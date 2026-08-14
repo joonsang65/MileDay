@@ -49,7 +49,7 @@ const labels = {
     autoLaunchError: "자동 실행 설정을 변경하지 못했습니다.",
     save: "저장",
     saving: "저장 중",
-    survey: "MVP 설문 참여",
+    survey: "POC 설문 참여",
     close: "닫기",
     logout: "로그아웃",
   },
