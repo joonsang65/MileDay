@@ -1089,24 +1089,26 @@ button:disabled {
 
 .day-view-quick-menu {
   position: absolute;
-  bottom: calc(100% - 8px);
+  top: 44px;
   right: 8px;
-  z-index: 30;
+  z-index: 100;
 }
 
 .day-view-quick-menu .quick-action-popover {
   position: relative;
   top: auto;
   right: auto;
+  z-index: 100;
 }
 
 .day-view-quick-menu .quick-action-popover::before {
-  top: auto;
-  bottom: -8px;
-  border-top: 0;
-  border-left: 0;
-  border-right: 1px solid var(--border-default);
-  border-bottom: 1px solid var(--border-default);
+  top: -8px;
+  bottom: auto;
+  right: 14px;
+  border-top: 1px solid var(--border-default);
+  border-left: 1px solid var(--border-default);
+  border-right: 0;
+  border-bottom: 0;
 }
 
 .calendar-surface {
