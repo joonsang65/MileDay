@@ -267,27 +267,26 @@ export function GoalListModal({
               }
 
               return (
-                <li key={group.id} className="goal-group">
-                  <div className="goal-row" style={{ paddingLeft: "4px", paddingRight: "4px" }}>
+                <li key={group.id} style={{ marginBottom: "6px" }}>
+                  <div className="editable-row" style={{ display: "flex", alignItems: "center", padding: "8px", gap: "8px", width: "100%", boxSizing: "border-box" }}>
                     <button
                       type="button"
                       className="icon-button compact-icon"
                       onClick={() => handleToggleGoalSelect(group.id)}
-                      style={{ color: isGoalSelected ? "var(--primary)" : "var(--text-tertiary)" }}
+                      style={{ color: isGoalSelected ? "var(--primary)" : "var(--text-tertiary)", flexShrink: 0 }}
                     >
                       {isGoalSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                     </button>
                     
                     <div 
-                      className="goal-label" 
                       onClick={() => setExpandedGoalId(isExpanded ? null : group.id)}
-                      style={{ flex: 1, display: "flex", flexDirection: "column", cursor: "pointer", gap: "2px" }}
+                      style={{ flex: 1, display: "flex", flexDirection: "column", cursor: "pointer", gap: "2px", minWidth: 0 }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span className="goal-badge" style={{ backgroundColor: group.color }} aria-hidden="true" />
-                        <span className="goal-title">{group.title}</span>
+                        <span className="color-swatch" style={{ background: group.color, flexShrink: 0 }} aria-hidden="true" />
+                        <strong style={{ fontSize: "13px", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{group.title}</strong>
                       </div>
-                      <div style={{ display: "flex", gap: "10px", fontSize: "11px", color: "var(--text-tertiary)", paddingLeft: "16px" }}>
+                      <div style={{ display: "flex", gap: "10px", fontSize: "11px", color: "var(--text-tertiary)", paddingLeft: "14px" }}>
                         <span>{group.deadline} {t.until}</span>
                         <span>
                           {group.isCompleted ? (
@@ -303,6 +302,7 @@ export function GoalListModal({
                       type="button"
                       className="icon-button compact-icon"
                       onClick={() => setExpandedGoalId(isExpanded ? null : group.id)}
+                      style={{ flexShrink: 0 }}
                     >
                       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
@@ -340,31 +340,34 @@ export function GoalListModal({
                           }
 
                           return (
-                            <li key={m.id} className="milestone-row" style={{ paddingLeft: "0", minHeight: "32px", gap: "8px" }}>
-                              <button
-                                type="button"
-                                className="icon-button compact-icon"
-                                onClick={() => handleToggleMilestoneSelect(m.id)}
-                                style={{ color: isMilestoneSelected ? "var(--primary)" : "var(--text-tertiary)" }}
-                              >
-                                {isMilestoneSelected ? <CheckSquare size={16} /> : <Square size={16} />}
-                              </button>
-                              <div className="milestone-content" style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span className={m.is_completed ? "completed-text" : ""} style={{ fontSize: "13px" }}>
-                                  {m.title}
-                                </span>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "var(--text-tertiary)" }}>
-                                  <span>{m.scheduled_date}</span>
-                                  {m.is_completed && <span style={{ color: "var(--primary)", fontWeight: "bold" }}>{t.completed}</span>}
+                            <li key={m.id} style={{ marginBottom: "6px" }}>
+                              <div className="editable-row" style={{ display: "flex", alignItems: "center", padding: "6px 8px", gap: "8px", width: "100%", boxSizing: "border-box" }}>
+                                <button
+                                  type="button"
+                                  className="icon-button compact-icon"
+                                  onClick={() => handleToggleMilestoneSelect(m.id)}
+                                  style={{ color: isMilestoneSelected ? "var(--primary)" : "var(--text-tertiary)", flexShrink: 0 }}
+                                >
+                                  {isMilestoneSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                                </button>
+                                <div style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", minWidth: 0 }}>
+                                  <strong className={m.is_completed ? "completed-text" : ""} style={{ fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {m.title}
+                                  </strong>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "var(--text-tertiary)", flexShrink: 0, paddingLeft: "8px" }}>
+                                    <span>{m.scheduled_date}</span>
+                                    {m.is_completed && <strong style={{ color: "var(--primary)" }}>{t.completed}</strong>}
+                                  </div>
                                 </div>
+                                <button 
+                                  type="button" 
+                                  className="icon-button compact-icon"
+                                  onClick={() => setEditingItem({ type: "milestone", id: m.id, milestone: m })}
+                                  style={{ flexShrink: 0 }}
+                                >
+                                  <Pencil size={14} />
+                                </button>
                               </div>
-                              <button 
-                                type="button" 
-                                className="icon-button compact-icon"
-                                onClick={() => setEditingItem({ type: "milestone", id: m.id, milestone: m })}
-                              >
-                                <Pencil size={14} />
-                              </button>
                             </li>
                           );
                         })}
