@@ -1119,8 +1119,8 @@ button:disabled {
 }
 
 .goal-list-modal-panel {
-  width: 90vw;
-  max-width: 500px;
+  width: 95vw;
+  max-width: 1000px;
 }
 
 .calendar-surface {
