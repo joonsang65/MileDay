@@ -10,6 +10,7 @@ type FloatingPanelProps = {
   placement?: "side" | "center";
   chrome?: "banded" | "plain";
   closeLabel?: string;
+  className?: string;
 };
 
 export function FloatingPanel({
@@ -21,6 +22,7 @@ export function FloatingPanel({
   placement = "side",
   chrome = "banded",
   closeLabel = "닫기",
+  className = "",
 }: FloatingPanelProps) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -42,7 +44,7 @@ export function FloatingPanel({
 
   return (
     <div className={`floating-layer ${placement}`} role="presentation" onClick={handleBackdropClick}>
-      <section className={`floating-panel ${chrome}`} role="dialog" aria-modal="false" aria-labelledby={labelledBy}>
+      <section className={`floating-panel ${chrome} ${className}`.trim()} role="dialog" aria-modal="false" aria-labelledby={labelledBy}>
         <header className="floating-panel-header">
           <h2 id={labelledBy}>{title}</h2>
           <button type="button" className="icon-button compact-icon" onClick={onClose} title={closeLabel}>

@@ -1118,6 +1118,11 @@ button:disabled {
   border-bottom: 1px solid var(--border-default);
 }
 
+.goal-list-modal-panel {
+  width: 90vw;
+  max-width: 500px;
+}
+
 .calendar-surface {
   flex: 1 1 auto;
   min-height: 0;

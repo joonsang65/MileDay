@@ -215,9 +215,32 @@ export function GoalListModal({
 
   const selectedTotal = selectedGoals.size + selectedMilestones.size;
 
+  const selectionFooter = selectedTotal > 0 && !isDeleting ? (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+      <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
+        {selectedTotal}{t.selected}
+      </span>
+      <button
+        type="button"
+        className="button-primary"
+        style={{ backgroundColor: "var(--text-danger)", borderColor: "var(--text-danger)", fontSize: "12px", padding: "6px 16px" }}
+        onClick={() => setIsDeleting(true)}
+      >
+        {t.selectDelete}
+      </button>
+    </div>
+  ) : undefined;
+
   return (
     <>
-      <FloatingPanel title={t.title} onClose={onClose} placement="center" closeLabel={t.cancel}>
+      <FloatingPanel 
+        title={t.title} 
+        onClose={onClose} 
+        placement="center" 
+        closeLabel={t.cancel}
+        className="goal-list-modal-panel"
+        footer={selectionFooter}
+      >
         <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
           {(["ongoing", "completed", "all"] as TabType[]).map(tab => (
             <button
@@ -418,38 +441,7 @@ export function GoalListModal({
         )}
       </FloatingPanel>
 
-      {/* Selection Action Bar */}
-      {selectedTotal > 0 && !isDeleting && (
-        <div style={{
-          position: "fixed",
-          bottom: "24px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          backgroundColor: "var(--surface-raised)",
-          border: "1px solid var(--border-default)",
-          borderRadius: "8px",
-          padding: "12px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxShadow: "var(--shadow-elevated)",
-          zIndex: 200,
-          width: "calc(100% - 32px)",
-          maxWidth: "360px"
-        }}>
-          <span style={{ fontSize: "14px", fontWeight: 500 }}>
-            {selectedTotal}{t.selected}
-          </span>
-          <button
-            type="button"
-            className="button-primary"
-            style={{ backgroundColor: "var(--text-danger)", borderColor: "var(--text-danger)", fontSize: "13px", padding: "6px 12px" }}
-            onClick={() => setIsDeleting(true)}
-          >
-            {t.selectDelete}
-          </button>
-        </div>
-      )}
+
 
       {/* Delete Confirmation Modal */}
       {isDeleting && (
