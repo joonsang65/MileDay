@@ -25,7 +25,6 @@ type AiSchedulePanelProps = {
   language: Language;
 };
 
-const defaultMilestoneColor = "#55A873";
 const labels = {
   ko: {
     title: "일정 추천",
@@ -153,20 +152,21 @@ export function AiSchedulePanel({
       setValidationMessage(validation);
       return;
     }
+    const goalColor = draft.create_goal_payload.goal.color || "#7F9278";
     await onSaveDraft(
       {
         title: draft.goal.title.trim(),
         deadline: draft.goal.deadline,
         is_recurring: false,
         recurrence_type: null,
-        color: draft.create_goal_payload.goal.color,
+        color: goalColor,
       },
       draft.milestones
         .filter((milestone) => milestone.selected)
         .map((milestone) => ({
           title: milestone.title.trim(),
           scheduled_date: milestone.scheduled_date,
-          color: defaultMilestoneColor,
+          color: goalColor,
         })),
     );
     onClose();

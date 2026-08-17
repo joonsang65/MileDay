@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type MouseEvent, type ReactNode, useEffect } from "react";
 import { X } from "lucide-react";
 
 type FloatingPanelProps = {
@@ -22,8 +22,26 @@ export function FloatingPanel({
   chrome = "banded",
   closeLabel = "닫기",
 }: FloatingPanelProps) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  }
+
   return (
-    <div className={`floating-layer ${placement}`} role="presentation">
+    <div className={`floating-layer ${placement}`} role="presentation" onClick={handleBackdropClick}>
       <section className={`floating-panel ${chrome}`} role="dialog" aria-modal="false" aria-labelledby={labelledBy}>
         <header className="floating-panel-header">
           <h2 id={labelledBy}>{title}</h2>
