@@ -177,6 +177,10 @@ export class MileDayApiClient {
     });
   }
 
+  getGoalMilestones(goalId: string): Promise<Milestone[]> {
+    return this.request<Milestone[]>(`/goals/${goalId}/milestones`);
+  }
+
   getTodayMilestones(): Promise<Milestone[]> {
     return this.request<Milestone[]>("/milestones/today");
   }

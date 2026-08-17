@@ -23,6 +23,7 @@ import { DateDetail } from "@/components/DateDetail";
 import { FloatingPanel } from "@/components/FloatingPanel";
 import { ManualCreatePanel } from "@/components/ManualCreatePanel";
 import { QuickActionPopover } from "@/components/QuickActionPopover";
+import { GoalListModal } from "@/components/GoalListModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { useCalendarStore, type CalendarMode } from "@/store/calendarStore";
 import { useUiStore } from "@/store/uiStore";
@@ -493,7 +494,7 @@ export default function App() {
   const prefetchRunRef = useRef(0);
   const hasStartedLoginPrefetchRef = useRef(false);
   const currentViewRef = useRef({ mode, selectedDate, visibleDate, weekStartsOn });
-  const { overlayMode, openQuickMenu, openManualCreate, openAiCreate, openSettings, openDayView, closeOverlay } = useUiStore();
+  const { overlayMode, openQuickMenu, openManualCreate, openAiCreate, openSettings, openDayView, openGoalList, closeOverlay } = useUiStore();
   const handleWindowMoveStart = useWindowMoveDrag();
 
   currentViewRef.current = { mode, selectedDate, visibleDate, weekStartsOn };
@@ -1177,6 +1178,7 @@ export default function App() {
             <QuickActionPopover
               onManualCreate={openManualCreate}
               onAiCreate={openAiCreate}
+              onGoalList={openGoalList}
               language={userSettings.language}
             />
           ) : null}
@@ -1230,6 +1232,17 @@ export default function App() {
           onSaveDraft={handleSaveAiDraft}
           onClose={closeOverlay}
           language={userSettings.language}
+        />
+      ) : null}
+      {overlayMode === "goal-list" ? (
+        <GoalListModal
+          language={userSettings.language}
+          onClose={closeOverlay}
+          onUpdateGoal={handleUpdateGoal}
+          onDeleteGoal={handleDeleteGoal}
+          onCreateMilestone={handleCreateMilestone}
+          onUpdateMilestone={handleUpdateMilestone}
+          onDeleteMilestone={handleDeleteMilestone}
         />
       ) : null}
       {overlayMode === "day-view" ? (

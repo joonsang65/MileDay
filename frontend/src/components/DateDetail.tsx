@@ -389,7 +389,7 @@ export function DateDetail({
   );
 }
 
-function GoalEditor({
+export function GoalEditor({
   goal,
   isLoading,
   text,
@@ -455,7 +455,7 @@ function GoalEditor({
   );
 }
 
-function MilestoneEditor({
+export function MilestoneEditor({
   goal,
   milestone,
   isLoading,
@@ -537,7 +537,7 @@ function MilestoneEditor({
   );
 }
 
-function MilestoneCreateEditor({
+export function MilestoneCreateEditor({
   goal,
   scheduledDate,
   heading,
