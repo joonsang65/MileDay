@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -50,10 +50,8 @@ describe("SettingsPanel", () => {
     await user.selectOptions(screen.getByLabelText("휴일 표현"), "weekend_like");
     await user.selectOptions(screen.getByLabelText("주 시작 요일"), "0");
     await user.selectOptions(screen.getByLabelText("언어"), "en");
-    await user.clear(screen.getByLabelText("Base font size (px)"));
-    await user.type(screen.getByLabelText("Base font size (px)"), "16");
-    await user.clear(screen.getByLabelText("Goal font size (px)"));
-    await user.type(screen.getByLabelText("Goal font size (px)"), "18");
+    fireEvent.change(screen.getByLabelText("Base font size (px)"), { target: { value: "16" } });
+    fireEvent.change(screen.getByLabelText("Goal font size (px)"), { target: { value: "18" } });
     await user.click(screen.getByLabelText("Window resizing"));
     await user.click(screen.getByLabelText("Open at Windows login"));
     await user.click(screen.getByRole("button", { name: "Save" }));

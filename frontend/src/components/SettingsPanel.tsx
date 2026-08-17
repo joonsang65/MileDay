@@ -88,7 +88,7 @@ const SURVEY_URL = "https://forms.gle/TKJzzzX1y39eFNDWA";
 
 export function SettingsPanel({
   settings,
-  localUiSettings = { baseFontSize: 14, goalFontSize: 13, resizeEnabled: false },
+  localUiSettings = { baseFontSize: 12, goalFontSize: 13, resizeEnabled: false },
   isLoading,
   autoLaunch = window.mileday?.autoLaunch,
   onSave,
@@ -251,27 +251,41 @@ export function SettingsPanel({
         </label>
         <label>
           {text.baseFontSize}
-          <input
-            type="number"
-            min={10}
-            max={32}
-            step={1}
-            value={baseFontSize}
-            disabled={isLoading}
-            onChange={(event) => void handleBaseFontSizeChange(event.target.value)}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <input
+              type="range"
+              aria-label={text.baseFontSize}
+              min={1}
+              max={25}
+              step={1}
+              value={baseFontSize}
+              disabled={isLoading}
+              onChange={(event) => void handleBaseFontSizeChange(event.target.value)}
+              style={{ flex: 1, height: "auto", padding: 0 }}
+            />
+            <span style={{ fontSize: "11px", fontWeight: 700, width: "32px", textAlign: "right" }}>
+              {baseFontSize}px
+            </span>
+          </div>
         </label>
         <label>
           {text.goalFontSize}
-          <input
-            type="number"
-            min={10}
-            max={32}
-            step={1}
-            value={goalFontSize}
-            disabled={isLoading}
-            onChange={(event) => void handleGoalFontSizeChange(event.target.value)}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <input
+              type="range"
+              aria-label={text.goalFontSize}
+              min={1}
+              max={25}
+              step={1}
+              value={goalFontSize}
+              disabled={isLoading}
+              onChange={(event) => void handleGoalFontSizeChange(event.target.value)}
+              style={{ flex: 1, height: "auto", padding: 0 }}
+            />
+            <span style={{ fontSize: "11px", fontWeight: 700, width: "32px", textAlign: "right" }}>
+              {goalFontSize}px
+            </span>
+          </div>
         </label>
         <label className="toggle-row settings-toggle-row">
           <input
