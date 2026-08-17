@@ -6,8 +6,8 @@ delete env.ELECTRON_RUN_AS_NODE;
 const command = process.platform === "win32" ? "cmd.exe" : "electron-vite";
 const args =
   process.platform === "win32"
-    ? ["/d", "/s", "/c", "electron-vite dev"]
-    : ["dev"];
+    ? ["/d", "/s", "/c", "electron-vite dev -w -- --disable-gpu-sandbox"]
+    : ["dev", "-w", "--", "--disable-gpu-sandbox"];
 
 const child = spawn(command, args, {
   stdio: "inherit",
