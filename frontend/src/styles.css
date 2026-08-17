@@ -1080,7 +1080,14 @@ button:disabled {
   flex: 0 0 auto;
   min-height: 0;
   max-height: 42vh;
+  overflow: visible;
+  z-index: 30;
+}
+
+.day-view-panel .day-view-list {
+  max-height: 28vh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .day-view-add-button {
@@ -1089,7 +1096,7 @@ button:disabled {
 
 .day-view-quick-menu {
   position: absolute;
-  top: 44px;
+  bottom: calc(100% + 8px);
   right: 8px;
   z-index: 100;
 }
@@ -1102,13 +1109,13 @@ button:disabled {
 }
 
 .day-view-quick-menu .quick-action-popover::before {
-  top: -8px;
-  bottom: auto;
+  top: auto;
+  bottom: -8px;
   right: 14px;
-  border-top: 1px solid var(--border-default);
-  border-left: 1px solid var(--border-default);
-  border-right: 0;
-  border-bottom: 0;
+  border-top: 0;
+  border-left: 0;
+  border-right: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .calendar-surface {
