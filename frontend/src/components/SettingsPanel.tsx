@@ -104,8 +104,14 @@ export function SettingsPanel({
   const [resizeEnabled, setResizeEnabled] = useState(localUiSettings.resizeEnabled);
   const [openAtLogin, setOpenAtLogin] = useState(false);
   const [isAutoLaunchLoading, setIsAutoLaunchLoading] = useState(false);
-  const [autoLaunchMessage, setAutoLaunchMessage] = useState<string | null>(null);
+  const [autoLaunchErrorType, setAutoLaunchErrorType] = useState<"unavailable" | "error" | null>(null);
   const text = labels[language];
+  const autoLaunchMessage =
+    autoLaunchErrorType === "unavailable"
+      ? text.autoLaunchUnavailable
+      : autoLaunchErrorType === "error"
+        ? text.autoLaunchError
+        : null;
 
   useEffect(() => {
     setCalendarView(settings.calendar_view);
@@ -123,12 +129,12 @@ export function SettingsPanel({
   useEffect(() => {
     let isMounted = true;
     if (!autoLaunch) {
-      setAutoLaunchMessage(text.autoLaunchUnavailable);
+      setAutoLaunchErrorType("unavailable");
       return;
     }
 
     setIsAutoLaunchLoading(true);
-    setAutoLaunchMessage(null);
+    setAutoLaunchErrorType(null);
     void autoLaunch
       .get()
       .then((state) => {
@@ -138,7 +144,7 @@ export function SettingsPanel({
       })
       .catch(() => {
         if (isMounted) {
-          setAutoLaunchMessage(text.autoLaunchError);
+          setAutoLaunchErrorType("error");
         }
       })
       .finally(() => {
@@ -164,17 +170,17 @@ export function SettingsPanel({
 
   async function handleAutoLaunchChange(nextValue: boolean) {
     if (!autoLaunch) {
-      setAutoLaunchMessage(text.autoLaunchUnavailable);
+      setAutoLaunchErrorType("unavailable");
       return;
     }
 
     setIsAutoLaunchLoading(true);
-    setAutoLaunchMessage(null);
+    setAutoLaunchErrorType(null);
     try {
       const state = await autoLaunch.set(nextValue);
       setOpenAtLogin(state.openAtLogin);
     } catch {
-      setAutoLaunchMessage(text.autoLaunchError);
+      setAutoLaunchErrorType("error");
     } finally {
       setIsAutoLaunchLoading(false);
     }

@@ -36,6 +36,7 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
+      "no-undef": "off",
     },
   },
   {
@@ -49,6 +50,7 @@ export default [
     languageOptions: {
       globals: {
         process: "readonly",
+        console: "readonly",
       },
     },
   },
