@@ -50,7 +50,7 @@ const dateDetailLabels = {
     loading: "불러오는 중입니다.",
     goals: "목표",
     task: "작업",
-    empty: "연결된 일정이 없습니다.",
+    empty: "오늘은 일정이 없습니다.",
     noGoal: "목표 없음",
     milestone: "마일스톤",
     markIncomplete: "미완료로 변경",

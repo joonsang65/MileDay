@@ -20,7 +20,7 @@
   --border-default: #D5D1C3;
   --selected-date-bg: #DDE4D8;
   --danger: #B75D57;
-  --app-font-size: 12px;
+  --app-font-size: 10px;
   --goal-font-size: 10px;
   color: var(--text-primary);
   background: var(--bg-app);
