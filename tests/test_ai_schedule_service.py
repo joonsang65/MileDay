@@ -186,7 +186,7 @@ def test_build_create_goal_payload_matches_existing_goal_api_shape() -> None:
         "color": "#7F9278",
     }
     assert len(payload["milestones"]) == 1
-    assert payload["milestones"][0]["color"] == "#55A873"
+    assert payload["milestones"][0]["color"] == "#7F9278"
     assert payload["write_policy"] == "user_confirmation_required"
 
 

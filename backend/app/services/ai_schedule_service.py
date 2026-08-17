@@ -12,7 +12,6 @@ from schemas.ai_schedule_schemas import AiScheduleDraftRequest
 
 
 DEFAULT_GOAL_COLOR = "#7F9278"
-DEFAULT_MILESTONE_COLOR = "#55A873"
 PROMPT_VERSION = "v1-product-ai-draft"
 WEEKDAYS = (
     "monday",
@@ -211,19 +210,20 @@ def validate_ai_schedule_draft(
 def build_create_goal_payload(draft: dict[str, Any]) -> dict[str, Any]:
     goal = draft["goal"]
     milestones = draft["milestones"]
+    goal_color = DEFAULT_GOAL_COLOR
     return {
         "goal": {
             "title": goal["title"],
             "deadline": goal["deadline"],
             "is_recurring": False,
             "recurrence_type": None,
-            "color": DEFAULT_GOAL_COLOR,
+            "color": goal_color,
         },
         "milestones": [
             {
                 "title": item["title"],
                 "scheduled_date": item["scheduled_date"],
-                "color": DEFAULT_MILESTONE_COLOR,
+                "color": goal_color,
                 "is_completed": False,
             }
             for item in milestones

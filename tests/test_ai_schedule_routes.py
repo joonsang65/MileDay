@@ -48,7 +48,7 @@ class FakeAiScheduleService:
                     {
                         "title": "자료 수집과 전처리",
                         "scheduled_date": "2026-08-22",
-                        "color": "#55A873",
+                        "color": "#7F9278",
                         "is_completed": False,
                     }
                 ],
