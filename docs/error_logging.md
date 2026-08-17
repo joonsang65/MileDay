@@ -278,6 +278,7 @@ Authorization Header 원문, access_token, refresh_token은 어떤 경우에도 
 | 코드 | 설명 | Status |
 | --- | --- | --- |
 | AUTH_INVALID_CREDENTIALS | 이메일 또는 비밀번호 불일치 | 401 |
+| AUTH_EMAIL_NOT_CONFIRMED | 이메일 인증 미완료 상태로 로그인 시도 | 401 |
 | AUTH_TOKEN_EXPIRED | Access Token 만료 | 401 |
 | AUTH_INVALID_TOKEN | JWT 검증 실패 | 401 |
 | AUTH_USER_NOT_FOUND | 사용자 정보 없음 | 404 |

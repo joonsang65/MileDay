@@ -490,3 +490,78 @@ fallback은 공휴일 목록을 비워 두고, 프론트에서 토요일/일요�
 - 현재 서비스 키가 `한국천문연구원_특일 정보` API에 활용 신청/승인되지 않음
 - `.env`에 encoding key와 decoding key를 섞어 넣었고 인증 서버가 키를 인식하지 못함
 - 공공데이터포털 키 승인 직후라 아직 게이트웨이에 반영되지 않음
+
+## 18. 목표 편집 날짜 제한 문제
+
+### 증상과 요청
+
+목표를 생성한 날짜의 하루 보기에서만 편집이 가능했다.
+목표가 표시되는 다른 날짜의 하루 보기에서 목표를 클릭해도 편집 폼이 열리지 않았다.
+
+### 원인
+
+`DateDetail`이 편집 가능 여부를 목표 `created_at` 날짜와 현재 선택 날짜를 비교해서 결정하고 있었다.
+
+### 대응
+
+목표가 표시되는 날짜(`milestones.scheduled_date` 기준 또는 `deadline` 기준)이면 어느 날짜에서도 편집 폼을 열 수 있도록 수정했다.
+편집 가능 조건을 생성 날짜 비교에서 목표 소유자 확인으로 변경했다.
+
+### 반영 위치
+
+- `frontend/src/components/DateDetail.tsx`
+- `frontend/src/App.tsx`
+
+## 19. 설정 글자 크기 범위 적용 불가 문제
+
+### 증상과 요청
+
+설정 패널에서 기본 글자 크기와 목표 글자 크기 슬라이더를 10 미만으로 내릴 수 없었다.
+UI 슬라이더의 min/max는 변경됐지만 실제 저장 및 적용 범위가 변경되지 않았다.
+
+### 원인
+
+`electron/main.ts`의 `normalizeFontSize` 함수가 `Math.min(32, Math.max(10, ...))` 으로 고정되어 있어
+슬라이더에서 1~9 값을 전달해도 10으로 clamp됐다.
+`out/main/main.js` 번들도 동일한 이전 값을 갖고 있었다.
+
+### 대응
+
+`SettingsPanel.tsx` 슬라이더 `min=1`, `max=25`로 수정했다.
+`electron/main.ts` `normalizeFontSize`를 `Math.min(25, Math.max(1, ...))` 로 수정했다.
+변경 후 `npm run build`(또는 `npm run dev`)로 재빌드해야 번들에 반영된다.
+
+### 확인 지점
+
+변경 후에도 적용이 안 되면 `frontend/out/main/main.js`의 `normalizeFontSize` 함수를 직접 검색해 번들이 갱신됐는지 확인한다.
+
+### 반영 위치
+
+- `frontend/src/components/SettingsPanel.tsx`
+- `frontend/electron/main.ts`
+
+## 20. npm run dev 실행 시 Electron GPU process 반복 종료 문제
+
+### 증상
+
+`dev.cmd` → `scripts/dev.ps1` → `npm run dev` → `electron-vite dev` 실행 시
+Electron GPU process가 반복 종료되며 앱이 정상 실행되지 않았다.
+`npx electron . --disable-gpu-sandbox`로 직접 실행하면 정상 동작했다.
+
+### 원인
+
+GPU sandbox 관련 환경에서 `--disable-gpu-sandbox` 플래그 없이 Electron이 실행되면 GPU process가 crash된다.
+`electron-vite dev`는 내부적으로 `startElectron()`이 Electron을 spawn하는데, 이 시점에 추가 플래그가 전달되지 않았다.
+
+### 해결 방법
+
+`electron-vite dev -- --disable-gpu-sandbox` 형태로 `--` 구분자 뒤에 플래그를 추가하면
+`ELECTRON_CLI_ARGS=["--disable-gpu-sandbox"]`로 직렬화되어 spawn 시 Electron에 전달된다.
+
+`electron-vite dev -w -- --disable-gpu-sandbox` 로 `-w` 플래그도 함께 적용하면
+main/preload 변경 시 Electron이 자동으로 재시작되는 watch 모드도 활성화된다.
+
+### 반영 위치
+
+- `frontend/scripts/dev.mjs`
+
