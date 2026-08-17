@@ -26,4 +26,15 @@ contextBridge.exposeInMainWorld("mileday", {
       ipcRenderer.invoke("window-resize:update", payload),
     end: () => ipcRenderer.invoke("window-resize:end"),
   },
+  windowMove: {
+    start: (payload: { screenX: number; screenY: number }) =>
+      ipcRenderer.invoke("window-move:start", payload),
+    update: (payload: { screenX: number; screenY: number }) =>
+      ipcRenderer.invoke("window-move:update", payload),
+    end: () => ipcRenderer.invoke("window-move:end"),
+  },
+  windowFocus: {
+    setKeyboardFocusRequired: (required: boolean) =>
+      ipcRenderer.invoke("window-focus:set-keyboard-focus-required", required),
+  },
 });

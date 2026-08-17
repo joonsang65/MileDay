@@ -1,6 +1,6 @@
 {
   "name": "mileday-frontend",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "productName": "MileDay",
   "description": "A lightweight desktop widget for organizing daily goals and tasks on a calendar.",
   "author": "노준상",
@@ -85,6 +85,12 @@
     "files": [
       "out/**",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/mileday_icon.ico",
+        "to": "icons/mileday_icon.ico"
+      }
     ]
   }
 }

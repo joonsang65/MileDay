@@ -9,6 +9,10 @@ describe("createMainWindowOptions", () => {
     expect(options).toMatchObject({
       width: 612,
       height: 422,
+      minWidth: 520,
+      minHeight: 380,
+      maxWidth: 980,
+      maxHeight: 760,
       frame: false,
       resizable: false,
       minimizable: false,
@@ -29,15 +33,48 @@ describe("createMainWindowOptions", () => {
     const options = createMainWindowOptions("C:/app/out/main", {
       x: 120,
       y: 80,
-      width: 381,
-      height: 299,
+      width: 520,
+      height: 380,
     });
 
     expect(options).toMatchObject({
       x: 120,
       y: 80,
-      width: 381,
-      height: 299,
+      width: 520,
+      height: 380,
+    });
+  });
+
+  it("clamps saved window size to the widget limits", () => {
+    const options = createMainWindowOptions(
+      "C:/app/out/main",
+      {
+        x: 120,
+        y: 80,
+        width: 1800,
+        height: 1200,
+      },
+      { width: 1920, height: 1080 },
+    );
+
+    expect(options).toMatchObject({
+      width: 980,
+      height: 760,
+      maxWidth: 980,
+      maxHeight: 760,
+    });
+  });
+
+  it("sizes the default widget window from the display work area", () => {
+    const options = createMainWindowOptions(
+      "C:/app/out/main",
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+
+    expect(options).toMatchObject({
+      width: 691,
+      height: 518,
     });
   });
 });
