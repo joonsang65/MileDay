@@ -34,7 +34,6 @@ export function CreationPanel({
   const [milestoneGoalId, setMilestoneGoalId] = useState("");
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState(selectedDate);
-  const [milestoneColor, setMilestoneColor] = useState(colorOptions[1]);
   const [isMilestoneRecurring, setIsMilestoneRecurring] = useState(false);
   const [milestoneRecurrenceType, setMilestoneRecurrenceType] = useState<RecurrenceType>("weekly");
   const [milestoneRepeatUntil, setMilestoneRepeatUntil] = useState(selectedDate);
@@ -47,6 +46,10 @@ export function CreationPanel({
     }
     return goals[0]?.id ?? "";
   }, [goals, milestoneGoalId]);
+  const selectedGoal = useMemo(
+    () => goals.find((goal) => goal.id === selectedGoalId) ?? null,
+    [goals, selectedGoalId],
+  );
 
   useEffect(() => {
     setGoalDeadline(selectedDate);
@@ -121,7 +124,7 @@ export function CreationPanel({
       scheduledDates.map((scheduledDate) => ({
         title: milestoneTitle.trim(),
         scheduled_date: scheduledDate,
-        color: milestoneColor,
+        color: selectedGoal?.color ?? colorOptions[0],
       })),
     );
     setMilestoneTitle("");
@@ -227,7 +230,6 @@ export function CreationPanel({
                   disabled={!hasGoals || isLoading}
                 />
               </label>
-              <ColorPicker value={milestoneColor} disabled={isLoading || !hasGoals} onChange={setMilestoneColor} />
               <label className="toggle-row">
                 <input
                   type="checkbox"

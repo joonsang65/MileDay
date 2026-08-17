@@ -1,4 +1,5 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Settings } from "lucide-react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 
 import type { Language } from "@/api/types";
 import type { CalendarMode } from "@/store/calendarStore";
@@ -11,7 +12,7 @@ type CalendarHeaderProps = {
   onNext: () => void;
   onToday: () => void;
   onOpenSettings: () => void;
-  onOpenQuickMenu: () => void;
+  onWindowMoveStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   language: Language;
 };
 
@@ -23,7 +24,7 @@ export function CalendarHeader({
   onNext,
   onToday,
   onOpenSettings,
-  onOpenQuickMenu,
+  onWindowMoveStart,
   language,
 }: CalendarHeaderProps) {
   const text = language === "en"
@@ -49,7 +50,7 @@ export function CalendarHeader({
       };
 
   return (
-    <header className="app-header">
+    <header className="app-header" onPointerDown={onWindowMoveStart}>
       <div className="header-title">
         <h1>{label}</h1>
       </div>
@@ -82,9 +83,6 @@ export function CalendarHeader({
         </button>
         <button type="button" className="icon-button" data-testid="settings-button" onClick={onOpenSettings} title={text.settings}>
           <Settings size={17} aria-hidden="true" />
-        </button>
-        <button type="button" className="add-button" data-testid="quick-add-button" onClick={onOpenQuickMenu} title={text.add}>
-          <Plus size={19} aria-hidden="true" />
         </button>
       </div>
     </header>

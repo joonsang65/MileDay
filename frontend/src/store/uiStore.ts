@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type OverlayMode = "none" | "quick-menu" | "manual-create" | "ai-create" | "settings";
+export type OverlayMode = "none" | "quick-menu" | "manual-create" | "ai-create" | "settings" | "day-view";
 
 type UiState = {
   overlayMode: OverlayMode;
@@ -8,6 +8,7 @@ type UiState = {
   openManualCreate: () => void;
   openAiCreate: () => void;
   openSettings: () => void;
+  openDayView: () => void;
   closeOverlay: () => void;
 };
 
@@ -18,5 +19,6 @@ export const useUiStore = create<UiState>((set) => ({
   openManualCreate: () => set({ overlayMode: "manual-create" }),
   openAiCreate: () => set({ overlayMode: "ai-create" }),
   openSettings: () => set({ overlayMode: "settings" }),
+  openDayView: () => set({ overlayMode: "day-view" }),
   closeOverlay: () => set({ overlayMode: "none" }),
 }));

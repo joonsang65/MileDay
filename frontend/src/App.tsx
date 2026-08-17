@@ -69,7 +69,7 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
 };
 
 const DEFAULT_LOCAL_UI_SETTINGS: LocalUiSettings = {
-  baseFontSize: 14,
+  baseFontSize: 12,
   goalFontSize: 13,
   resizeEnabled: false,
 };
@@ -77,6 +77,9 @@ const DEFAULT_LOCAL_UI_SETTINGS: LocalUiSettings = {
 const AUTH_LANGUAGE_KEY = "mileday.auth_language";
 
 const RESIZE_DIRECTIONS: ResizeDirection[] = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
+const PREFETCH_MONTHS_BACK = 3;
+const PREFETCH_MONTHS_FORWARD = 9;
+const PREFETCH_CONCURRENCY = 2;
 
 const authMessages: Record<AuthLanguage, { checkingSession: string; signupComplete: string }> = {
   ko: {
@@ -180,12 +183,98 @@ function WindowResizeHandles({ enabled }: { enabled: boolean }) {
   );
 }
 
+function useWindowMoveDrag() {
+  const isDraggingRef = useRef(false);
+
+  function removeListeners() {
+    window.removeEventListener("pointermove", handlePointerMove);
+    window.removeEventListener("pointerup", handlePointerUp);
+    window.removeEventListener("pointercancel", handlePointerUp);
+  }
+
+  function handlePointerMove(event: PointerEvent) {
+    if (!isDraggingRef.current) {
+      return;
+    }
+    void window.mileday?.windowMove?.update({
+      screenX: event.screenX,
+      screenY: event.screenY,
+    });
+  }
+
+  function handlePointerUp() {
+    if (!isDraggingRef.current) {
+      return;
+    }
+    isDraggingRef.current = false;
+    removeListeners();
+    void window.mileday?.windowMove?.end();
+  }
+
+  return function handleWindowMoveStart(event: ReactPointerEvent<HTMLElement>) {
+    if (event.button !== 0 || !window.mileday?.windowMove) {
+      return;
+    }
+
+    const target = event.target;
+    if (target instanceof Element && target.closest("button, input, select, textarea, a, [data-no-window-drag]")) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    isDraggingRef.current = true;
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    void window.mileday.windowMove
+      .start({
+        screenX: event.screenX,
+        screenY: event.screenY,
+      })
+      .then((started) => {
+        if (!started) {
+          handlePointerUp();
+        }
+      })
+      .catch(() => handlePointerUp());
+  };
+}
+
 function getCalendarCacheKey(mode: CalendarMode, visibleDate: string, weekStartsOn: 0 | 1) {
   const visible = parseDateKey(visibleDate);
   if (mode === "month") {
     return `month:${visible.getFullYear()}-${String(visible.getMonth() + 1).padStart(2, "0")}`;
   }
   return `week:${getWeekStartDate(visibleDate, weekStartsOn)}`;
+}
+
+function getMonthCacheKey(year: number, month: number) {
+  return `month:${year}-${String(month).padStart(2, "0")}`;
+}
+
+function addMonthsFromMonthStart(value: Date, offset: number) {
+  return new Date(value.getFullYear(), value.getMonth() + offset, 1);
+}
+
+function getCalendarPrefetchTargets(baseDateKey: string) {
+  const baseDate = parseDateKey(baseDateKey);
+  const offsets = [0];
+  for (let distance = 1; distance <= PREFETCH_MONTHS_FORWARD; distance += 1) {
+    if (distance <= PREFETCH_MONTHS_BACK) {
+      offsets.push(-distance);
+    }
+    offsets.push(distance);
+  }
+
+  return offsets.map((offset) => {
+    const targetDate = addMonthsFromMonthStart(baseDate, offset);
+    return {
+      year: targetDate.getFullYear(),
+      month: targetDate.getMonth() + 1,
+    };
+  });
 }
 
 function buildDateDetailFromCalendar(date: string, calendar: CalendarData | null): CalendarDateData | null {
@@ -204,6 +293,25 @@ function buildDateDetailFromCalendar(date: string, calendar: CalendarData | null
   };
 }
 
+function cacheCalendarMonth(
+  calendarCache: Map<string, CalendarData>,
+  dateDetailCache: Map<string, CalendarDateData>,
+  calendar: CalendarMonthData,
+) {
+  calendarCache.set(getMonthCacheKey(calendar.year, calendar.month), calendar);
+  for (const day of calendar.days) {
+    dateDetailCache.set(day.date, {
+      date: day.date,
+      is_today: day.is_today,
+      goal_count: day.goal_count,
+      milestone_count: day.milestone_count,
+      completed_milestone_count: day.completed_milestone_count,
+      goals: day.goals,
+      milestones: day.milestones,
+    });
+  }
+}
+
 function countCompletedMilestones(milestones: { is_completed: boolean }[]) {
   return milestones.filter((milestone) => milestone.is_completed).length;
 }
@@ -212,14 +320,21 @@ function upsertGoalInCalendar(calendar: CalendarData, goal: Goal): CalendarData 
   return {
     ...calendar,
     goals: [...calendar.goals.filter((item) => item.id !== goal.id), goal],
+    milestones: calendar.milestones.map((m) =>
+      m.goal_id === goal.id ? { ...m, goal_title: goal.title } : m,
+    ),
     days: calendar.days.map((day) => {
       const goals = day.goals.filter((item) => item.id !== goal.id);
       if (day.date === goal.deadline) {
         goals.push(goal);
       }
+      const milestones = day.milestones.map((m) =>
+        m.goal_id === goal.id ? { ...m, goal_title: goal.title } : m,
+      );
       return {
         ...day,
         goals,
+        milestones,
         goal_count: goals.length,
       };
     }),
@@ -231,21 +346,30 @@ function upsertGoalInDateDetail(detail: CalendarDateData, goal: Goal): CalendarD
   if (detail.date === goal.deadline) {
     goals.push(goal);
   }
+  const milestones = detail.milestones.map((m) =>
+    m.goal_id === goal.id ? { ...m, goal_title: goal.title } : m,
+  );
   return {
     ...detail,
     goals,
+    milestones,
     goal_count: goals.length,
   };
 }
 
 function upsertMilestoneInCalendar(calendar: CalendarData, milestone: Milestone): CalendarData {
+  const existing = calendar.milestones.find((item) => item.id === milestone.id);
+  const milestoneToUpsert = existing && milestone.goal_title == null
+    ? { ...milestone, goal_title: existing.goal_title }
+    : milestone;
+
   return {
     ...calendar,
-    milestones: [...calendar.milestones.filter((item) => item.id !== milestone.id), milestone],
+    milestones: [...calendar.milestones.filter((item) => item.id !== milestoneToUpsert.id), milestoneToUpsert],
     days: calendar.days.map((day) => {
-      const milestones = day.milestones.filter((item) => item.id !== milestone.id);
-      if (day.date === milestone.scheduled_date) {
-        milestones.push(milestone);
+      const milestones = day.milestones.filter((item) => item.id !== milestoneToUpsert.id);
+      if (day.date === milestoneToUpsert.scheduled_date) {
+        milestones.push(milestoneToUpsert);
       }
       return {
         ...day,
@@ -258,9 +382,14 @@ function upsertMilestoneInCalendar(calendar: CalendarData, milestone: Milestone)
 }
 
 function upsertMilestoneInDateDetail(detail: CalendarDateData, milestone: Milestone): CalendarDateData {
-  const milestones = detail.milestones.filter((item) => item.id !== milestone.id);
-  if (detail.date === milestone.scheduled_date) {
-    milestones.push(milestone);
+  const existing = detail.milestones.find((item) => item.id === milestone.id);
+  const milestoneToUpsert = existing && milestone.goal_title == null
+    ? { ...milestone, goal_title: existing.goal_title }
+    : milestone;
+
+  const milestones = detail.milestones.filter((item) => item.id !== milestoneToUpsert.id);
+  if (detail.date === milestoneToUpsert.scheduled_date) {
+    milestones.push(milestoneToUpsert);
   }
   return {
     ...detail,
@@ -352,15 +481,20 @@ export default function App() {
     null,
   );
   const [dateDetail, setDateDetail] = useState<CalendarDateData | null>(null);
+  const [allGoals, setAllGoals] = useState<Goal[]>([]);
   const [userSettings, setUserSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
   const [localUiSettings, setLocalUiSettings] = useState<LocalUiSettings>(DEFAULT_LOCAL_UI_SETTINGS);
   const [hasAppliedInitialSettings, setHasAppliedInitialSettings] = useState(false);
+  const [isDateDetailEditing, setIsDateDetailEditing] = useState(false);
   const calendarCacheRef = useRef(new Map<string, CalendarData>());
   const dateDetailCacheRef = useRef(new Map<string, CalendarDateData>());
   const settingsCacheRef = useRef<UserSettings | null>(null);
   const requestSequenceRef = useRef(0);
+  const prefetchRunRef = useRef(0);
+  const hasStartedLoginPrefetchRef = useRef(false);
   const currentViewRef = useRef({ mode, selectedDate, visibleDate, weekStartsOn });
-  const { overlayMode, openQuickMenu, openManualCreate, openAiCreate, openSettings, closeOverlay } = useUiStore();
+  const { overlayMode, openQuickMenu, openManualCreate, openAiCreate, openSettings, openDayView, closeOverlay } = useUiStore();
+  const handleWindowMoveStart = useWindowMoveDrag();
 
   currentViewRef.current = { mode, selectedDate, visibleDate, weekStartsOn };
 
@@ -368,6 +502,11 @@ export default function App() {
     document.documentElement.style.setProperty("--app-font-size", `${localUiSettings.baseFontSize}px`);
     document.documentElement.style.setProperty("--goal-font-size", `${localUiSettings.goalFontSize}px`);
   }, [localUiSettings.baseFontSize, localUiSettings.goalFontSize]);
+
+  useEffect(() => {
+    const keyboardFocusRequired = !isAuthenticated || overlayMode !== "none" || isDateDetailEditing;
+    void window.mileday?.windowFocus?.setKeyboardFocusRequired(keyboardFocusRequired);
+  }, [isAuthenticated, isDateDetailEditing, overlayMode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -455,6 +594,41 @@ export default function App() {
     setDateDetail((current) => (current ? updater(current) : current));
   }, []);
 
+  const prefetchCalendarMonths = useCallback((baseDateKey: string) => {
+    const runId = ++prefetchRunRef.current;
+    const targets = getCalendarPrefetchTargets(baseDateKey).filter(
+      (target) => !calendarCacheRef.current.has(getMonthCacheKey(target.year, target.month)),
+    );
+    let nextTargetIndex = 0;
+
+    async function worker() {
+      while (nextTargetIndex < targets.length && prefetchRunRef.current === runId) {
+        const target = targets[nextTargetIndex];
+        nextTargetIndex += 1;
+
+        if (calendarCacheRef.current.has(getMonthCacheKey(target.year, target.month))) {
+          continue;
+        }
+
+        try {
+          const calendar = await apiClient.getMonthCalendar(target.year, target.month);
+          if (prefetchRunRef.current !== runId) {
+            return;
+          }
+          cacheCalendarMonth(calendarCacheRef.current, dateDetailCacheRef.current, calendar);
+        } catch {
+          // Prefetch is opportunistic; visible calendar requests still surface errors.
+        }
+      }
+    }
+
+    window.setTimeout(() => {
+      void Promise.all(
+        Array.from({ length: Math.min(PREFETCH_CONCURRENCY, targets.length) }, () => worker()),
+      );
+    }, 0);
+  }, []);
+
   const loadCalendar = useCallback(async (options: { force?: boolean; quiet?: boolean } = {}) => {
     if (!isAuthenticated) {
       return;
@@ -503,7 +677,11 @@ export default function App() {
         return;
       }
       settingsCacheRef.current = settings;
-      calendarCacheRef.current.set(calendarCacheKey, calendar);
+      if ("month" in calendar) {
+        cacheCalendarMonth(calendarCacheRef.current, dateDetailCacheRef.current, calendar);
+      } else {
+        calendarCacheRef.current.set(calendarCacheKey, calendar);
+      }
       setCalendarData(calendar);
 
       let detail =
@@ -529,8 +707,13 @@ export default function App() {
         applySettingsToCalendar(settings);
         setHasAppliedInitialSettings(true);
       }
+      void apiClient.listGoals().then(setAllGoals).catch(() => undefined);
       if (!quiet) {
         setRequestState({ isLoading: false, message: null, notice: null });
+      }
+      if (!quiet && !hasStartedLoginPrefetchRef.current) {
+        hasStartedLoginPrefetchRef.current = true;
+        prefetchCalendarMonths(todayKey);
       }
     } catch (error) {
       const isCurrentView =
@@ -545,6 +728,8 @@ export default function App() {
         apiClient.setAccessToken(null);
         void apiClient.persistAccessToken(null);
         setIsAuthenticated(false);
+        prefetchRunRef.current += 1;
+        hasStartedLoginPrefetchRef.current = false;
       }
       if (!quiet) {
         setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, authLanguage), notice: null });
@@ -556,7 +741,9 @@ export default function App() {
     hasAppliedInitialSettings,
     isAuthenticated,
     mode,
+    prefetchCalendarMonths,
     selectedDate,
+    todayKey,
     visibleDate,
     weekStartsOn,
   ]);
@@ -570,6 +757,12 @@ export default function App() {
   useEffect(() => {
     void loadCalendar();
   }, [loadCalendar]);
+
+  useEffect(() => {
+    if (overlayMode === "manual-create") {
+      void apiClient.listGoals().then(setAllGoals).catch(() => undefined);
+    }
+  }, [overlayMode]);
 
   useEffect(() => {
     if (overlayMode === "none") {
@@ -592,6 +785,8 @@ export default function App() {
       await apiClient.login(email, password, rememberLogin);
       setIsAuthenticated(true);
       setHasAppliedInitialSettings(false);
+      prefetchRunRef.current += 1;
+      hasStartedLoginPrefetchRef.current = false;
       calendarCacheRef.current.clear();
       dateDetailCacheRef.current.clear();
       settingsCacheRef.current = null;
@@ -626,6 +821,8 @@ export default function App() {
       setCalendarData(null);
       setDateDetail(null);
       setUserSettings(DEFAULT_USER_SETTINGS);
+      prefetchRunRef.current += 1;
+      hasStartedLoginPrefetchRef.current = false;
       calendarCacheRef.current.clear();
       dateDetailCacheRef.current.clear();
       settingsCacheRef.current = null;
@@ -648,6 +845,9 @@ export default function App() {
     selectDate(date);
     if (mode === "week") {
       setVisibleDate(getWeekStartDate(date, weekStartsOn));
+    }
+    if (typeof window !== "undefined" && window.innerHeight <= 520) {
+      openDayView();
     }
   }
 
@@ -721,30 +921,24 @@ export default function App() {
     }
   }
 
-  async function handleCreateGoal(payload: GoalCreatePayload) {
-    setRequestState({ isLoading: true, message: null, notice: null });
-    try {
-      const goal = await apiClient.createGoal(payload);
-      updateCachedCalendars((calendar) => upsertGoalInCalendar(calendar, goal));
-      updateCachedDateDetails((detail) => upsertGoalInDateDetail(detail, goal));
-      setRequestState({ isLoading: false, message: null, notice: null });
-      refreshCalendarInBackground();
-    } catch (error) {
-      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, userSettings.language), notice: null });
-    }
-  }
-
-  async function handleCreateManualSchedule(goalPayload: GoalCreatePayload, milestonePayloads: MilestoneCreatePayload[]) {
+  async function handleCreateManualSchedule(goalPayloadOrId: string | GoalCreatePayload, milestonePayloads: MilestoneCreatePayload[]) {
     setRequestState({ isLoading: true, message: null, notice: null });
     let createdGoal: Goal | null = null;
     try {
-      const goal = await apiClient.createGoal(goalPayload);
-      createdGoal = goal;
-      updateCachedCalendars((calendar) => upsertGoalInCalendar(calendar, goal));
-      updateCachedDateDetails((detail) => upsertGoalInDateDetail(detail, goal));
+      let goalId: string;
+      if (typeof goalPayloadOrId === "string") {
+        goalId = goalPayloadOrId;
+      } else {
+        const goal = await apiClient.createGoal(goalPayloadOrId);
+        createdGoal = goal;
+        goalId = goal.id;
+        setAllGoals((current) => [...current.filter((item) => item.id !== goal.id), goal]);
+        updateCachedCalendars((calendar) => upsertGoalInCalendar(calendar, goal));
+        updateCachedDateDetails((detail) => upsertGoalInDateDetail(detail, goal));
+      }
 
       for (const payload of milestonePayloads) {
-        const milestone = await apiClient.createMilestone(goal.id, payload);
+        const milestone = await apiClient.createMilestone(goalId, payload);
         updateCachedCalendars((calendar) => upsertMilestoneInCalendar(calendar, milestone));
         updateCachedDateDetails((detail) => upsertMilestoneInDateDetail(detail, milestone));
       }
@@ -760,6 +954,7 @@ export default function App() {
         } catch {
           // Best-effort rollback; the visible state is still cleaned up locally.
         }
+        setAllGoals((current) => current.filter((item) => item.id !== goalToRollback.id));
         updateCachedCalendars((calendar) => removeGoalFromCalendar(calendar, goalToRollback.id));
         updateCachedDateDetails((detail) => removeGoalFromDateDetail(detail, goalToRollback.id));
         refreshCalendarInBackground();
@@ -777,6 +972,7 @@ export default function App() {
     setRequestState({ isLoading: true, message: null, notice: null });
     try {
       const goal = await apiClient.createGoal(goalPayload);
+      setAllGoals((current) => [...current.filter((item) => item.id !== goal.id), goal]);
       for (const payload of milestonePayloads) {
         const milestone = await apiClient.createMilestone(goal.id, payload);
         updateCachedCalendars((calendar) => upsertMilestoneInCalendar(calendar, milestone));
@@ -796,6 +992,7 @@ export default function App() {
     setRequestState({ isLoading: true, message: null, notice: null });
     try {
       const goal = await apiClient.updateGoal(goalId, payload);
+      setAllGoals((current) => [...current.filter((item) => item.id !== goal.id), goal]);
       updateCachedCalendars((calendar) => upsertGoalInCalendar(calendar, goal));
       updateCachedDateDetails((detail) => upsertGoalInDateDetail(detail, goal));
       setRequestState({ isLoading: false, message: null, notice: null });
@@ -809,8 +1006,22 @@ export default function App() {
     setRequestState({ isLoading: true, message: null, notice: null });
     try {
       await apiClient.deleteGoal(goalId);
+      setAllGoals((current) => current.filter((item) => item.id !== goalId));
       updateCachedCalendars((calendar) => removeGoalFromCalendar(calendar, goalId));
       updateCachedDateDetails((detail) => removeGoalFromDateDetail(detail, goalId));
+      setRequestState({ isLoading: false, message: null, notice: null });
+      refreshCalendarInBackground();
+    } catch (error) {
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, userSettings.language), notice: null });
+    }
+  }
+
+  async function handleCreateMilestone(goalId: string, payload: MilestoneCreatePayload) {
+    setRequestState({ isLoading: true, message: null, notice: null });
+    try {
+      const milestone = await apiClient.createMilestone(goalId, payload);
+      updateCachedCalendars((calendar) => upsertMilestoneInCalendar(calendar, milestone));
+      updateCachedDateDetails((detail) => upsertMilestoneInDateDetail(detail, milestone));
       setRequestState({ isLoading: false, message: null, notice: null });
       refreshCalendarInBackground();
     } catch (error) {
@@ -925,23 +1136,16 @@ export default function App() {
         onNext={() => handleMove(1)}
         onToday={handleToday}
         onOpenSettings={openSettings}
-        onOpenQuickMenu={openQuickMenu}
+        onWindowMoveStart={handleWindowMoveStart}
         language={userSettings.language}
       />
       {overlayMode === "quick-menu" ? (
-        <>
-          <button
-            type="button"
-            className="quick-menu-backdrop"
-            aria-label={appLabels[userSettings.language].closeMenu}
-            onClick={closeOverlay}
-          />
-          <QuickActionPopover
-            onManualCreate={openManualCreate}
-            onAiCreate={openAiCreate}
-            language={userSettings.language}
-          />
-        </>
+        <button
+          type="button"
+          className="quick-menu-backdrop"
+          aria-label={appLabels[userSettings.language].closeMenu}
+          onClick={closeOverlay}
+        />
       ) : null}
       {requestState.message ? <p className="toast-error">{requestState.message}</p> : null}
       <div className="workspace planner-workspace">
@@ -959,12 +1163,23 @@ export default function App() {
         </div>
         <DateDetail
           detail={dateDetail}
+          goals={allGoals}
           isLoading={requestState.isLoading && !dateDetail}
           onToggleMilestone={handleToggleMilestone}
           onUpdateGoal={handleUpdateGoal}
           onDeleteGoal={handleDeleteGoal}
+          onCreateMilestone={handleCreateMilestone}
           onUpdateMilestone={handleUpdateMilestone}
           onDeleteMilestone={handleDeleteMilestone}
+          onEditingChange={setIsDateDetailEditing}
+          onOpenQuickMenu={openQuickMenu}
+          quickMenuContent={overlayMode === "quick-menu" ? (
+            <QuickActionPopover
+              onManualCreate={openManualCreate}
+              onAiCreate={openAiCreate}
+              language={userSettings.language}
+            />
+          ) : null}
           language={userSettings.language}
         />
       </div>
@@ -998,6 +1213,7 @@ export default function App() {
         <ManualCreatePanel
           selectedDate={selectedDate}
           isLoading={requestState.isLoading}
+          goals={allGoals}
           onCreateSchedule={handleCreateManualSchedule}
           onClose={closeOverlay}
           language={userSettings.language}
@@ -1015,6 +1231,30 @@ export default function App() {
           onClose={closeOverlay}
           language={userSettings.language}
         />
+      ) : null}
+      {overlayMode === "day-view" ? (
+        <FloatingPanel
+          title={`${dateDetail?.date ?? selectedDate} ${userSettings.language === "en" ? "Day View" : "하루 보기"}`}
+          onClose={closeOverlay}
+          closeLabel={appLabels[userSettings.language].close}
+          placement="center"
+        >
+          <DateDetail
+            detail={dateDetail}
+            goals={allGoals}
+            isLoading={requestState.isLoading && !dateDetail}
+            onToggleMilestone={handleToggleMilestone}
+            onUpdateGoal={handleUpdateGoal}
+            onDeleteGoal={handleDeleteGoal}
+            onCreateMilestone={handleCreateMilestone}
+            onUpdateMilestone={handleUpdateMilestone}
+            onDeleteMilestone={handleDeleteMilestone}
+            onEditingChange={setIsDateDetailEditing}
+            onOpenQuickMenu={openQuickMenu}
+            quickMenuContent={null}
+            language={userSettings.language}
+          />
+        </FloatingPanel>
       ) : null}
     </main>
   );

@@ -35,5 +35,13 @@ interface Window {
       update: (payload: { screenX: number; screenY: number }) => Promise<boolean>;
       end: () => Promise<boolean>;
     };
+    windowMove?: {
+      start: (payload: { screenX: number; screenY: number }) => Promise<boolean>;
+      update: (payload: { screenX: number; screenY: number }) => Promise<boolean>;
+      end: () => Promise<boolean>;
+    };
+    windowFocus?: {
+      setKeyboardFocusRequired: (required: boolean) => Promise<boolean>;
+    };
   };
 }

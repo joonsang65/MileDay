@@ -410,10 +410,17 @@ export function AuthPanel({
       {isOnboardingOpen ? (
         <section className="onboarding-panel" aria-label={text.introLabel}>
           <div className="onboarding-visual" data-variant={activeSlide.icon}>
+            <span className="onboarding-step">
+              {activeSlideIndex + 1} / {onboardingSlides.length}
+            </span>
             <OnboardingVisual type={activeSlide.icon} text={text.visual} />
+            <div className="onboarding-dots" aria-hidden="true">
+              {onboardingSlides.map((slide) => (
+                <span key={slide.title} className={slide === activeSlide ? "active" : ""} />
+              ))}
+            </div>
           </div>
           <div className="onboarding-copy">
-            <span>{activeSlideIndex + 1} / {onboardingSlides.length}</span>
             <h2>{activeSlide.title}</h2>
             <p>{activeSlide.description}</p>
             <ul className="onboarding-points">
@@ -421,11 +428,6 @@ export function AuthPanel({
                 <li key={point}>{point}</li>
               ))}
             </ul>
-          </div>
-          <div className="onboarding-dots" aria-hidden="true">
-            {onboardingSlides.map((slide) => (
-              <span key={slide.title} className={slide === activeSlide ? "active" : ""} />
-            ))}
           </div>
           <div className="onboarding-actions">
             <button

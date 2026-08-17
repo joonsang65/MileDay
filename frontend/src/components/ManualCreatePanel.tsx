@@ -1,13 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { CalendarPlus, Plus, Trash2 } from "lucide-react";
 
-import type { GoalCreatePayload, Language, MilestoneCreatePayload } from "@/api/types";
+import type { Goal, GoalCreatePayload, Language, MilestoneCreatePayload } from "@/api/types";
 import { FloatingPanel } from "@/components/FloatingPanel";
 
 type ManualCreatePanelProps = {
   selectedDate: string;
   isLoading: boolean;
-  onCreateSchedule: (goal: GoalCreatePayload, milestones: MilestoneCreatePayload[]) => Promise<void>;
+  goals: Goal[];
+  onCreateSchedule: (goalPayloadOrId: string | GoalCreatePayload, milestones: MilestoneCreatePayload[]) => Promise<void>;
   onClose: () => void;
   language: Language;
 };
@@ -18,12 +19,17 @@ type ManualMilestoneDraft = {
   scheduledDate: string;
 };
 
+type CreationMode = "new" | "existing";
+
 const colorOptions = ["#7F9278", "#55A873", "#E59A45", "#8B6FD6", "#D96868", "#8A94A3"];
-const milestoneColor = "#55A873";
 const labels = {
   ko: {
     title: "일정 추가",
+    modeNew: "새 목표 추가",
+    modeExisting: "기존 목표에 추가",
     goalTitle: "목표 제목",
+    selectGoal: "목표 선택",
+    selectGoalRequired: "목표를 선택해 주세요.",
     goalPlaceholder: "예: 데이터 분석 과제 마무리",
     deadline: "마감일",
     color: "색상",
@@ -49,7 +55,11 @@ const labels = {
   },
   en: {
     title: "Add Schedule",
+    modeNew: "New Goal",
+    modeExisting: "Existing Goal",
     goalTitle: "Goal title",
+    selectGoal: "Select goal",
+    selectGoalRequired: "Please select a goal.",
     goalPlaceholder: "e.g. Finish data analysis assignment",
     deadline: "Deadline",
     color: "Color",
@@ -78,11 +88,14 @@ const labels = {
 export function ManualCreatePanel({
   selectedDate,
   isLoading,
+  goals,
   onCreateSchedule,
   onClose,
   language,
 }: ManualCreatePanelProps) {
   const text = labels[language];
+  const [mode, setMode] = useState<CreationMode>("new");
+  const [selectedGoalId, setSelectedGoalId] = useState("");
   const [title, setTitle] = useState("");
   const [deadline, setDeadline] = useState(selectedDate);
   const [color, setColor] = useState(colorOptions[0]);
@@ -117,14 +130,31 @@ export function ManualCreatePanel({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setValidationMessage(null);
-    if (!title.trim()) {
-      setValidationMessage(text.validation.titleRequired);
-      return;
+    
+    let targetDeadline = deadline;
+    let targetColor = color;
+    
+    if (mode === "new") {
+      if (!title.trim()) {
+        setValidationMessage(text.validation.titleRequired);
+        return;
+      }
+      if (!deadline) {
+        setValidationMessage(text.validation.deadlineRequired);
+        return;
+      }
+    } else {
+      if (!selectedGoalId) {
+        setValidationMessage(text.selectGoalRequired);
+        return;
+      }
+      const selectedGoal = goals.find(g => g.id === selectedGoalId);
+      if (selectedGoal) {
+        targetDeadline = selectedGoal.deadline;
+        targetColor = selectedGoal.color;
+      }
     }
-    if (!deadline) {
-      setValidationMessage(text.validation.deadlineRequired);
-      return;
-    }
+    
     const filledMilestones = milestones.filter((milestone) => milestone.title.trim());
     if (milestones.length === 0 && filledMilestones.length > 0) {
       setValidationMessage(text.validation.milestoneRequired);
@@ -139,24 +169,26 @@ export function ManualCreatePanel({
         setValidationMessage(text.validation.milestoneDateRequired);
         return;
       }
-      if (milestone.scheduledDate > deadline) {
+      if (milestone.scheduledDate > targetDeadline) {
         setValidationMessage(text.validation.milestoneAfterDeadline);
         return;
       }
     }
 
+    const payloadOrId = mode === "new" ? {
+      title: title.trim(),
+      deadline,
+      is_recurring: false,
+      recurrence_type: null,
+      color,
+    } : selectedGoalId;
+
     await onCreateSchedule(
-      {
-        title: title.trim(),
-        deadline,
-        is_recurring: false,
-        recurrence_type: null,
-        color,
-      },
+      payloadOrId,
       filledMilestones.map((milestone) => ({
         title: milestone.title.trim(),
         scheduled_date: milestone.scheduledDate,
-        color: milestoneColor,
+        color: targetColor,
       })),
     );
     onClose();
@@ -165,43 +197,72 @@ export function ManualCreatePanel({
   return (
     <FloatingPanel title={text.title} onClose={onClose} placement="center" chrome="plain" closeLabel={text.close}>
       <form id="manual-create-form" className="panel-form" onSubmit={handleSubmit} noValidate>
-        <label>
-          {text.goalTitle}
-          <input
-            type="text"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder={text.goalPlaceholder}
-            disabled={isLoading}
-          />
-        </label>
-        <label>
-          {text.deadline}
-          <input
-            type="date"
-            value={deadline}
-            onChange={(event) => setDeadline(event.target.value)}
-            disabled={isLoading}
-            required
-          />
-        </label>
-        <fieldset className="color-field">
-          <legend>{text.color}</legend>
-          <div className="color-options">
-            {colorOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={option === color ? "selected" : ""}
-                style={{ background: option }}
-                onClick={() => setColor(option)}
+        <div className="creation-tabs">
+          <button type="button" className={mode === "new" ? "active" : ""} onClick={() => setMode("new")} disabled={isLoading}>
+            {text.modeNew}
+          </button>
+          <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")} disabled={isLoading}>
+            {text.modeExisting}
+          </button>
+        </div>
+
+        {mode === "new" ? (
+          <>
+            <label>
+              {text.goalTitle}
+              <input
+                type="text"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={text.goalPlaceholder}
                 disabled={isLoading}
-                title={option}
-                aria-label={`${text.colorLabel} ${option}`}
               />
-            ))}
-          </div>
-        </fieldset>
+            </label>
+            <label>
+              {text.deadline}
+              <input
+                type="date"
+                value={deadline}
+                onChange={(event) => setDeadline(event.target.value)}
+                disabled={isLoading}
+                required
+              />
+            </label>
+            <fieldset className="color-field">
+              <legend>{text.color}</legend>
+              <div className="color-options">
+                {colorOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={option === color ? "selected" : ""}
+                    style={{ background: option }}
+                    onClick={() => setColor(option)}
+                    disabled={isLoading}
+                    title={option}
+                    aria-label={`${text.colorLabel} ${option}`}
+                  />
+                ))}
+              </div>
+            </fieldset>
+          </>
+        ) : (
+          <label>
+            {text.selectGoal}
+            <select
+              value={selectedGoalId}
+              onChange={(e) => setSelectedGoalId(e.target.value)}
+              disabled={isLoading}
+              style={{ width: "100%", height: "36px", border: "1px solid #c9d2dd", borderRadius: "6px", padding: "0 10px", color: "#17202a", background: "#ffffff" }}
+            >
+              <option value="">{text.selectGoal}</option>
+              {goals.map(g => (
+                <option key={g.id} value={g.id}>{g.title}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        
         <fieldset className="manual-milestone-field">
           <legend>{text.milestones}</legend>
           <ul className="manual-milestone-list">

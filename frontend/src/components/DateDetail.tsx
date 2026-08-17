@@ -1,21 +1,35 @@
-import { FormEvent, useState } from "react";
-import { CheckCircle2, Circle, Pencil, Trash2, X } from "lucide-react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { CheckCircle2, Circle, Pencil, Plus, Trash2, X } from "lucide-react";
 
-import type { CalendarDateData, Goal, GoalUpdatePayload, Language, Milestone, MilestoneUpdatePayload } from "@/api/types";
+import type {
+  CalendarDateData,
+  Goal,
+  GoalUpdatePayload,
+  Language,
+  Milestone,
+  MilestoneCreatePayload,
+  MilestoneUpdatePayload,
+} from "@/api/types";
 
 type DateDetailProps = {
   detail?: CalendarDateData | null;
+  goals?: Goal[];
   isLoading: boolean;
   onToggleMilestone: (milestoneId: string, isCompleted: boolean) => void;
   onUpdateGoal: (goalId: string, payload: GoalUpdatePayload) => Promise<void>;
   onDeleteGoal: (goalId: string) => Promise<void>;
+  onCreateMilestone: (goalId: string, payload: MilestoneCreatePayload) => Promise<void>;
   onUpdateMilestone: (milestoneId: string, payload: MilestoneUpdatePayload) => Promise<void>;
   onDeleteMilestone: (milestoneId: string) => Promise<void>;
+  onEditingChange?: (isEditing: boolean) => void;
+  onOpenQuickMenu?: () => void;
+  quickMenuContent?: ReactNode;
   language?: Language;
 };
 
 type EditingItem =
   | { type: "goal"; id: string }
+  | { type: "new-milestone"; goalId: string }
   | { type: "milestone"; id: string }
   | null;
 
@@ -27,6 +41,8 @@ type DateGoalGroup = {
   milestones: Milestone[];
   completed: number;
 };
+
+const colorOptions = ["#7F9278", "#55A873", "#E59A45", "#8B6FD6", "#D96868", "#8A94A3"];
 
 const dateDetailLabels = {
   ko: {
@@ -40,6 +56,8 @@ const dateDetailLabels = {
     markIncomplete: "미완료로 변경",
     markComplete: "완료로 변경",
     formTitle: "제목",
+    goalTitleLabel: "목표 제목",
+    milestoneTitleLabel: "마일스톤 제목",
     deadline: "마감일",
     scheduledDate: "일정일",
     color: "색상",
@@ -64,6 +82,8 @@ const dateDetailLabels = {
     markIncomplete: "Mark incomplete",
     markComplete: "Mark complete",
     formTitle: "Title",
+    goalTitleLabel: "Goal title",
+    milestoneTitleLabel: "Milestone title",
     deadline: "Deadline",
     scheduledDate: "Schedule date",
     color: "Color",
@@ -79,9 +99,23 @@ const dateDetailLabels = {
   },
 };
 
-function getDateGoalGroups(detail: CalendarDateData | null | undefined, noGoalLabel: string): DateGoalGroup[] {
+function getDateGoalGroups(
+  detail: CalendarDateData | null | undefined,
+  noGoalLabel: string,
+  allGoals?: Goal[],
+): DateGoalGroup[] {
   if (!detail) {
     return [];
+  }
+
+  const goalMap = new Map<string, Goal>();
+  if (allGoals) {
+    for (const goal of allGoals) {
+      goalMap.set(goal.id, goal);
+    }
+  }
+  for (const goal of detail.goals) {
+    goalMap.set(goal.id, goal);
   }
 
   const groups = new Map<string, DateGoalGroup>();
@@ -97,13 +131,34 @@ function getDateGoalGroups(detail: CalendarDateData | null | undefined, noGoalLa
   }
 
   for (const milestone of detail.milestones) {
+    const matchedGoal = goalMap.get(milestone.goal_id);
+    const fallbackGoal: Goal | undefined = milestone.goal_id
+      ? {
+          id: milestone.goal_id,
+          title: milestone.goal_title ?? noGoalLabel,
+          deadline: detail.date,
+          color: milestone.color,
+          is_recurring: false,
+          recurrence_type: null,
+          created_at: "",
+          updated_at: "",
+        }
+      : undefined;
+
+    const resolvedGoal = matchedGoal ?? fallbackGoal;
     const group = groups.get(milestone.goal_id) ?? {
       id: milestone.goal_id,
-      title: milestone.goal_title ?? noGoalLabel,
-      color: milestone.color,
+      title: resolvedGoal?.title ?? milestone.goal_title ?? noGoalLabel,
+      color: resolvedGoal?.color ?? milestone.color,
+      goal: resolvedGoal,
       milestones: [],
       completed: 0,
     };
+    if (!group.goal && resolvedGoal) {
+      group.goal = resolvedGoal;
+      group.title = resolvedGoal.title;
+      group.color = resolvedGoal.color;
+    }
     group.milestones.push(milestone);
     if (milestone.is_completed) {
       group.completed += 1;
@@ -114,42 +169,75 @@ function getDateGoalGroups(detail: CalendarDateData | null | undefined, noGoalLa
   return Array.from(groups.values());
 }
 
+function isSameEditingItem(current: EditingItem, next: EditingItem): boolean {
+  if (!current || !next || current.type !== next.type) {
+    return false;
+  }
+  if (current.type === "new-milestone" && next.type === "new-milestone") {
+    return current.goalId === next.goalId;
+  }
+  if (current.type !== "new-milestone" && next.type !== "new-milestone") {
+    return current.id === next.id;
+  }
+  return false;
+}
+
 export function DateDetail({
   detail,
+  goals,
   isLoading,
   onToggleMilestone,
   onUpdateGoal,
   onDeleteGoal,
+  onCreateMilestone,
   onUpdateMilestone,
   onDeleteMilestone,
+  onEditingChange,
+  onOpenQuickMenu,
+  quickMenuContent,
   language = "ko",
 }: DateDetailProps) {
   const [editingItem, setEditingItem] = useState<EditingItem>(null);
   const text = dateDetailLabels[language];
-  const goalGroups = getDateGoalGroups(detail, text.noGoal);
+  const addLabel = language === "en" ? "Add schedule" : "일정 만들기";
+  const goalGroups = getDateGoalGroups(detail, text.noGoal, goals);
+
+  useEffect(() => {
+    onEditingChange?.(editingItem !== null);
+  }, [editingItem, onEditingChange]);
 
   function toggleEditing(item: EditingItem) {
     setEditingItem((current) => (
-      current?.type === item?.type && current?.id === item?.id ? null : item
+      isSameEditingItem(current, item) ? null : item
     ));
   }
 
   return (
     <section className="detail-panel day-view-panel" data-testid="date-detail-panel" aria-label={text.title}>
       <div className="panel-heading day-view-heading">
-        <div>
-          <h2>{text.title}</h2>
-          <span>{detail?.date ?? "-"}</span>
-        </div>
+        <h2 className="day-view-title">
+          {text.title} <span>{detail?.date ?? "-"}</span>
+        </h2>
+        {onOpenQuickMenu ? (
+          <button
+            type="button"
+            className="add-button day-view-add-button"
+            data-testid="quick-add-button"
+            onClick={onOpenQuickMenu}
+            title={addLabel}
+          >
+            <Plus size={19} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
+      {quickMenuContent ? <div className="day-view-quick-menu">{quickMenuContent}</div> : null}
       {isLoading ? <p className="muted-text">{text.loading}</p> : null}
       {detail ? (
         <>
-          <div className="summary-row">
+          <div className="day-view-summary">
             <span>{text.goals} {goalGroups.length}</span>
-            <span>
-              {text.task} {detail.completed_milestone_count}/{detail.milestone_count}
-            </span>
+            <span className="summary-divider" aria-hidden="true" />
+            <span>{text.task} {detail.completed_milestone_count}/{detail.milestone_count}</span>
           </div>
           <div className="section-block">
             <h3>{text.goals}</h3>
@@ -160,18 +248,35 @@ export function DateDetail({
                 {goalGroups.map((group) => (
                   <li key={group.id} className="goal-group">
                     {group.goal ? (
-                      <button
-                        type="button"
-                        className="editable-row goal-row"
-                        onClick={() => toggleEditing({ type: "goal", id: group.id })}
-                      >
-                        <span className="color-swatch" style={{ background: group.color }} />
-                        <span>
-                          <strong>{group.title}</strong>
-                          <small>{text.task} {group.completed}/{group.milestones.length}</small>
-                        </span>
-                        <Pencil size={14} aria-hidden="true" />
-                      </button>
+                      <div className="editable-row goal-row split-goal-row">
+                        <button
+                          type="button"
+                          className="goal-edit-target"
+                          onClick={() => toggleEditing({ type: "goal", id: group.id })}
+                        >
+                          <span className="color-swatch" style={{ background: group.color }} />
+                          <span>
+                            <strong>{group.title}</strong>
+                            <small>{text.task} {group.completed}/{group.milestones.length}</small>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="row-icon-button"
+                          onClick={() => toggleEditing(
+                            group.milestones.length > 0
+                              ? { type: "goal", id: group.id }
+                              : { type: "new-milestone", goalId: group.id },
+                          )}
+                          title={
+                            group.milestones.length > 0
+                              ? (language === "en" ? "Edit goal" : "목표 수정")
+                              : (language === "en" ? "Add milestone" : "마일스톤 추가")
+                          }
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                        </button>
+                      </div>
                     ) : (
                       <div className="editable-row goal-row readonly-row">
                         <span className="color-swatch" style={{ background: group.color }} />
@@ -195,6 +300,23 @@ export function DateDetail({
                         onDelete={async () => {
                           await onDeleteGoal(group.id);
                           setEditingItem(null);
+                        }}
+                      />
+                    ) : null}
+                    {group.goal && editingItem?.type === "new-milestone" && editingItem.goalId === group.id ? (
+                      <MilestoneCreateEditor
+                        goal={group.goal}
+                        scheduledDate={detail.date}
+                        heading={language === "en" ? "Add milestone" : "마일스톤 추가"}
+                        isLoading={isLoading}
+                        text={text}
+                        onCancel={() => setEditingItem(null)}
+                        onSave={async (payload) => {
+                          await onCreateMilestone(group.id, payload);
+                          setEditingItem(null);
+                        }}
+                        onUpdateGoal={async (payload) => {
+                          await onUpdateGoal(group.id, payload);
                         }}
                       />
                     ) : null}
@@ -234,6 +356,7 @@ export function DateDetail({
                             </div>
                             {editingItem?.type === "milestone" && editingItem.id === milestone.id ? (
                               <MilestoneEditor
+                                goal={group.goal}
                                 milestone={milestone}
                                 isLoading={isLoading}
                                 text={text}
@@ -245,6 +368,9 @@ export function DateDetail({
                                 onDelete={async () => {
                                   await onDeleteMilestone(milestone.id);
                                   setEditingItem(null);
+                                }}
+                                onUpdateGoal={async (payload) => {
+                                  await onUpdateGoal(group.id, payload);
                                 }}
                               />
                             ) : null}
@@ -321,7 +447,7 @@ function GoalEditor({
       </label>
       <label>
         {text.color}
-        <input value={color} onChange={(event) => setColor(event.target.value)} disabled={isLoading} required />
+        <ColorPicker value={color} disabled={isLoading} label={text.color} onChange={setColor} />
       </label>
       {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
       <EditorActions isLoading={isLoading} text={text} onCancel={onCancel} onDelete={onDelete} />
@@ -330,20 +456,25 @@ function GoalEditor({
 }
 
 function MilestoneEditor({
+  goal,
   milestone,
   isLoading,
   text,
   onCancel,
   onSave,
   onDelete,
+  onUpdateGoal,
 }: {
+  goal?: Goal;
   milestone: Milestone;
   isLoading: boolean;
   text: (typeof dateDetailLabels)[Language];
   onCancel: () => void;
   onSave: (payload: MilestoneUpdatePayload) => Promise<void>;
   onDelete: () => Promise<void>;
+  onUpdateGoal?: (payload: GoalUpdatePayload) => Promise<void>;
 }) {
+  const [goalTitle, setGoalTitle] = useState(goal?.title ?? "");
   const [title, setTitle] = useState(milestone.title);
   const [scheduledDate, setScheduledDate] = useState(milestone.scheduled_date);
   const [color, setColor] = useState(milestone.color);
@@ -352,6 +483,10 @@ function MilestoneEditor({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setValidationMessage(null);
+    if (goal && !goalTitle.trim()) {
+      setValidationMessage(text.goalTitleRequired);
+      return;
+    }
     if (!title.trim()) {
       setValidationMessage(text.milestoneTitleRequired);
       return;
@@ -359,6 +494,9 @@ function MilestoneEditor({
     if (!scheduledDate) {
       setValidationMessage(text.scheduledDateRequired);
       return;
+    }
+    if (goal && onUpdateGoal && goalTitle.trim() !== goal.title) {
+      await onUpdateGoal({ title: goalTitle.trim() });
     }
     await onSave({
       title: title.trim(),
@@ -369,8 +507,14 @@ function MilestoneEditor({
 
   return (
     <form className="inline-editor" onSubmit={handleSubmit} noValidate>
+      {goal ? (
+        <label className="secondary-field">
+          {text.goalTitleLabel}
+          <input value={goalTitle} onChange={(event) => setGoalTitle(event.target.value)} disabled={isLoading} required />
+        </label>
+      ) : null}
       <label>
-        {text.formTitle}
+        {text.milestoneTitleLabel || text.formTitle}
         <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
       </label>
       <label>
@@ -385,11 +529,130 @@ function MilestoneEditor({
       </label>
       <label>
         {text.color}
-        <input value={color} onChange={(event) => setColor(event.target.value)} disabled={isLoading} required />
+        <ColorPicker value={color} disabled={isLoading} label={text.color} onChange={setColor} />
       </label>
       {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
       <EditorActions isLoading={isLoading} text={text} onCancel={onCancel} onDelete={onDelete} />
     </form>
+  );
+}
+
+function MilestoneCreateEditor({
+  goal,
+  scheduledDate,
+  heading,
+  isLoading,
+  text,
+  onCancel,
+  onSave,
+  onUpdateGoal,
+}: {
+  goal: Goal;
+  scheduledDate: string;
+  heading: string;
+  isLoading: boolean;
+  text: (typeof dateDetailLabels)[Language];
+  onCancel: () => void;
+  onSave: (payload: MilestoneCreatePayload) => Promise<void>;
+  onUpdateGoal: (payload: GoalUpdatePayload) => Promise<void>;
+}) {
+  const [goalTitle, setGoalTitle] = useState(goal.title);
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState(scheduledDate);
+  const [color, setColor] = useState(goal.color);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setValidationMessage(null);
+    if (!goalTitle.trim()) {
+      setValidationMessage(text.goalTitleRequired);
+      return;
+    }
+    if (!title.trim()) {
+      setValidationMessage(text.milestoneTitleRequired);
+      return;
+    }
+    if (!date) {
+      setValidationMessage(text.scheduledDateRequired);
+      return;
+    }
+    
+    if (goalTitle.trim() !== goal.title) {
+      await onUpdateGoal({ title: goalTitle.trim() });
+    }
+    
+    await onSave({
+      title: title.trim(),
+      scheduled_date: date,
+      color,
+    });
+  }
+
+  return (
+    <form className="inline-editor" onSubmit={handleSubmit} noValidate>
+      <strong className="inline-editor-title">{heading}</strong>
+      <label className="secondary-field">
+        {text.goalTitleLabel}
+        <input value={goalTitle} onChange={(event) => setGoalTitle(event.target.value)} disabled={isLoading} required />
+      </label>
+      <label>
+        {text.milestoneTitleLabel}
+        <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
+      </label>
+      <label>
+        {text.scheduledDate}
+        <input
+          type="date"
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+          disabled={isLoading}
+          required
+        />
+      </label>
+      <label>
+        {text.color}
+        <ColorPicker value={color} disabled={isLoading} label={text.color} onChange={setColor} />
+      </label>
+      {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
+      <div className="editor-actions">
+        <button type="submit" className="primary-button compact" disabled={isLoading}>
+          {isLoading ? text.saving : text.save}
+        </button>
+        <button type="button" className="ghost-button compact" onClick={onCancel} disabled={isLoading}>
+          {text.close}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ColorPicker({
+  value,
+  disabled,
+  label,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="color-options inline-color-options">
+      {colorOptions.map((color) => (
+        <button
+          key={color}
+          type="button"
+          className={value === color ? "selected" : ""}
+          style={{ background: color }}
+          onClick={() => onChange(color)}
+          disabled={disabled}
+          title={color}
+          aria-label={`${label} ${color}`}
+        />
+      ))}
+    </div>
   );
 }
 

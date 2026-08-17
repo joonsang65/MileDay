@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CalendarDateData } from "@/api/types";
+import type { CalendarDateData, Goal } from "@/api/types";
 
 import { DateDetail } from "./DateDetail";
 
@@ -48,6 +48,7 @@ function renderDateDetail(overrides = {}) {
       onToggleMilestone={vi.fn()}
       onUpdateGoal={vi.fn().mockResolvedValue(undefined)}
       onDeleteGoal={vi.fn().mockResolvedValue(undefined)}
+      onCreateMilestone={vi.fn().mockResolvedValue(undefined)}
       onUpdateMilestone={vi.fn().mockResolvedValue(undefined)}
       onDeleteMilestone={vi.fn().mockResolvedValue(undefined)}
       {...overrides}
@@ -56,6 +57,140 @@ function renderDateDetail(overrides = {}) {
 }
 
 describe("DateDetail", () => {
+  it("allows editing a goal even when the goal has milestones", async () => {
+    const user = userEvent.setup();
+    const onUpdateGoal = vi.fn().mockResolvedValue(undefined);
+    renderDateDetail({
+      language: "en",
+      onUpdateGoal,
+      detail: {
+        ...detail,
+        goals: [{ ...detail.goals[0], title: "Portfolio work" }],
+        milestones: [{ ...detail.milestones[0], title: "Draft content", goal_title: "Portfolio work" }],
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: /Portfolio work/ }));
+    const editor = screen.getByLabelText("Deadline").closest("form") as HTMLElement;
+
+    await user.clear(within(editor).getByLabelText("Title"));
+    await user.type(within(editor).getByLabelText("Title"), "Updated portfolio work");
+    await user.click(within(editor).getByRole("button", { name: "Save" }));
+
+    expect(onUpdateGoal).toHaveBeenCalledWith("goal-1", {
+      title: "Updated portfolio work",
+      deadline: "2026-07-10",
+      color: "#0F766E",
+      is_recurring: false,
+      recurrence_type: null,
+    });
+  });
+
+  it("opens goal editing from the goal row pencil when the goal has milestones", async () => {
+    const user = userEvent.setup();
+    renderDateDetail({
+      language: "en",
+      detail: {
+        ...detail,
+        goals: [{ ...detail.goals[0], title: "Childcare" }],
+        milestones: [{ ...detail.milestones[0], title: "Go to center", goal_title: "Childcare" }],
+      },
+    });
+
+    await user.click(screen.getByTitle("Edit goal"));
+
+    expect(screen.getByDisplayValue("Childcare")).toBeInTheDocument();
+    expect(screen.getByLabelText("Deadline")).toBeInTheDocument();
+  });
+
+  it("adds a milestone from the goal row action when a goal has no milestones", async () => {
+    const user = userEvent.setup();
+    const onCreateMilestone = vi.fn().mockResolvedValue(undefined);
+    renderDateDetail({
+      language: "en",
+      onCreateMilestone,
+      detail: {
+        ...detail,
+        milestone_count: 0,
+        completed_milestone_count: 0,
+        goals: [{ ...detail.goals[0], title: "Portfolio work" }],
+        milestones: [],
+      },
+    });
+
+    await user.click(screen.getByTitle("Add milestone"));
+    const editor = screen.getByLabelText("Schedule date").closest("form") as HTMLElement;
+
+    await user.type(within(editor).getByLabelText("Milestone title"), "Draft outline");
+    await user.click(within(editor).getByRole("button", { name: "Save" }));
+
+    expect(onCreateMilestone).toHaveBeenCalledWith("goal-1", {
+      title: "Draft outline",
+      scheduled_date: "2026-07-10",
+      color: "#0F766E",
+    });
+  });
+
+  it("목표 마감일이 아닌 날짜의 하루 보기에서도 해당 목표를 눌러 수정할 수 있다", async () => {
+    const user = userEvent.setup();
+    const onUpdateGoal = vi.fn().mockResolvedValue(undefined);
+    const otherDateGoal: Goal = {
+      id: "goal-2",
+      title: "장기 프로젝트",
+      deadline: "2026-07-31",
+      color: "#8B6FD6",
+      is_recurring: false,
+      recurrence_type: null,
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: "2026-07-01T00:00:00Z",
+    };
+
+    renderDateDetail({
+      goals: [otherDateGoal],
+      detail: {
+        date: "2026-07-10",
+        is_today: false,
+        goal_count: 0,
+        milestone_count: 1,
+        completed_milestone_count: 0,
+        goals: [],
+        milestones: [
+          {
+            id: "milestone-2",
+            goal_id: "goal-2",
+            goal_title: "장기 프로젝트",
+            title: "중간 보고서 작성",
+            color: "#8B6FD6",
+            scheduled_date: "2026-07-10",
+            is_completed: false,
+          },
+        ],
+      },
+      onUpdateGoal,
+    });
+
+    const goalSection = screen.getByRole("heading", { name: "목표" }).closest(".section-block") as HTMLElement | null;
+    expect(goalSection).not.toBeNull();
+
+    await user.click(within(goalSection!).getByRole("button", { name: /장기 프로젝트/ }));
+    const editor = screen.getByLabelText("마감일").closest("form");
+    expect(editor).not.toBeNull();
+    expect(screen.getByDisplayValue("장기 프로젝트")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("2026-07-31")).toBeInTheDocument();
+
+    await user.clear(within(editor!).getByLabelText("제목"));
+    await user.type(within(editor!).getByLabelText("제목"), "장기 프로젝트 v2");
+    await user.click(within(editor!).getByRole("button", { name: "저장" }));
+
+    expect(onUpdateGoal).toHaveBeenCalledWith("goal-2", {
+      title: "장기 프로젝트 v2",
+      deadline: "2026-07-31",
+      color: "#8B6FD6",
+      is_recurring: false,
+      recurrence_type: null,
+    });
+  });
+
   it("목표 row를 누르면 수정 폼이 열리고 저장 payload를 전달한다", async () => {
     const user = userEvent.setup();
     const onUpdateGoal = vi.fn().mockResolvedValue(undefined);
@@ -112,7 +247,7 @@ describe("DateDetail", () => {
     expect(screen.getAllByText("작업 0/1")).toHaveLength(2);
     expect(screen.getByText("프로그램 일지")).toBeInTheDocument();
     expect(screen.getByText("제출")).toBeInTheDocument();
-    expect(screen.queryByText("연결된 일정이 없습니다.")).not.toBeInTheDocument();
+    expect(screen.queryByText("오늘은 일정이 없습니다.")).not.toBeInTheDocument();
   });
 
   it("수정 폼의 제목이 공백이면 저장 API를 호출하지 않는다", async () => {

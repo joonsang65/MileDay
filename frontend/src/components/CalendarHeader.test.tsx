@@ -5,10 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { CalendarHeader } from "./CalendarHeader";
 
 describe("CalendarHeader", () => {
-  it("설정과 일정 만들기 액션을 제공한다", async () => {
+  it("shows the calendar controls without the quick add button", async () => {
     const user = userEvent.setup();
     const onOpenSettings = vi.fn();
-    const onOpenQuickMenu = vi.fn();
 
     render(
       <CalendarHeader
@@ -19,17 +18,13 @@ describe("CalendarHeader", () => {
         onNext={vi.fn()}
         onToday={vi.fn()}
         onOpenSettings={onOpenSettings}
-        onOpenQuickMenu={onOpenQuickMenu}
-        language="ko"
+        language="en"
       />,
     );
 
-    expect(screen.queryByTitle("로그아웃")).not.toBeInTheDocument();
-
-    await user.click(screen.getByTitle("설정"));
-    await user.click(screen.getByTitle("일정 만들기"));
+    await user.click(screen.getByTitle("Settings"));
 
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
-    expect(onOpenQuickMenu).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("quick-add-button")).not.toBeInTheDocument();
   });
 });
