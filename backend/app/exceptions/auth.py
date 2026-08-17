@@ -14,6 +14,16 @@ class AuthInvalidCredentialsError(MileDayBaseException):
         )
 
 
+class AuthEmailNotConfirmedError(MileDayBaseException):
+    def __init__(self, detail: object | None = None):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            error_code=ErrorCode.AUTH_EMAIL_NOT_CONFIRMED,
+            message="Please confirm your email before logging in.",
+            detail=detail,
+        )
+
+
 class AuthInvalidTokenError(MileDayBaseException):
     def __init__(self, detail: object | None = None):
         super().__init__(

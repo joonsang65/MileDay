@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from exceptions.auth import (
+    AuthEmailNotConfirmedError,
     AuthInvalidCredentialsError,
     AuthInvalidTokenError,
     AuthLogoutFailedError,
@@ -127,6 +128,14 @@ def test_login_maps_invalid_credentials_and_unavailable_errors() -> None:
     )
     with pytest.raises(AuthInvalidCredentialsError):
         service.login(email="user@example.com", password="wrong-password")
+
+    client.auth.login_error = FakeAuthError(
+        "email not confirmed",
+        status=400,
+        code="email_not_confirmed",
+    )
+    with pytest.raises(AuthEmailNotConfirmedError):
+        service.login(email="user@example.com", password="password123")
 
     client.auth.login_error = FakeAuthError("service unavailable", status=503)
     with pytest.raises(SupabaseUnavailableError):

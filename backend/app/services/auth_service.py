@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from core.supabase import get_supabase_client, reset_supabase_client
 from exceptions.auth import (
+    AuthEmailNotConfirmedError,
     AuthInvalidCredentialsError,
     AuthInvalidTokenError,
     AuthLogoutFailedError,
@@ -45,7 +46,14 @@ def _get_value(source: Any, key: str) -> Any:
 
 
 def _safe_detail(exc: Exception) -> dict[str, str]:
-    return {"type": exc.__class__.__name__}
+    detail = {"type": exc.__class__.__name__}
+    for key in ("status", "code", "message"):
+        value = getattr(exc, key, None)
+        if value is not None:
+            detail[key] = str(value)
+    if "message" not in detail and str(exc):
+        detail["message"] = str(exc)
+    return detail
 
 
 def _auth_error_text(exc: Exception) -> str:
@@ -80,12 +88,23 @@ def _is_expired_token_error(exc: Exception) -> bool:
     return "expired" in text or "jwt_expired" in text or "token_expired" in text
 
 
+def _is_email_not_confirmed_error(exc: Exception) -> bool:
+    text = _auth_error_text(exc)
+    return (
+        "email_not_confirmed" in text
+        or "email not confirmed" in text
+        or "email not verified" in text
+    )
+
+
 def _map_login_error(exc: Exception) -> Exception:
     if _is_retryable_auth_error(exc):
         return SupabaseUnavailableError(
             message="Supabase Auth login request failed.",
             detail=_safe_detail(exc),
         )
+    if _is_email_not_confirmed_error(exc):
+        return AuthEmailNotConfirmedError(detail=_safe_detail(exc))
     return AuthInvalidCredentialsError(detail=_safe_detail(exc))
 
 
