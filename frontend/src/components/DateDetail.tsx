@@ -239,150 +239,150 @@ export function DateDetail({
             <span className="summary-divider" aria-hidden="true" />
             <span>{text.task} {detail.completed_milestone_count}/{detail.milestone_count}</span>
           </div>
-          <div className="section-block">
-            <h3>{text.goals}</h3>
-            {goalGroups.length === 0 ? (
-              <p className="empty-text">{text.empty}</p>
-            ) : (
-              <ul className="plain-list day-view-list">
-                {goalGroups.map((group) => (
-                  <li key={group.id} className="goal-group">
-                    {group.goal ? (
-                      <div className="editable-row goal-row split-goal-row">
-                        <button
-                          type="button"
-                          className="goal-edit-target"
-                          onClick={() => toggleEditing({ type: "goal", id: group.id })}
-                        >
-                          <span className="color-swatch" style={{ background: group.color }} />
-                          <span>
-                            <strong>{group.title}</strong>
-                            <small>{text.task} {group.completed}/{group.milestones.length}</small>
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="row-icon-button"
-                          onClick={() => toggleEditing(
-                            group.milestones.length > 0
-                              ? { type: "goal", id: group.id }
-                              : { type: "new-milestone", goalId: group.id },
-                          )}
-                          title={
-                            group.milestones.length > 0
-                              ? (language === "en" ? "Edit goal" : "목표 수정")
-                              : (language === "en" ? "Add milestone" : "마일스톤 추가")
-                          }
-                        >
-                          <Pencil size={14} aria-hidden="true" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="editable-row goal-row readonly-row">
+          <h3>{text.goals}</h3>
+          {goalGroups.length === 0 ? (
+            <p className="empty-text">{text.empty}</p>
+          ) : (
+            <ul className="plain-list day-view-list">
+              {goalGroups.map((group) => (
+                <li key={group.id} className="goal-group">
+                  {group.goal ? (
+                    <div className="editable-row goal-row split-goal-row">
+                      <div
+                        className="goal-edit-target"
+                      >
                         <span className="color-swatch" style={{ background: group.color }} />
                         <span>
                           <strong>{group.title}</strong>
                           <small>{text.task} {group.completed}/{group.milestones.length}</small>
                         </span>
-                        <span aria-hidden="true" />
                       </div>
-                    )}
-                    {group.goal && editingItem?.type === "goal" && editingItem.id === group.id ? (
-                      <GoalEditor
-                        goal={group.goal}
-                        isLoading={isLoading}
-                        text={text}
-                        onCancel={() => setEditingItem(null)}
-                        onSave={async (payload) => {
-                          await onUpdateGoal(group.id, payload);
-                          setEditingItem(null);
-                        }}
-                        onDelete={async () => {
-                          await onDeleteGoal(group.id);
-                          setEditingItem(null);
-                        }}
-                      />
-                    ) : null}
-                    {group.goal && editingItem?.type === "new-milestone" && editingItem.goalId === group.id ? (
-                      <MilestoneCreateEditor
-                        goal={group.goal}
-                        scheduledDate={detail.date}
-                        heading={language === "en" ? "Add milestone" : "마일스톤 추가"}
-                        isLoading={isLoading}
-                        text={text}
-                        onCancel={() => setEditingItem(null)}
-                        onSave={async (payload) => {
-                          await onCreateMilestone(group.id, payload);
-                          setEditingItem(null);
-                        }}
-                        onUpdateGoal={async (payload) => {
-                          await onUpdateGoal(group.id, payload);
-                        }}
-                      />
-                    ) : null}
-                    {group.milestones.length > 0 ? (
-                      <ul className="nested-task-list">
-                        {group.milestones.map((milestone) => (
-                          <li key={milestone.id} className="editable-item">
-                            <div className="milestone-row">
-                              <button
-                                type="button"
-                                className="check-button"
-                                data-testid="milestone-toggle"
-                                data-milestone-id={milestone.id}
-                                aria-pressed={milestone.is_completed}
-                                onClick={() => onToggleMilestone(milestone.id, !milestone.is_completed)}
-                                title={milestone.is_completed ? text.markIncomplete : text.markComplete}
-                                disabled={isLoading}
-                              >
-                                {milestone.is_completed ? (
-                                  <CheckCircle2 size={18} aria-hidden="true" />
-                                ) : (
-                                  <Circle size={18} aria-hidden="true" />
-                                )}
-                              </button>
-                              <button
-                                type="button"
-                                className="editable-row milestone-main"
-                                onClick={() => toggleEditing({ type: "milestone", id: milestone.id })}
-                              >
-                                <span className="color-swatch" style={{ background: milestone.color }} />
+                      <button
+                        type="button"
+                        className="row-icon-button"
+                        onClick={() => toggleEditing(
+                          group.milestones.length > 0
+                            ? { type: "goal", id: group.id }
+                            : { type: "new-milestone", goalId: group.id },
+                        )}
+                        title={
+                          group.milestones.length > 0
+                            ? (language === "en" ? "Edit goal" : "목표 수정")
+                            : (language === "en" ? "Add milestone" : "마일스톤 추가")
+                        }
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="editable-row goal-row readonly-row">
+                      <span className="color-swatch" style={{ background: group.color }} />
+                      <span>
+                        <strong>{group.title}</strong>
+                        <small>{text.task} {group.completed}/{group.milestones.length}</small>
+                      </span>
+                      <span aria-hidden="true" />
+                    </div>
+                  )}
+                  {group.goal && editingItem?.type === "goal" && editingItem.id === group.id ? (
+                    <GoalEditor
+                      goal={group.goal}
+                      isLoading={isLoading}
+                      text={text}
+                      onCancel={() => setEditingItem(null)}
+                      onSave={async (payload) => {
+                        await onUpdateGoal(group.id, payload);
+                        setEditingItem(null);
+                      }}
+                      onDelete={async () => {
+                        await onDeleteGoal(group.id);
+                        setEditingItem(null);
+                      }}
+                    />
+                  ) : null}
+                  {group.goal && editingItem?.type === "new-milestone" && editingItem.goalId === group.id ? (
+                    <MilestoneCreateEditor
+                      goal={group.goal}
+                      scheduledDate={detail.date}
+                      heading={language === "en" ? "Add milestone" : "마일스톤 추가"}
+                      isLoading={isLoading}
+                      text={text}
+                      onCancel={() => setEditingItem(null)}
+                      onSave={async (payload) => {
+                        await onCreateMilestone(group.id, payload);
+                        setEditingItem(null);
+                      }}
+                      onUpdateGoal={async (payload) => {
+                        await onUpdateGoal(group.id, payload);
+                      }}
+                    />
+                  ) : null}
+                  {group.milestones.length > 0 ? (
+                    <ul className="nested-task-list">
+                      {group.milestones.map((milestone) => (
+                        <li key={milestone.id} className="editable-item">
+                          <div className="milestone-row">
+                            <button
+                              type="button"
+                              className="check-button"
+                              data-testid="milestone-toggle"
+                              data-milestone-id={milestone.id}
+                              aria-pressed={milestone.is_completed}
+                              onClick={() => onToggleMilestone(milestone.id, !milestone.is_completed)}
+                              title={milestone.is_completed ? text.markIncomplete : text.markComplete}
+                              disabled={isLoading}
+                            >
+                              {milestone.is_completed ? (
+                                <CheckCircle2 size={18} aria-hidden="true" />
+                              ) : (
+                                <Circle size={18} aria-hidden="true" />
+                              )}
+                            </button>
+                            <div className="editable-row split-goal-row">
+                              <div className="goal-edit-target">
+                                <span className="color-swatch" style={{ background: group.color }} />
                                 <span>
                                   <strong>{milestone.title}</strong>
                                   <small>{text.milestone}</small>
                                 </span>
+                              </div>
+                              <button
+                                type="button"
+                                className="row-icon-button"
+                                onClick={() => toggleEditing({ type: "milestone", id: milestone.id })}
+                              >
                                 <Pencil size={14} aria-hidden="true" />
                               </button>
                             </div>
-                            {editingItem?.type === "milestone" && editingItem.id === milestone.id ? (
-                              <MilestoneEditor
-                                goal={group.goal}
-                                milestone={milestone}
-                                isLoading={isLoading}
-                                text={text}
-                                onCancel={() => setEditingItem(null)}
-                                onSave={async (payload) => {
-                                  await onUpdateMilestone(milestone.id, payload);
-                                  setEditingItem(null);
-                                }}
-                                onDelete={async () => {
-                                  await onDeleteMilestone(milestone.id);
-                                  setEditingItem(null);
-                                }}
-                                onUpdateGoal={async (payload) => {
-                                  await onUpdateGoal(group.id, payload);
-                                }}
-                              />
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                          </div>
+                          {editingItem?.type === "milestone" && editingItem.id === milestone.id ? (
+                            <MilestoneEditor
+                              goal={group.goal}
+                              milestone={milestone}
+                              isLoading={isLoading}
+                              text={text}
+                              onCancel={() => setEditingItem(null)}
+                              onSave={async (payload) => {
+                                await onUpdateMilestone(milestone.id, payload);
+                                setEditingItem(null);
+                              }}
+                              onDelete={async () => {
+                                await onDeleteMilestone(milestone.id);
+                                setEditingItem(null);
+                              }}
+                              onUpdateGoal={async (payload) => {
+                                await onUpdateGoal(group.id, payload);
+                              }}
+                            />
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       ) : null}
     </section>
@@ -477,7 +477,6 @@ export function MilestoneEditor({
   const [goalTitle, setGoalTitle] = useState(goal?.title ?? "");
   const [title, setTitle] = useState(milestone.title);
   const [scheduledDate, setScheduledDate] = useState(milestone.scheduled_date);
-  const [color, setColor] = useState(milestone.color);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -501,7 +500,6 @@ export function MilestoneEditor({
     await onSave({
       title: title.trim(),
       scheduled_date: scheduledDate,
-      color,
     });
   }
 
@@ -527,10 +525,7 @@ export function MilestoneEditor({
           required
         />
       </label>
-      <label>
-        {text.color}
-        <ColorPicker value={color} disabled={isLoading} label={text.color} onChange={setColor} />
-      </label>
+
       {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
       <EditorActions isLoading={isLoading} text={text} onCancel={onCancel} onDelete={onDelete} />
     </form>
@@ -559,7 +554,6 @@ export function MilestoneCreateEditor({
   const [goalTitle, setGoalTitle] = useState(goal.title);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(scheduledDate);
-  const [color, setColor] = useState(goal.color);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -585,7 +579,7 @@ export function MilestoneCreateEditor({
     await onSave({
       title: title.trim(),
       scheduled_date: date,
-      color,
+      color: goal.color,
     });
   }
 
@@ -610,10 +604,7 @@ export function MilestoneCreateEditor({
           required
         />
       </label>
-      <label>
-        {text.color}
-        <ColorPicker value={color} disabled={isLoading} label={text.color} onChange={setColor} />
-      </label>
+
       {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
       <div className="editor-actions">
         <button type="submit" className="primary-button compact" disabled={isLoading}>

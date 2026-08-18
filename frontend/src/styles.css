@@ -813,7 +813,8 @@ button:disabled {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: clamp(6px, 1.2vw, 10px);
@@ -906,7 +907,7 @@ button:disabled {
 .app-header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 50;
   flex: 0 0 auto;
   min-height: 32px;
   display: flex;
@@ -936,7 +937,7 @@ button:disabled {
 }
 
 .app-header h1 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 850;
 }
 
@@ -995,8 +996,7 @@ button:disabled {
 }
 
 .workspace {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
@@ -1005,7 +1005,7 @@ button:disabled {
 
 .planner-workspace {
   grid-template-rows: auto auto;
-  min-height: 0;
+  align-content: start;
 }
 
 .app-credit {
@@ -1050,19 +1050,13 @@ button:disabled {
 .primary-pane {
   display: flex;
   flex-direction: column;
-  position: sticky;
-  top: clamp(40px, 6vw, 44px); /* app-header 높이와 패딩 고려 */
-  z-index: 10;
-  height: max-content; /* 달력 내용만큼만 높이 차지 */
+  height: clamp(320px, 70vh, 800px);
 }
 
 .side-pane {
   display: flex;
   flex-direction: column;
   gap: 11px;
-  max-height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding-right: 2px;
   padding-bottom: 14px;
   scrollbar-gutter: stable;
@@ -1081,8 +1075,6 @@ button:disabled {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: visible;
   z-index: 30;
 }
 
@@ -1183,7 +1175,7 @@ button:disabled {
   height: 100%;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  gap: 2px;
+  gap: 0px;
   padding: clamp(3px, 0.6vw, 6px);
   border: 0;
   border-right: 1px solid var(--border-default);
@@ -1778,6 +1770,7 @@ button:disabled {
   display: grid;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .editable-row {
@@ -1790,6 +1783,9 @@ button:disabled {
   font-size: 10px;
   text-align: left;
   background: #fbfcfd;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .editable-row:hover {
@@ -1815,6 +1811,8 @@ button:disabled {
   padding: 0 0 0 9px;
   border-left: 1px solid #e0e6ef;
   list-style: none;
+  max-width: calc(100% - 12px);
+  min-width: 0;
 }
 
 .today-list li {
@@ -1857,6 +1855,9 @@ button:disabled {
   border: 1px solid #e0e6ef;
   border-radius: 8px;
   background: #ffffff;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .inline-editor-title {
@@ -1895,18 +1896,23 @@ button:disabled {
   color: #17202a;
   background: #ffffff;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .editor-actions {
   display: flex;
   gap: 6px;
   margin-top: 10px;
+  flex-wrap: nowrap;
 }
 
 .editor-actions > button {
   height: 32px !important;
   font-size: 12px !important;
   padding: 0 10px !important;
+  min-width: 0;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .editor-actions > button.primary-button {
@@ -2483,12 +2489,3 @@ button:disabled {
   }
 }
 
-@media (max-height: 520px) {
-  .planner-workspace {
-    grid-template-rows: 1fr;
-  }
-
-  .planner-workspace > .detail-panel {
-    display: none;
-  }
-}
