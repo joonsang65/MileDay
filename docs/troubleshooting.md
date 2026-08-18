@@ -565,3 +565,43 @@ main/preload 변경 시 Electron이 자동으로 재시작되는 watch 모드도
 
 - `frontend/scripts/dev.mjs`
 
+## 21. 목표 및 마일스톤 색상 동기화 불일치 문제
+
+### 증상과 요청
+
+전체 목표 모달에서 목표의 색상을 변경해도 달력 패널(CalendarBoard)이나 일부 뷰에서 기존 생성되었던 마일스톤의 옛날 색상이 그대로 렌더링되는 현상이 발생했다.
+
+### 원인
+
+1. 백엔드에서 목표(`Goal`) 색상 수정 시 하위 마일스톤(`Milestone`)들의 색상을 일괄 업데이트해 주지 않아 DB 상에 옛날 색상이 남아있었다.
+2. 프론트엔드의 달력 패널은 해당 날짜에 목표 객체가 없으면 마일스톤 자체의 `.color` 속성을 폴백으로 참조하여 원을 그리고 있었다. 이로 인해 옛날 색상이 노출되었다.
+
+### 대응
+
+1. 백엔드 `MilestoneRepository`에 `update_color_by_goal` 쿼리를 추가하여 목표 수정 시 마일스톤 색상도 함께 변경되도록 수정했다. (DB 정합성 확보)
+2. 프론트엔드 달력 패널이 렌더링될 때 전역 목표 데이터(`allGoals`)를 맵으로 변환하여, 마일스톤 렌더링 시 **무조건 부모 목표의 최신 색상을 우선 참조(`matchedGoal?.color ?? milestone.color`)** 하도록 단일 진실 원천(Single Source of Truth) 패턴을 적용했다.
+
+### 반영 위치
+
+- `backend/app/repositories/milestones.py`
+- `backend/app/services/goal_service.py`
+- `frontend/src/App.tsx`
+- `frontend/src/components/CalendarBoard.tsx`
+
+## 22. 하루 보기(DateDetail) 마일스톤 연필 아이콘 레이아웃 문제
+
+### 증상과 요청
+
+하루 보기 패널에서 마일스톤의 수정(연필) 아이콘을 버튼으로 감쌌더니, 아이콘이 마일스톤 행(row) 영역 밖으로 삐져나가는(Overflow) 현상이 발생했다.
+
+### 원인
+
+기존 마일스톤 영역(`.milestone-main`)은 CSS Grid의 세 번째 칼럼 크기가 연필 아이콘 하나 크기에 맞게 `11px`로 고정되어 있었다. 하지만 이 부분을 22px 너비의 공통 아이콘 버튼(`.row-icon-button`)으로 교체하면서, 좁은 11px 공간에 22px 버튼이 들어가 레이아웃이 깨졌다.
+
+### 대응
+
+목표(Goal) 렌더링 시에 사용되는 안정적인 레이아웃 구조인 `.split-goal-row`와 내부 `.goal-edit-target` 래퍼 구조를 마일스톤 렌더링에도 동일하게 적용했다. 이를 통해 목표와 마일스톤 간의 렌더링 구조를 통일하고, 클릭 불가능한 영역과 버튼 영역(22px)이 자연스럽게 Grid로 나뉘도록 개선했다.
+
+### 반영 위치
+
+- `frontend/src/components/DateDetail.tsx`
