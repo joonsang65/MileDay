@@ -847,9 +847,6 @@ export default function App() {
     if (mode === "week") {
       setVisibleDate(getWeekStartDate(date, weekStartsOn));
     }
-    if (typeof window !== "undefined" && window.innerHeight <= 520) {
-      openDayView();
-    }
   }
 
   function handleToday() {
@@ -929,6 +926,13 @@ export default function App() {
       let goalId: string;
       if (typeof goalPayloadOrId === "string") {
         goalId = goalPayloadOrId;
+        const targetGoal = allGoals.find(g => g.id === goalId);
+        if (targetGoal && milestonePayloads.length > 0) {
+          const maxMilestoneDate = milestonePayloads.map(p => p.scheduled_date).reduce((a, b) => a > b ? a : b);
+          if (maxMilestoneDate > targetGoal.deadline) {
+            await handleUpdateGoal(goalId, { deadline: maxMilestoneDate });
+          }
+        }
       } else {
         const goal = await apiClient.createGoal(goalPayloadOrId);
         createdGoal = goal;
@@ -1160,6 +1164,7 @@ export default function App() {
             holidayDisplay={userSettings.holiday_display}
             language={userSettings.language}
             onSelectDate={handleSelectDate}
+            allGoals={allGoals}
           />
         </div>
         <DateDetail
@@ -1237,6 +1242,7 @@ export default function App() {
       {overlayMode === "goal-list" ? (
         <GoalListModal
           language={userSettings.language}
+          initialGoals={allGoals}
           onClose={closeOverlay}
           onUpdateGoal={handleUpdateGoal}
           onDeleteGoal={handleDeleteGoal}

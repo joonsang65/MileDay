@@ -1,6 +1,6 @@
 import { format, isSameMonth } from "date-fns";
 
-import type { CalendarDay, HolidayDisplay, Language } from "@/api/types";
+import type { CalendarDay, HolidayDisplay, Language, Goal } from "@/api/types";
 import type { CalendarMode } from "@/store/calendarStore";
 import { getMonthGridDays, getWeekDays, getWeekdayLabels, parseDateKey, toDateKey } from "@/utils/date";
 
@@ -12,6 +12,7 @@ type CalendarBoardProps = {
   weekStartsOn: 0 | 1;
   holidayDisplay: HolidayDisplay;
   language?: Language;
+  allGoals?: Goal[];
   onSelectDate: (date: string) => void;
 };
 
@@ -23,9 +24,16 @@ type GoalTaskGroup = {
   completed: number;
 };
 
-function getGoalTaskGroups(day: CalendarDay | undefined, noGoalLabel: string): GoalTaskGroup[] {
+function getGoalTaskGroups(day: CalendarDay | undefined, noGoalLabel: string, allGoals?: Goal[]): GoalTaskGroup[] {
   if (!day) {
     return [];
+  }
+
+  const allGoalsMap = new Map<string, Goal>();
+  if (allGoals) {
+    for (const g of allGoals) {
+      allGoalsMap.set(g.id, g);
+    }
   }
 
   const groups = new Map<string, GoalTaskGroup>();
@@ -40,10 +48,11 @@ function getGoalTaskGroups(day: CalendarDay | undefined, noGoalLabel: string): G
   }
 
   for (const milestone of day.milestones) {
+    const matchedGoal = allGoalsMap.get(milestone.goal_id);
     const group = groups.get(milestone.goal_id) ?? {
       id: milestone.goal_id,
-      title: milestone.goal_title ?? noGoalLabel,
-      color: milestone.color,
+      title: matchedGoal?.title ?? milestone.goal_title ?? noGoalLabel,
+      color: matchedGoal?.color ?? milestone.color,
       total: 0,
       completed: 0,
     };
@@ -103,6 +112,7 @@ export function CalendarBoard({
   weekStartsOn,
   holidayDisplay,
   language = "ko",
+  allGoals,
   onSelectDate,
 }: CalendarBoardProps) {
   const visible = parseDateKey(visibleDate);
@@ -128,7 +138,7 @@ export function CalendarBoard({
           const shouldShowHoliday = holidayDisplay === "normal" && day?.is_holiday;
           const shouldMarkHoliday =
             shouldShowHoliday || (holidayDisplay === "weekend_like" && day?.is_holiday);
-          const goalGroups = getGoalTaskGroups(day, language === "en" ? "No goal" : "목표 없음");
+          const goalGroups = getGoalTaskGroups(day, language === "en" ? "No goal" : "목표 없음", allGoals);
 
           return (
             <button
