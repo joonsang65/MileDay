@@ -169,7 +169,7 @@ export function ManualCreatePanel({
         setValidationMessage(text.validation.milestoneDateRequired);
         return;
       }
-      if (milestone.scheduledDate > targetDeadline) {
+      if (milestone.scheduledDate > targetDeadline && mode === "new") {
         setValidationMessage(text.validation.milestoneAfterDeadline);
         return;
       }

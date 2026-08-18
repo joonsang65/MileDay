@@ -9,7 +9,7 @@ class MilestoneBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(min_length=1)
-    color: str = Field(min_length=1)
+    color: Optional[str] = Field(default=None, min_length=1)
     scheduled_date: date
 
 

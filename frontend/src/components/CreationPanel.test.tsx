@@ -79,17 +79,14 @@ describe("CreationPanel", () => {
       {
         title: "이력서 초안 작성",
         scheduled_date: "2026-07-10",
-        color: "#0F766E",
       },
       {
         title: "이력서 초안 작성",
         scheduled_date: "2026-07-17",
-        color: "#0F766E",
       },
       {
         title: "이력서 초안 작성",
         scheduled_date: "2026-07-24",
-        color: "#0F766E",
       },
     ]);
   });

@@ -67,8 +67,8 @@ export type Milestone = {
 
 export type MilestoneCreatePayload = {
   title: string;
-  color: string;
   scheduled_date: string;
+  color?: string;
 };
 
 export type MilestoneUpdatePayload = Partial<MilestoneCreatePayload> & {

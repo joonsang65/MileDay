@@ -127,7 +127,6 @@ describe("DateDetail", () => {
     expect(onCreateMilestone).toHaveBeenCalledWith("goal-1", {
       title: "Draft outline",
       scheduled_date: "2026-07-10",
-      color: "#0F766E",
     });
   });
 

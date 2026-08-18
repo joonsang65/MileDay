@@ -8,6 +8,7 @@ import { GoalEditor, MilestoneCreateEditor, MilestoneEditor } from "./DateDetail
 
 type GoalListModalProps = {
   language: Language;
+  initialGoals?: Goal[];
   onClose: () => void;
   onUpdateGoal: (goalId: string, payload: GoalUpdatePayload) => Promise<void>;
   onDeleteGoal: (goalId: string) => Promise<void>;
@@ -27,10 +28,6 @@ const labels = {
     all: "전체",
     delete: "삭제",
     cancel: "취소",
-    selected: "개 선택됨",
-    selectDelete: "선택 삭제",
-    confirmDeleteTitle: "선택한 항목을 삭제할까요?",
-    confirmDeleteDesc: "목표 삭제 시 하위 마일스톤도 삭제됩니다.",
     goalCount: "목표",
     milestoneCount: "마일스톤",
     addMilestone: "마일스톤",
@@ -46,10 +43,6 @@ const labels = {
     all: "All",
     delete: "Delete",
     cancel: "Cancel",
-    selected: "selected",
-    selectDelete: "Delete Selected",
-    confirmDeleteTitle: "Delete selected items?",
-    confirmDeleteDesc: "Deleting a goal will also delete its milestones.",
     goalCount: "Goals",
     milestoneCount: "Milestones",
     addMilestone: "Milestone",
@@ -69,6 +62,7 @@ const dateDetailLabels = {
     task: "일정",
     noGoal: "목표 없음",
     save: "저장",
+    close: "닫기",
     cancel: "취소",
     delete: "삭제",
     deleteConfirm: "삭제하시겠습니까?",
@@ -83,6 +77,7 @@ const dateDetailLabels = {
     task: "Task",
     noGoal: "No Goal",
     save: "Save",
+    close: "Close",
     cancel: "Cancel",
     delete: "Delete",
     deleteConfirm: "Are you sure to delete?",
@@ -94,6 +89,7 @@ const dateDetailLabels = {
 
 export function GoalListModal({
   language,
+  initialGoals = [],
   onClose,
   onUpdateGoal,
   onDeleteGoal,
@@ -104,21 +100,20 @@ export function GoalListModal({
   const t = labels[language];
   const dt = dateDetailLabels[language];
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const [isLoading, setIsLoading] = useState(initialGoals.length === 0);
+  const [goals, setGoals] = useState<Goal[]>(initialGoals);
   const [milestonesMap, setMilestonesMap] = useState<Record<string, Milestone[]>>({});
   
   const [activeTab, setActiveTab] = useState<TabType>("ongoing");
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<EditingItem>(null);
-  
-  const [selectedGoals, setSelectedGoals] = useState<Set<string>>(new Set());
-  const [selectedMilestones, setSelectedMilestones] = useState<Set<string>>(new Set());
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isMilestoneToggling, setIsMilestoneToggling] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
-      setIsLoading(true);
+      if (initialGoals.length === 0) {
+        setIsLoading(true);
+      }
       try {
         const fetchedGoals = await apiClient.listGoals();
         setGoals(fetchedGoals);
@@ -150,86 +145,47 @@ export function GoalListModal({
         ...goal,
         milestones: ms,
         isCompleted,
-        completedCount,
         totalCount: ms.length,
+        completedCount,
       };
     });
   }, [goals, milestonesMap]);
 
   const filteredGoals = useMemo(() => {
-    return goalData.filter(g => {
-      if (activeTab === "ongoing") return !g.isCompleted;
-      if (activeTab === "completed") return g.isCompleted;
-      return true;
-    });
+    switch (activeTab) {
+      case "ongoing":
+        return goalData.filter(g => !g.isCompleted);
+      case "completed":
+        return goalData.filter(g => g.isCompleted);
+      case "all":
+      default:
+        return goalData;
+    }
   }, [goalData, activeTab]);
 
-  const handleToggleGoalSelect = (goalId: string) => {
-    const next = new Set(selectedGoals);
-    if (next.has(goalId)) {
-      next.delete(goalId);
-    } else {
-      next.add(goalId);
+  const handleToggleMilestone = async (milestone: Milestone, goalId: string) => {
+    if (isMilestoneToggling === milestone.id) return;
+    setIsMilestoneToggling(milestone.id);
+    try {
+      await onUpdateMilestone(milestone.id, { is_completed: !milestone.is_completed });
+      setMilestonesMap(prev => {
+        const ms = prev[goalId] || [];
+        return {
+          ...prev,
+          [goalId]: ms.map(m => m.id === milestone.id ? { ...m, is_completed: !m.is_completed } : m)
+        };
+      });
+    } catch (err) {
+      console.error("Failed to toggle milestone", err);
+    } finally {
+      setIsMilestoneToggling(null);
     }
-    setSelectedGoals(next);
   };
 
-  const handleToggleMilestoneSelect = (milestoneId: string) => {
-    const next = new Set(selectedMilestones);
-    if (next.has(milestoneId)) {
-      next.delete(milestoneId);
-    } else {
-      next.add(milestoneId);
-    }
-    setSelectedMilestones(next);
-  };
-
-  const handleDeleteConfirm = async () => {
-    // Delete in parallel
-    const p1 = Array.from(selectedGoals).map(id => onDeleteGoal(id));
-    const p2 = Array.from(selectedMilestones).map(id => onDeleteMilestone(id));
-    await Promise.all([...p1, ...p2]);
-    
-    // Refresh list locally
-    setGoals(prev => prev.filter(g => !selectedGoals.has(g.id)));
-    
-    const newMap = { ...milestonesMap };
-    for (const gid in newMap) {
-      newMap[gid] = newMap[gid].filter(m => !selectedMilestones.has(m.id));
-      if (selectedGoals.has(gid)) {
-        delete newMap[gid];
-      }
-    }
-    setMilestonesMap(newMap);
-    
-    setSelectedGoals(new Set());
-    setSelectedMilestones(new Set());
-    setIsDeleting(false);
-  };
-
-  // Re-fetch milestones for a specific goal after CUD operations
   const refreshGoalMilestones = async (goalId: string) => {
     const ms = await apiClient.getGoalMilestones(goalId);
     setMilestonesMap(prev => ({ ...prev, [goalId]: ms }));
   };
-
-  const selectedTotal = selectedGoals.size + selectedMilestones.size;
-
-  const selectionFooter = selectedTotal > 0 && !isDeleting ? (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-      <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-primary)" }}>
-        {selectedTotal}{t.selected}
-      </span>
-      <button
-        type="button"
-        className="button-primary"
-        style={{ backgroundColor: "var(--text-danger)", borderColor: "var(--text-danger)", fontSize: "12px", padding: "6px 16px" }}
-        onClick={() => setIsDeleting(true)}
-      >
-        {t.selectDelete}
-      </button>
-    </div>
-  ) : undefined;
 
   return (
     <>
@@ -239,7 +195,6 @@ export function GoalListModal({
         placement="center" 
         closeLabel={t.cancel}
         className="goal-list-modal-panel"
-        footer={selectionFooter}
       >
         <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
           {(["ongoing", "completed", "all"] as TabType[]).map(tab => (
@@ -255,15 +210,14 @@ export function GoalListModal({
           ))}
         </div>
 
-        {isLoading ? (
+        {isLoading && goals.length === 0 ? (
           <p className="muted-text" style={{ padding: "20px", textAlign: "center" }}>{t.loading}</p>
         ) : filteredGoals.length === 0 ? (
           <p className="muted-text" style={{ padding: "20px", textAlign: "center" }}>{t.empty}</p>
         ) : (
-          <ul className="plain-list day-view-list" style={{ maxHeight: "50vh", overflowY: "auto", overflowX: "hidden" }}>
+          <ul className="plain-list day-view-list" style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "hidden" }}>
             {filteredGoals.map(group => {
               const isExpanded = expandedGoalId === group.id;
-              const isGoalSelected = selectedGoals.has(group.id);
               const isGoalEditing = editingItem?.type === "goal" && editingItem.id === group.id;
               
               if (isGoalEditing && editingItem.type === "goal") {
@@ -273,14 +227,14 @@ export function GoalListModal({
                       goal={editingItem.goal}
                       isLoading={false}
                       text={dt}
-                      onUpdate={async (gid, p) => {
-                        await onUpdateGoal(gid, p);
-                        setGoals(prev => prev.map(g => g.id === gid ? { ...g, ...p } as Goal : g));
+                      onSave={async (p) => {
+                        await onUpdateGoal(group.id, p);
+                        setGoals(prev => prev.map(g => g.id === group.id ? { ...g, ...p } as Goal : g));
                         setEditingItem(null);
                       }}
-                      onDelete={async (gid) => {
-                        await onDeleteGoal(gid);
-                        setGoals(prev => prev.filter(g => g.id !== gid));
+                      onDelete={async () => {
+                        await onDeleteGoal(group.id);
+                        setGoals(prev => prev.filter(g => g.id !== group.id));
                         setEditingItem(null);
                       }}
                       onCancel={() => setEditingItem(null)}
@@ -292,24 +246,18 @@ export function GoalListModal({
               return (
                 <li key={group.id} style={{ marginBottom: "6px" }}>
                   <div className="editable-row" style={{ display: "flex", alignItems: "center", padding: "8px", gap: "8px", width: "100%", boxSizing: "border-box" }}>
-                    <button
-                      type="button"
-                      className="icon-button compact-icon"
-                      onClick={() => handleToggleGoalSelect(group.id)}
-                      style={{ color: isGoalSelected ? "var(--primary)" : "var(--text-tertiary)", flexShrink: 0 }}
-                    >
-                      {isGoalSelected ? <CheckSquare size={16} /> : <Square size={16} />}
-                    </button>
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "24px" }}>
+                      <span className="color-swatch" style={{ background: group.color, flexShrink: 0 }} aria-hidden="true" />
+                    </div>
                     
                     <div 
                       onClick={() => setExpandedGoalId(isExpanded ? null : group.id)}
                       style={{ flex: 1, display: "flex", flexDirection: "column", cursor: "pointer", gap: "2px", minWidth: 0 }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span className="color-swatch" style={{ background: group.color, flexShrink: 0 }} aria-hidden="true" />
-                        <strong style={{ fontSize: "13px", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{group.title}</strong>
+                        <strong style={{ fontSize: "13px", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: group.isCompleted ? 0.6 : 1, textDecoration: group.isCompleted ? "line-through" : "none" }}>{group.title}</strong>
                       </div>
-                      <div style={{ display: "flex", gap: "10px", fontSize: "11px", color: "var(--text-tertiary)", paddingLeft: "14px" }}>
+                      <div style={{ display: "flex", gap: "10px", fontSize: "11px", color: "var(--text-tertiary)" }}>
                         <span>{group.deadline} {t.until}</span>
                         <span>
                           {group.isCompleted ? (
@@ -324,6 +272,14 @@ export function GoalListModal({
                     <button
                       type="button"
                       className="icon-button compact-icon"
+                      onClick={() => setEditingItem({ type: "goal", id: group.id, goal: group })}
+                      style={{ flexShrink: 0, opacity: 0.7 }}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button compact-icon"
                       onClick={() => setExpandedGoalId(isExpanded ? null : group.id)}
                       style={{ flexShrink: 0 }}
                     >
@@ -332,11 +288,11 @@ export function GoalListModal({
                   </div>
 
                   {isExpanded && (
-                    <div style={{ paddingLeft: "24px", paddingTop: "8px" }}>
+                    <div style={{ paddingLeft: "32px", paddingTop: "8px" }}>
                       <ul className="plain-list">
                         {group.milestones.map(m => {
-                          const isMilestoneSelected = selectedMilestones.has(m.id);
                           const isMilestoneEditing = editingItem?.type === "milestone" && editingItem.id === m.id;
+                          const isToggling = isMilestoneToggling === m.id;
                           
                           if (isMilestoneEditing && editingItem.type === "milestone") {
                             return (
@@ -368,16 +324,17 @@ export function GoalListModal({
                                 <button
                                   type="button"
                                   className="icon-button compact-icon"
-                                  onClick={() => handleToggleMilestoneSelect(m.id)}
-                                  style={{ color: isMilestoneSelected ? "var(--primary)" : "var(--text-tertiary)", flexShrink: 0 }}
+                                  onClick={() => handleToggleMilestone(m, group.id)}
+                                  disabled={isToggling}
+                                  style={{ color: m.is_completed ? "var(--primary)" : "var(--text-tertiary)", flexShrink: 0, opacity: isToggling ? 0.5 : 1 }}
                                 >
-                                  {isMilestoneSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                                  {m.is_completed ? <CheckSquare size={16} /> : <Square size={16} />}
                                 </button>
-                                <div style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", minWidth: 0 }}>
-                                  <strong className={m.is_completed ? "completed-text" : ""} style={{ fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                <div style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", minWidth: 0, gap: "6px" }}>
+                                  <strong style={{ fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: m.is_completed ? 0.6 : 1, textDecoration: m.is_completed ? "line-through" : "none" }}>
                                     {m.title}
                                   </strong>
-                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "var(--text-tertiary)", flexShrink: 0, paddingLeft: "8px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "var(--text-tertiary)", flexShrink: 0 }}>
                                     <span>{m.scheduled_date}</span>
                                     {m.is_completed && <strong style={{ color: "var(--primary)" }}>{t.completed}</strong>}
                                   </div>
@@ -386,7 +343,7 @@ export function GoalListModal({
                                   type="button" 
                                   className="icon-button compact-icon"
                                   onClick={() => setEditingItem({ type: "milestone", id: m.id, milestone: m })}
-                                  style={{ flexShrink: 0 }}
+                                  style={{ flexShrink: 0, opacity: 0.7 }}
                                 >
                                   <Pencil size={14} />
                                 </button>
@@ -400,16 +357,20 @@ export function GoalListModal({
                         <div style={{ marginLeft: "-24px", marginTop: "8px" }}>
                           <MilestoneCreateEditor
                             goal={group}
-                            scheduledDate=""
+                            scheduledDate={new Date().toISOString().split("T")[0]}
                             heading={t.addMilestone}
                             isLoading={false}
                             text={dt}
-                            onCreate={async (gid, p) => {
-                              await onCreateMilestone(gid, p);
+                            onCancel={() => setEditingItem(null)}
+                            onSave={async (payload) => {
+                              await onCreateMilestone(group.id, payload);
                               await refreshGoalMilestones(group.id);
                               setEditingItem(null);
                             }}
-                            onCancel={() => setEditingItem(null)}
+                            onUpdateGoal={async (p) => {
+                              await onUpdateGoal(group.id, p);
+                              setGoals(prev => prev.map(g => g.id === group.id ? { ...g, ...p } as Goal : g));
+                            }}
                           />
                         </div>
                       ) : (
@@ -422,14 +383,6 @@ export function GoalListModal({
                           >
                             <Plus size={14} /> {t.addMilestone}
                           </button>
-                          <button
-                            type="button"
-                            className="button-secondary"
-                            onClick={() => setEditingItem({ type: "goal", id: group.id, goal: group })}
-                            style={{ flex: 1, padding: "6px", fontSize: "12px", display: "flex", justifyContent: "center", alignItems: "center", gap: "4px" }}
-                          >
-                            <Pencil size={14} /> {t.editGoal}
-                          </button>
                         </div>
                       )}
                     </div>
@@ -440,35 +393,6 @@ export function GoalListModal({
           </ul>
         )}
       </FloatingPanel>
-
-
-
-      {/* Delete Confirmation Modal */}
-      {isDeleting && (
-        <FloatingPanel title={t.confirmDeleteTitle} onClose={() => setIsDeleting(false)} placement="center" closeLabel={t.cancel}>
-          <div style={{ padding: "0 4px 16px" }}>
-            <ul style={{ margin: "0 0 12px 16px", padding: 0, fontSize: "14px", lineHeight: "1.6" }}>
-              {selectedGoals.size > 0 && (
-                <li>{t.goalCount} {selectedGoals.size}개</li>
-              )}
-              {selectedMilestones.size > 0 && (
-                <li>{t.milestoneCount} {selectedMilestones.size}개</li>
-              )}
-            </ul>
-            <p style={{ color: "var(--text-danger)", fontSize: "13px", margin: 0 }}>
-              {t.confirmDeleteDesc}
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button type="button" className="button-secondary" style={{ flex: 1 }} onClick={() => setIsDeleting(false)}>
-              {t.cancel}
-            </button>
-            <button type="button" className="button-primary" style={{ flex: 1, backgroundColor: "var(--text-danger)", borderColor: "var(--text-danger)" }} onClick={handleDeleteConfirm}>
-              {t.delete}
-            </button>
-          </div>
-        </FloatingPanel>
-      )}
     </>
   );
 }

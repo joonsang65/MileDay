@@ -124,7 +124,6 @@ export function CreationPanel({
       scheduledDates.map((scheduledDate) => ({
         title: milestoneTitle.trim(),
         scheduled_date: scheduledDate,
-        color: selectedGoal?.color ?? colorOptions[0],
       })),
     );
     setMilestoneTitle("");
