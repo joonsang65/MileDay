@@ -11,12 +11,18 @@ from exceptions.goals import (
 )
 from exceptions.common import BadRequestError
 from repositories.goals import GoalRepository, get_goal_repository
+from repositories.milestones import MilestoneRepository, get_milestone_repository
 from schemas.goal_schemas import GoalCreateRequest, GoalUpdateRequest
 
 
 class GoalService:
-    def __init__(self, repository: GoalRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: GoalRepository | None = None,
+        milestone_repository: MilestoneRepository | None = None,
+    ) -> None:
         self.repository = repository or get_goal_repository()
+        self.milestone_repository = milestone_repository or get_milestone_repository()
 
     def list_goals(self, *, user_id: str) -> list[dict[str, Any]]:
         return self.repository.list_by_user(user_id=user_id)
@@ -71,6 +77,15 @@ class GoalService:
             raise GoalUpdateFailedError(detail={"type": exc.__class__.__name__}) from exc
         if not updated:
             raise GoalNotFoundError(detail={"goal_id": goal_id})
+
+        if "color" in payload and payload["color"] != current.get("color"):
+            try:
+                self.milestone_repository.update_color_by_goal(
+                    goal_id=goal_id, user_id=user_id, color=payload["color"]
+                )
+            except Exception:
+                pass
+
         return updated
 
     def delete_goal(self, *, goal_id: str, user_id: str) -> None:

@@ -77,6 +77,16 @@ class MilestoneRepository:
         rows = list(response.data or [])
         return rows[0] if rows else None
 
+    def update_color_by_goal(self, *, goal_id: str, user_id: str, color: str) -> bool:
+        response = (
+            self.client.table("milestones")
+            .update({"color": color})
+            .eq("goal_id", goal_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        return True
+
     def delete(self, *, milestone_id: str, user_id: str) -> bool:
         response = (
             self.client.table("milestones")
