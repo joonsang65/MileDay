@@ -195,7 +195,14 @@ export function ManualCreatePanel({
   }
 
   return (
-    <FloatingPanel title={text.title} onClose={onClose} placement="center" chrome="plain" closeLabel={text.close}>
+    <FloatingPanel
+      title={text.title}
+      onClose={onClose}
+      placement="center"
+      chrome="plain"
+      closeLabel={text.close}
+      className="schedule-create-panel"
+    >
       <form id="manual-create-form" className="panel-form" onSubmit={handleSubmit} noValidate>
         <div className="creation-tabs">
           <button type="button" className={mode === "new" ? "active" : ""} onClick={() => setMode("new")} disabled={isLoading}>
@@ -207,27 +214,29 @@ export function ManualCreatePanel({
         </div>
 
         {mode === "new" ? (
-          <>
-            <label>
-              {text.goalTitle}
-              <input
-                type="text"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder={text.goalPlaceholder}
-                disabled={isLoading}
-              />
-            </label>
-            <label>
-              {text.deadline}
-              <input
-                type="date"
-                value={deadline}
-                onChange={(event) => setDeadline(event.target.value)}
-                disabled={isLoading}
-                required
-              />
-            </label>
+          <div className="manual-goal-row">
+            <div className="manual-goal-fields">
+              <label>
+                {text.goalTitle}
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder={text.goalPlaceholder}
+                  disabled={isLoading}
+                />
+              </label>
+              <label>
+                {text.deadline}
+                <input
+                  type="date"
+                  value={deadline}
+                  onChange={(event) => setDeadline(event.target.value)}
+                  disabled={isLoading}
+                  required
+                />
+              </label>
+            </div>
             <fieldset className="color-field">
               <legend>{text.color}</legend>
               <div className="color-options">
@@ -245,7 +254,7 @@ export function ManualCreatePanel({
                 ))}
               </div>
             </fieldset>
-          </>
+          </div>
         ) : (
           <label>
             {text.selectGoal}
@@ -253,7 +262,6 @@ export function ManualCreatePanel({
               value={selectedGoalId}
               onChange={(e) => setSelectedGoalId(e.target.value)}
               disabled={isLoading}
-              style={{ width: "100%", height: "36px", border: "1px solid #c9d2dd", borderRadius: "6px", padding: "0 10px", color: "#17202a", background: "#ffffff" }}
             >
               <option value="">{text.selectGoal}</option>
               {goals.map(g => (

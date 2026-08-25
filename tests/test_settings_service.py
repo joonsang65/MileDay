@@ -75,6 +75,16 @@ def test_settings_service_updates_only_given_fields() -> None:
     ]
 
 
+def test_settings_update_request_rejects_removed_fields() -> None:
+    with pytest.raises(ValueError):
+        SettingsUpdateRequest.model_validate(
+            {
+                "calendar_view": "week",
+                "accent_color": "#4F46E5",
+            }
+        )
+
+
 def test_settings_service_raises_when_update_result_is_empty() -> None:
     clear_settings_cache()
 

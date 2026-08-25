@@ -8,16 +8,8 @@ import { SettingsPanel } from "./SettingsPanel";
 
 const settings: UserSettings = {
   calendar_view: "month",
-  theme: "system",
-  accent_color: "#4F46E5",
-  font_family: "system",
-  font_size: 14,
-  ai_suggestion: false,
   holiday_display: "normal",
   week_starts_on: 1,
-  completed_milestones: true,
-  default_goal_color: "#4F46E5",
-  default_milestone_color: "#F97316",
   language: "ko",
   timezone: "Asia/Seoul",
 };
@@ -36,7 +28,14 @@ describe("SettingsPanel", () => {
     render(
       <SettingsPanel
         settings={settings}
-        localUiSettings={{ baseFontSize: 14, goalFontSize: 13, resizeEnabled: false }}
+        localUiSettings={{
+          baseFontSize: 14,
+          goalFontSize: 13,
+          resizeEnabled: false,
+          theme: "system",
+          fontFamily: "system",
+          opacity: 1,
+        }}
         isLoading={false}
         autoLaunch={autoLaunch}
         onSave={onSave}
@@ -52,6 +51,7 @@ describe("SettingsPanel", () => {
     await user.selectOptions(screen.getByLabelText("언어"), "en");
     fireEvent.change(screen.getByLabelText("Base font size (px)"), { target: { value: "16" } });
     fireEvent.change(screen.getByLabelText("Goal font size (px)"), { target: { value: "18" } });
+    fireEvent.change(screen.getByLabelText("Opacity"), { target: { value: "0.75" } });
     await user.click(screen.getByLabelText("Window resizing"));
     await user.click(screen.getByLabelText("Open at Windows login"));
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -66,6 +66,7 @@ describe("SettingsPanel", () => {
     });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ baseFontSize: 16 });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ goalFontSize: 18 });
+    expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ opacity: 0.75 });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ resizeEnabled: true });
 
     const panel = screen.getByRole("region", { name: "Settings" });

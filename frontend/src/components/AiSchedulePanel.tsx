@@ -247,6 +247,7 @@ export function AiSchedulePanel({
       placement="center"
       chrome="plain"
       closeLabel={text.close}
+      className="schedule-create-panel"
     >
       {step === "input" || step === "loading" || step === "error" ? (
         <form className="ai-input-panel" onSubmit={handleInputSubmit} noValidate>

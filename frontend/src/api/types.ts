@@ -81,16 +81,8 @@ export type Language = "ko" | "en";
 
 export type UserSettings = {
   calendar_view: CalendarView;
-  theme: string;
-  accent_color: string;
-  font_family: string;
-  font_size: number;
-  ai_suggestion: boolean;
   holiday_display: HolidayDisplay;
   week_starts_on: 0 | 1;
-  completed_milestones: boolean;
-  default_goal_color: string;
-  default_milestone_color: string;
   language: Language;
   timezone: string;
 };

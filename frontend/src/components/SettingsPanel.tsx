@@ -1,24 +1,19 @@
 import { FormEvent, useEffect, useState } from "react";
-import { ExternalLink, LogOut, Save } from "lucide-react";
+import { ExternalLink, LogOut, Monitor, Save, Settings2, SlidersHorizontal } from "lucide-react";
 
 import type { CalendarView, HolidayDisplay, Language, UserSettings, UserSettingsUpdatePayload } from "@/api/types";
-
-type LocalUiSettings = {
-  baseFontSize: number;
-  goalFontSize: number;
-  resizeEnabled: boolean;
-};
+import type { LocalUiSettings, LocalUiSettingsPatch } from "@/types/localUiSettings";
 
 type SettingsPanelProps = {
   settings: UserSettings;
-  localUiSettings?: LocalUiSettings;
+  localUiSettings: LocalUiSettings;
   isLoading: boolean;
   autoLaunch?: {
     get: () => Promise<{ openAtLogin: boolean }>;
     set: (openAtLogin: boolean) => Promise<{ openAtLogin: boolean }>;
   };
   onSave: (payload: UserSettingsUpdatePayload) => Promise<void>;
-  onLocalUiSettingsChange?: (payload: Partial<LocalUiSettings>) => Promise<void>;
+  onLocalUiSettingsChange?: (payload: LocalUiSettingsPatch) => Promise<void>;
   onClose: () => void;
   onLogout: () => void;
 };
@@ -41,6 +36,7 @@ const labels = {
     english: "English",
     baseFontSize: "기본 글자 크기(px)",
     goalFontSize: "목표 글자 크기(px)",
+    opacity: "투명도",
     resizeEnabled: "창 크기 조정",
     resizeHint: "켜져 있을 때만 창 모서리를 마우스로 잡아 크기를 조정할 수 있습니다.",
     autoLaunch: "컴퓨터 시작 시 자동 실행",
@@ -52,6 +48,9 @@ const labels = {
     survey: "POC 설문 참여",
     close: "닫기",
     logout: "로그아웃",
+    basicSection: "기본 설정",
+    fontSection: "글자 및 화면",
+    advancedSection: "앱 고급 설정",
   },
   en: {
     title: "Settings",
@@ -70,6 +69,7 @@ const labels = {
     english: "English",
     baseFontSize: "Base font size (px)",
     goalFontSize: "Goal font size (px)",
+    opacity: "Opacity",
     resizeEnabled: "Window resizing",
     resizeHint: "When enabled, drag a window edge or corner to resize the widget.",
     autoLaunch: "Open at Windows login",
@@ -81,6 +81,9 @@ const labels = {
     survey: "Open MVP survey",
     close: "Close",
     logout: "Log out",
+    basicSection: "Basic settings",
+    fontSection: "Text and display",
+    advancedSection: "Advanced app settings",
   },
 };
 
@@ -88,7 +91,7 @@ const SURVEY_URL = "https://forms.gle/TKJzzzX1y39eFNDWA";
 
 export function SettingsPanel({
   settings,
-  localUiSettings = { baseFontSize: 12, goalFontSize: 13, resizeEnabled: false },
+  localUiSettings,
   isLoading,
   autoLaunch = window.mileday?.autoLaunch,
   onSave,
@@ -101,6 +104,7 @@ export function SettingsPanel({
   const [language, setLanguage] = useState<Language>(settings.language);
   const [baseFontSize, setBaseFontSize] = useState(localUiSettings.baseFontSize);
   const [goalFontSize, setGoalFontSize] = useState(localUiSettings.goalFontSize);
+  const [opacity, setOpacity] = useState(localUiSettings.opacity);
   const [resizeEnabled, setResizeEnabled] = useState(localUiSettings.resizeEnabled);
   const [openAtLogin, setOpenAtLogin] = useState(false);
   const [isAutoLaunchLoading, setIsAutoLaunchLoading] = useState(false);
@@ -123,6 +127,7 @@ export function SettingsPanel({
   useEffect(() => {
     setBaseFontSize(localUiSettings.baseFontSize);
     setGoalFontSize(localUiSettings.goalFontSize);
+    setOpacity(localUiSettings.opacity);
     setResizeEnabled(localUiSettings.resizeEnabled);
   }, [localUiSettings]);
 
@@ -202,6 +207,14 @@ export function SettingsPanel({
     }
   }
 
+  async function handleOpacityChange(nextValue: string) {
+    const value = Number(nextValue);
+    setOpacity(value);
+    if (Number.isFinite(value)) {
+      await onLocalUiSettingsChange?.({ opacity: value });
+    }
+  }
+
   async function handleResizeEnabledChange(nextValue: boolean) {
     setResizeEnabled(nextValue);
     await onLocalUiSettingsChange?.({ resizeEnabled: nextValue });
@@ -210,116 +223,156 @@ export function SettingsPanel({
   return (
     <section className="settings-panel" aria-label={text.title}>
       <form className="settings-form" onSubmit={handleSubmit}>
-        <label>
-          {text.calendarView}
-          <select
-            value={calendarView}
-            onChange={(event) => setCalendarView(event.target.value as CalendarView)}
-            disabled={isLoading}
-          >
-            <option value="month">{text.month}</option>
-            <option value="week">{text.week}</option>
-          </select>
-        </label>
-        <label>
-          {text.holidayDisplay}
-          <select
-            value={holidayDisplay}
-            onChange={(event) => setHolidayDisplay(event.target.value as HolidayDisplay)}
-            disabled={isLoading}
-          >
-            <option value="normal">{text.normal}</option>
-            <option value="weekend_like">{text.weekendLike}</option>
-            <option value="hidden">{text.hidden}</option>
-          </select>
-        </label>
-        <label>
-          {text.weekStartsOn}
-          <select
-            value={weekStartsOn}
-            onChange={(event) => setWeekStartsOn(Number(event.target.value) as 0 | 1)}
-            disabled={isLoading}
-          >
-            <option value={0}>{text.sunday}</option>
-            <option value={1}>{text.monday}</option>
-          </select>
-        </label>
-        <label>
-          {text.language}
-          <select
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as Language)}
-            disabled={isLoading}
-          >
-            <option value="ko">{text.korean}</option>
-            <option value="en">{text.english}</option>
-          </select>
-        </label>
-        <label>
-          {text.baseFontSize}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <input
-              type="range"
-              aria-label={text.baseFontSize}
-              min={1}
-              max={25}
-              step={1}
-              value={baseFontSize}
-              disabled={isLoading}
-              onChange={(event) => void handleBaseFontSizeChange(event.target.value)}
-              style={{ flex: 1, height: "auto", padding: 0 }}
-            />
-            <span style={{ fontSize: "11px", fontWeight: 700, width: "32px", textAlign: "right" }}>
-              {baseFontSize}px
-            </span>
+        <div className="settings-section">
+          <div className="settings-section-title">
+            <Monitor size={18} aria-hidden="true" />
+            <h3>{text.basicSection}</h3>
           </div>
-        </label>
-        <label>
-          {text.goalFontSize}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <input
-              type="range"
-              aria-label={text.goalFontSize}
-              min={1}
-              max={25}
-              step={1}
-              value={goalFontSize}
+          <label className="settings-field">
+            <span>{text.calendarView}</span>
+            <select
+              value={calendarView}
+              onChange={(event) => setCalendarView(event.target.value as CalendarView)}
               disabled={isLoading}
-              onChange={(event) => void handleGoalFontSizeChange(event.target.value)}
-              style={{ flex: 1, height: "auto", padding: 0 }}
-            />
-            <span style={{ fontSize: "11px", fontWeight: 700, width: "32px", textAlign: "right" }}>
-              {goalFontSize}px
-            </span>
+            >
+              <option value="month">{text.month}</option>
+              <option value="week">{text.week}</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span>{text.holidayDisplay}</span>
+            <select
+              value={holidayDisplay}
+              onChange={(event) => setHolidayDisplay(event.target.value as HolidayDisplay)}
+              disabled={isLoading}
+            >
+              <option value="normal">{text.normal}</option>
+              <option value="weekend_like">{text.weekendLike}</option>
+              <option value="hidden">{text.hidden}</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span>{text.weekStartsOn}</span>
+            <select
+              value={weekStartsOn}
+              onChange={(event) => setWeekStartsOn(Number(event.target.value) as 0 | 1)}
+              disabled={isLoading}
+            >
+              <option value={0}>{text.sunday}</option>
+              <option value={1}>{text.monday}</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span>{text.language}</span>
+            <select
+              value={language}
+              onChange={(event) => setLanguage(event.target.value as Language)}
+              disabled={isLoading}
+            >
+              <option value="ko">{text.korean}</option>
+              <option value="en">{text.english}</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="settings-section">
+          <div className="settings-section-title">
+            <SlidersHorizontal size={18} aria-hidden="true" />
+            <h3>{text.fontSection}</h3>
           </div>
-        </label>
-        <label className="toggle-row settings-toggle-row">
-          <input
-            type="checkbox"
-            aria-label={text.resizeEnabled}
-            checked={resizeEnabled}
-            disabled={isLoading || !onLocalUiSettingsChange}
-            onChange={(event) => void handleResizeEnabledChange(event.target.checked)}
-          />
-          <span>
-            <strong>{text.resizeEnabled}</strong>
-            <small>{text.resizeHint}</small>
-          </span>
-        </label>
-        <label className="toggle-row settings-toggle-row">
-          <input
-            type="checkbox"
-            aria-label={text.autoLaunch}
-            checked={openAtLogin}
-            disabled={isAutoLaunchLoading || !autoLaunch}
-            onChange={(event) => void handleAutoLaunchChange(event.target.checked)}
-          />
-          <span>
-            <strong>{text.autoLaunch}</strong>
-            <small>{text.autoLaunchHint}</small>
-          </span>
-        </label>
-        {autoLaunchMessage ? <p className="muted-text">{autoLaunchMessage}</p> : null}
+          <label className="settings-field settings-field-range">
+            <span>{text.baseFontSize}</span>
+            <div className="settings-range-row">
+              <input
+                type="range"
+                aria-label={text.baseFontSize}
+                min={1}
+                max={25}
+                step={1}
+                value={baseFontSize}
+                disabled={isLoading}
+                onChange={(event) => void handleBaseFontSizeChange(event.target.value)}
+                className="settings-range-input"
+              />
+              <span className="settings-range-value">
+                {baseFontSize}px
+              </span>
+            </div>
+          </label>
+          <label className="settings-field settings-field-range">
+            <span>{text.goalFontSize}</span>
+            <div className="settings-range-row">
+              <input
+                type="range"
+                aria-label={text.goalFontSize}
+                min={1}
+                max={25}
+                step={1}
+                value={goalFontSize}
+                disabled={isLoading}
+                onChange={(event) => void handleGoalFontSizeChange(event.target.value)}
+                className="settings-range-input"
+              />
+              <span className="settings-range-value">
+                {goalFontSize}px
+              </span>
+            </div>
+          </label>
+          <label className="settings-field settings-field-range">
+            <span>{text.opacity}</span>
+            <div className="settings-range-row">
+              <input
+                type="range"
+                aria-label={text.opacity}
+                min={0.2}
+                max={1}
+                step={0.05}
+                value={opacity}
+                disabled={isLoading || !onLocalUiSettingsChange}
+                onChange={(event) => void handleOpacityChange(event.target.value)}
+                className="settings-range-input"
+              />
+              <span className="settings-range-value">
+                {Math.round(opacity * 100)}%
+              </span>
+            </div>
+          </label>
+        </div>
+
+        <div className="settings-section settings-section-advanced">
+          <div className="settings-section-title">
+            <Settings2 size={18} aria-hidden="true" />
+            <h3>{text.advancedSection}</h3>
+          </div>
+          <label className="toggle-row settings-toggle-row">
+            <input
+              type="checkbox"
+              aria-label={text.resizeEnabled}
+              checked={resizeEnabled}
+              disabled={isLoading || !onLocalUiSettingsChange}
+              onChange={(event) => void handleResizeEnabledChange(event.target.checked)}
+            />
+            <span>
+              <strong>{text.resizeEnabled}</strong>
+              <small>{text.resizeHint}</small>
+            </span>
+          </label>
+          <label className="toggle-row settings-toggle-row">
+            <input
+              type="checkbox"
+              aria-label={text.autoLaunch}
+              checked={openAtLogin}
+              disabled={isAutoLaunchLoading || !autoLaunch}
+              onChange={(event) => void handleAutoLaunchChange(event.target.checked)}
+            />
+            <span>
+              <strong>{text.autoLaunch}</strong>
+              <small>{text.autoLaunchHint}</small>
+            </span>
+          </label>
+          {autoLaunchMessage ? <p className="muted-text">{autoLaunchMessage}</p> : null}
+        </div>
+
         <button type="submit" className="primary-button compact" disabled={isLoading}>
           <Save size={15} aria-hidden="true" />
           {isLoading ? text.saving : text.save}

@@ -4,16 +4,15 @@ import { join } from "node:path";
 
 import { getAutoLaunchState, setAutoLaunchState } from "./autoLaunch";
 import { createMainWindowOptions, getMaxWindowBounds, WINDOW_SIZE_LIMITS } from "./windowOptions";
+import { DEFAULT_LOCAL_UI_SETTINGS, type LocalUiFontSizePayload, type LocalUiSettings } from "../src/types/localUiSettings";
+import { isResizeDirection, type ResizeDirection } from "../src/types/windowResize";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let isApplyingWindowBounds = false;
 
-type LocalUiSettings = {
-  baseFontSize: number;
-  goalFontSize: number;
-  resizeEnabled: boolean;
+type StoredLocalUiSettings = LocalUiSettings & {
   windowBounds?: {
     x?: number;
     y?: number;
@@ -21,8 +20,6 @@ type LocalUiSettings = {
     height: number;
   };
 };
-
-type ResizeDirection = "n" | "e" | "s" | "w" | "ne" | "nw" | "se" | "sw";
 
 type ResizeSession = {
   direction: ResizeDirection;
@@ -40,12 +37,6 @@ type MoveSession = {
   startX: number;
   startY: number;
   bounds: ResizeSession["bounds"];
-};
-
-const DEFAULT_UI_SETTINGS: LocalUiSettings = {
-  baseFontSize: 12,
-  goalFontSize: 13,
-  resizeEnabled: false,
 };
 
 let resizeSession: ResizeSession | null = null;
@@ -67,37 +58,43 @@ function getAccessTokenPath(): string {
   return join(app.getPath("userData"), "access-token.bin");
 }
 
-function readUiSettings(): LocalUiSettings {
+function readUiSettings(): StoredLocalUiSettings {
   const path = getUiSettingsPath();
   if (!existsSync(path)) {
-    return DEFAULT_UI_SETTINGS;
+    return DEFAULT_LOCAL_UI_SETTINGS;
   }
 
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<LocalUiSettings>;
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<StoredLocalUiSettings>;
     return {
-      baseFontSize: normalizeFontSize(parsed.baseFontSize, DEFAULT_UI_SETTINGS.baseFontSize),
-      goalFontSize: normalizeFontSize(parsed.goalFontSize, DEFAULT_UI_SETTINGS.goalFontSize),
+      baseFontSize: normalizeFontSize(parsed.baseFontSize, DEFAULT_LOCAL_UI_SETTINGS.baseFontSize),
+      goalFontSize: normalizeFontSize(parsed.goalFontSize, DEFAULT_LOCAL_UI_SETTINGS.goalFontSize),
       resizeEnabled: Boolean(parsed.resizeEnabled),
+      theme: DEFAULT_LOCAL_UI_SETTINGS.theme,
+      fontFamily: DEFAULT_LOCAL_UI_SETTINGS.fontFamily,
+      opacity: normalizeOpacity(parsed.opacity),
       windowBounds: normalizeWindowBounds(parsed.windowBounds),
     };
   } catch {
-    return DEFAULT_UI_SETTINGS;
+    return DEFAULT_LOCAL_UI_SETTINGS;
   }
 }
 
-function writeUiSettings(settings: LocalUiSettings): LocalUiSettings {
+function writeUiSettings(settings: StoredLocalUiSettings): StoredLocalUiSettings {
   const normalized = {
-    baseFontSize: normalizeFontSize(settings.baseFontSize, DEFAULT_UI_SETTINGS.baseFontSize),
-    goalFontSize: normalizeFontSize(settings.goalFontSize, DEFAULT_UI_SETTINGS.goalFontSize),
+    baseFontSize: normalizeFontSize(settings.baseFontSize, DEFAULT_LOCAL_UI_SETTINGS.baseFontSize),
+    goalFontSize: normalizeFontSize(settings.goalFontSize, DEFAULT_LOCAL_UI_SETTINGS.goalFontSize),
     resizeEnabled: settings.resizeEnabled,
+    theme: DEFAULT_LOCAL_UI_SETTINGS.theme,
+    fontFamily: DEFAULT_LOCAL_UI_SETTINGS.fontFamily,
+    opacity: normalizeOpacity(settings.opacity),
     windowBounds: normalizeWindowBounds(settings.windowBounds),
   };
   writeFileSync(getUiSettingsPath(), JSON.stringify(normalized, null, 2), "utf8");
   return normalized;
 }
 
-function updateUiSettings(patch: Partial<LocalUiSettings>): LocalUiSettings {
+function updateUiSettings(patch: Partial<StoredLocalUiSettings>): StoredLocalUiSettings {
   return writeUiSettings({
     ...readUiSettings(),
     ...patch,
@@ -148,7 +145,15 @@ function normalizeFontSize(value: unknown, fallback: number): number {
   return Math.min(25, Math.max(1, Math.round(parsed)));
 }
 
-function normalizeWindowBounds(value: unknown): LocalUiSettings["windowBounds"] {
+function normalizeOpacity(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_LOCAL_UI_SETTINGS.opacity;
+  }
+  return Math.min(1, Math.max(0.2, parsed));
+}
+
+function normalizeWindowBounds(value: unknown): StoredLocalUiSettings["windowBounds"] {
   if (!value || typeof value !== "object") {
     return undefined;
   }
@@ -166,10 +171,6 @@ function normalizeWindowBounds(value: unknown): LocalUiSettings["windowBounds"] 
     width: Math.max(WINDOW_SIZE_LIMITS.minWidth, Math.round(width)),
     height: Math.max(WINDOW_SIZE_LIMITS.minHeight, Math.round(height)),
   };
-}
-
-function isResizeDirection(value: unknown): value is ResizeDirection {
-  return value === "n" || value === "e" || value === "s" || value === "w" || value === "ne" || value === "nw" || value === "se" || value === "sw";
 }
 
 function clampWindowBounds(
@@ -256,6 +257,7 @@ function createWindow(): void {
     screen.getPrimaryDisplay().workAreaSize,
   ));
   mainWindow.setResizable(uiSettings.resizeEnabled);
+  mainWindow.setOpacity(uiSettings.opacity);
 
   mainWindow.on("close", (event) => {
     if (isQuitting) {
@@ -352,7 +354,7 @@ function registerAuthTokenHandlers(): void {
 
 function registerUiSettingsHandlers(): void {
   ipcMain.handle("ui-settings:get", () => readUiSettings());
-  ipcMain.handle("ui-settings:set-font-sizes", (_event, payload: { baseFontSize: number; goalFontSize: number }) =>
+  ipcMain.handle("ui-settings:set-font-sizes", (_event, payload: LocalUiFontSizePayload) =>
     updateUiSettings({
       baseFontSize: payload.baseFontSize,
       goalFontSize: payload.goalFontSize,
@@ -361,6 +363,11 @@ function registerUiSettingsHandlers(): void {
   ipcMain.handle("ui-settings:set-resize-enabled", (_event, resizeEnabled: boolean) => {
     mainWindow?.setResizable(resizeEnabled);
     return updateUiSettings({ resizeEnabled });
+  });
+  ipcMain.handle("ui-settings:set-opacity", (_event, opacity: number) => {
+    const normalizedOpacity = normalizeOpacity(opacity);
+    mainWindow?.setOpacity(normalizedOpacity);
+    return updateUiSettings({ opacity: normalizedOpacity });
   });
 
   ipcMain.handle("window-resize:start", (_event, payload: { direction: unknown; screenX: number; screenY: number }) => {

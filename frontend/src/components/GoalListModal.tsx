@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
-import { ChevronDown, ChevronUp, Square, CheckSquare, Plus, Pencil } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckSquare, ChevronDown, ChevronUp, Square } from "lucide-react";
 
-import type { Goal, Milestone, Language, GoalUpdatePayload, MilestoneCreatePayload, MilestoneUpdatePayload } from "@/api/types";
 import { apiClient } from "@/api/client";
+import type { Goal, GoalUpdatePayload, Language, Milestone, MilestoneCreatePayload, MilestoneUpdatePayload } from "@/api/types";
+
 import { FloatingPanel } from "./FloatingPanel";
-import { GoalEditor, MilestoneCreateEditor, MilestoneEditor } from "./DateDetail";
 
 type GoalListModalProps = {
   language: Language;
@@ -18,7 +18,6 @@ type GoalListModalProps = {
 };
 
 type TabType = "ongoing" | "completed" | "all";
-type EditingItem = { type: "goal"; id: string; goal: Goal } | { type: "new-milestone"; goalId: string; color: string } | { type: "milestone"; id: string; milestone: Milestone } | null;
 
 const labels = {
   ko: {
@@ -26,14 +25,10 @@ const labels = {
     ongoing: "진행중",
     completed: "완료",
     all: "전체",
-    delete: "삭제",
     cancel: "취소",
-    goalCount: "목표",
-    milestoneCount: "마일스톤",
-    addMilestone: "마일스톤",
-    editGoal: "목표 편집",
     loading: "불러오는 중...",
     empty: "표시할 목표가 없습니다.",
+    noMilestones: "마일스톤이 없습니다.",
     until: "까지",
   },
   en: {
@@ -41,49 +36,11 @@ const labels = {
     ongoing: "Ongoing",
     completed: "Completed",
     all: "All",
-    delete: "Delete",
     cancel: "Cancel",
-    goalCount: "Goals",
-    milestoneCount: "Milestones",
-    addMilestone: "Milestone",
-    editGoal: "Edit Goal",
     loading: "Loading...",
     empty: "No goals to display.",
+    noMilestones: "No milestones.",
     until: "Until",
-  }
-};
-
-// DateDetailLabels is needed by the editors
-const dateDetailLabels = {
-  ko: {
-    loading: "불러오는 중...",
-    empty: "일정이 없습니다.",
-    goals: "목표",
-    task: "일정",
-    noGoal: "목표 없음",
-    save: "저장",
-    close: "닫기",
-    cancel: "취소",
-    delete: "삭제",
-    deleteConfirm: "삭제하시겠습니까?",
-    recurringNote: "반복 목표입니다.",
-    milestoneTitleLabel: "일정 내용",
-    milestoneDateLabel: "예정일",
-  },
-  en: {
-    loading: "Loading...",
-    empty: "No schedules.",
-    goals: "Goals",
-    task: "Task",
-    noGoal: "No Goal",
-    save: "Save",
-    close: "Close",
-    cancel: "Cancel",
-    delete: "Delete",
-    deleteConfirm: "Are you sure to delete?",
-    recurringNote: "Recurring goal.",
-    milestoneTitleLabel: "Task content",
-    milestoneDateLabel: "Scheduled Date",
   },
 };
 
@@ -91,22 +48,15 @@ export function GoalListModal({
   language,
   initialGoals = [],
   onClose,
-  onUpdateGoal,
-  onDeleteGoal,
-  onCreateMilestone,
   onUpdateMilestone,
-  onDeleteMilestone,
 }: GoalListModalProps) {
   const t = labels[language];
-  const dt = dateDetailLabels[language];
 
   const [isLoading, setIsLoading] = useState(initialGoals.length === 0);
   const [goals, setGoals] = useState<Goal[]>(initialGoals);
   const [milestonesMap, setMilestonesMap] = useState<Record<string, Milestone[]>>({});
-  
   const [activeTab, setActiveTab] = useState<TabType>("ongoing");
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<EditingItem>(null);
   const [isMilestoneToggling, setIsMilestoneToggling] = useState<string | null>(null);
 
   useEffect(() => {
@@ -117,35 +67,33 @@ export function GoalListModal({
       try {
         const fetchedGoals = await apiClient.listGoals();
         setGoals(fetchedGoals);
-        
-        // Fetch milestones for all goals
-        const mData: Record<string, Milestone[]> = {};
+
+        const milestonesByGoal: Record<string, Milestone[]> = {};
         await Promise.all(
           fetchedGoals.map(async (goal) => {
-            const milestones = await apiClient.getGoalMilestones(goal.id);
-            mData[goal.id] = milestones;
-          })
+            milestonesByGoal[goal.id] = await apiClient.getGoalMilestones(goal.id);
+          }),
         );
-        setMilestonesMap(mData);
-      } catch (err) {
-        console.error("Failed to load goals/milestones", err);
+        setMilestonesMap(milestonesByGoal);
+      } catch (error) {
+        console.error("Failed to load goals/milestones", error);
       } finally {
         setIsLoading(false);
       }
     }
     void loadData();
-  }, []);
+  }, [initialGoals.length]);
 
   const goalData = useMemo(() => {
-    return goals.map(goal => {
-      const ms = milestonesMap[goal.id] || [];
-      const isCompleted = ms.length > 0 && ms.every(m => m.is_completed);
-      const completedCount = ms.filter(m => m.is_completed).length;
+    return goals.map((goal) => {
+      const milestones = milestonesMap[goal.id] ?? [];
+      const isCompleted = milestones.length > 0 && milestones.every((milestone) => milestone.is_completed);
+      const completedCount = milestones.filter((milestone) => milestone.is_completed).length;
       return {
         ...goal,
-        milestones: ms,
+        milestones,
         isCompleted,
-        totalCount: ms.length,
+        totalCount: milestones.length,
         completedCount,
       };
     });
@@ -154,245 +102,159 @@ export function GoalListModal({
   const filteredGoals = useMemo(() => {
     switch (activeTab) {
       case "ongoing":
-        return goalData.filter(g => !g.isCompleted);
+        return goalData.filter((goal) => !goal.isCompleted);
       case "completed":
-        return goalData.filter(g => g.isCompleted);
+        return goalData.filter((goal) => goal.isCompleted);
       case "all":
       default:
         return goalData;
     }
-  }, [goalData, activeTab]);
+  }, [activeTab, goalData]);
 
-  const handleToggleMilestone = async (milestone: Milestone, goalId: string) => {
-    if (isMilestoneToggling === milestone.id) return;
+  async function handleToggleMilestone(milestone: Milestone, goalId: string) {
+    if (isMilestoneToggling === milestone.id) {
+      return;
+    }
+
     setIsMilestoneToggling(milestone.id);
     try {
       await onUpdateMilestone(milestone.id, { is_completed: !milestone.is_completed });
-      setMilestonesMap(prev => {
-        const ms = prev[goalId] || [];
+      setMilestonesMap((current) => {
+        const milestones = current[goalId] ?? [];
         return {
-          ...prev,
-          [goalId]: ms.map(m => m.id === milestone.id ? { ...m, is_completed: !m.is_completed } : m)
+          ...current,
+          [goalId]: milestones.map((item) => (
+            item.id === milestone.id ? { ...item, is_completed: !item.is_completed } : item
+          )),
         };
       });
-    } catch (err) {
-      console.error("Failed to toggle milestone", err);
+    } catch (error) {
+      console.error("Failed to toggle milestone", error);
     } finally {
       setIsMilestoneToggling(null);
     }
-  };
-
-  const refreshGoalMilestones = async (goalId: string) => {
-    const ms = await apiClient.getGoalMilestones(goalId);
-    setMilestonesMap(prev => ({ ...prev, [goalId]: ms }));
-  };
+  }
 
   return (
-    <>
-      <FloatingPanel 
-        title={t.title} 
-        onClose={onClose} 
-        placement="center" 
-        closeLabel={t.cancel}
-        className="goal-list-modal-panel"
-      >
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-          {(["ongoing", "completed", "all"] as TabType[]).map(tab => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={activeTab === tab ? "button-primary" : "button-secondary"}
-              style={{ flex: 1, padding: "6px 0", fontSize: "12px", borderRadius: "20px" }}
-            >
-              {t[tab]}
-            </button>
-          ))}
-        </div>
+    <FloatingPanel
+      title={t.title}
+      onClose={onClose}
+      placement="center"
+      closeLabel={t.cancel}
+      className="goal-list-modal-panel"
+    >
+      <div className="goal-list-tabs">
+        {(["ongoing", "completed", "all"] as TabType[]).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`goal-list-tab ${activeTab === tab ? "button-primary" : "button-secondary"}`}
+          >
+            {t[tab]}
+          </button>
+        ))}
+      </div>
 
-        {isLoading && goals.length === 0 ? (
-          <p className="muted-text" style={{ padding: "20px", textAlign: "center" }}>{t.loading}</p>
-        ) : filteredGoals.length === 0 ? (
-          <p className="muted-text" style={{ padding: "20px", textAlign: "center" }}>{t.empty}</p>
-        ) : (
-          <ul className="plain-list day-view-list" style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "hidden" }}>
-            {filteredGoals.map(group => {
-              const isExpanded = expandedGoalId === group.id;
-              const isGoalEditing = editingItem?.type === "goal" && editingItem.id === group.id;
-              
-              if (isGoalEditing && editingItem.type === "goal") {
-                return (
-                  <li key={group.id} className="goal-group">
-                    <GoalEditor
-                      goal={editingItem.goal}
-                      isLoading={false}
-                      text={dt}
-                      onSave={async (p) => {
-                        await onUpdateGoal(group.id, p);
-                        setGoals(prev => prev.map(g => g.id === group.id ? { ...g, ...p } as Goal : g));
-                        setEditingItem(null);
-                      }}
-                      onDelete={async () => {
-                        await onDeleteGoal(group.id);
-                        setGoals(prev => prev.filter(g => g.id !== group.id));
-                        setEditingItem(null);
-                      }}
-                      onCancel={() => setEditingItem(null)}
-                    />
-                  </li>
-                );
-              }
+      {isLoading && goals.length === 0 ? (
+        <p className="muted-text goal-list-empty">{t.loading}</p>
+      ) : filteredGoals.length === 0 ? (
+        <p className="muted-text goal-list-empty">{t.empty}</p>
+      ) : (
+        <ul className="plain-list day-view-list goal-list-scroll">
+          {filteredGoals.map((goal) => {
+            const isExpanded = expandedGoalId === goal.id;
+            const progress = goal.totalCount > 0
+              ? Math.round((goal.completedCount / goal.totalCount) * 100)
+              : 0;
 
-              return (
-                <li key={group.id} style={{ marginBottom: "6px" }}>
-                  <div className="editable-row" style={{ display: "flex", alignItems: "center", padding: "8px", gap: "8px", width: "100%", boxSizing: "border-box" }}>
-                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "24px" }}>
-                      <span className="color-swatch" style={{ background: group.color, flexShrink: 0 }} aria-hidden="true" />
-                    </div>
-                    
-                    <div 
-                      onClick={() => setExpandedGoalId(isExpanded ? null : group.id)}
-                      style={{ flex: 1, display: "flex", flexDirection: "column", cursor: "pointer", gap: "2px", minWidth: 0 }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <strong style={{ fontSize: "13px", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: group.isCompleted ? 0.6 : 1, textDecoration: group.isCompleted ? "line-through" : "none" }}>{group.title}</strong>
-                      </div>
-                      <div style={{ display: "flex", gap: "10px", fontSize: "11px", color: "var(--text-tertiary)" }}>
-                        <span>{group.deadline} {t.until}</span>
-                        <span>
-                          {group.isCompleted ? (
-                            <strong style={{ color: "var(--primary)" }}>{t.completed}</strong>
-                          ) : (
-                            `${group.totalCount > 0 ? Math.round((group.completedCount / group.totalCount) * 100) : 0}%`
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <button
-                      type="button"
-                      className="icon-button compact-icon"
-                      onClick={() => setEditingItem({ type: "goal", id: group.id, goal: group })}
-                      style={{ flexShrink: 0, opacity: 0.7 }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button compact-icon"
-                      onClick={() => setExpandedGoalId(isExpanded ? null : group.id)}
-                      style={{ flexShrink: 0 }}
-                    >
-                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
+            return (
+              <li key={goal.id} className="goal-list-item">
+                <div className="editable-row goal-list-row">
+                  <div className="goal-list-color-cell">
+                    <span className="color-swatch goal-list-color-swatch" style={{ background: goal.color }} aria-hidden="true" />
                   </div>
 
-                  {isExpanded && (
-                    <div style={{ paddingLeft: "32px", paddingTop: "8px" }}>
-                      <ul className="plain-list">
-                        {group.milestones.map(m => {
-                          const isMilestoneEditing = editingItem?.type === "milestone" && editingItem.id === m.id;
-                          const isToggling = isMilestoneToggling === m.id;
-                          
-                          if (isMilestoneEditing && editingItem.type === "milestone") {
-                            return (
-                              <li key={m.id} className="milestone-row" style={{ marginLeft: "-24px" }}>
-                                <MilestoneEditor
-                                  goal={group}
-                                  milestone={editingItem.milestone}
-                                  isLoading={false}
-                                  text={dt}
-                                  onUpdate={async (mid, p) => {
-                                    await onUpdateMilestone(mid, p);
-                                    await refreshGoalMilestones(group.id);
-                                    setEditingItem(null);
-                                  }}
-                                  onDelete={async (mid) => {
-                                    await onDeleteMilestone(mid);
-                                    await refreshGoalMilestones(group.id);
-                                    setEditingItem(null);
-                                  }}
-                                  onCancel={() => setEditingItem(null)}
-                                />
-                              </li>
-                            );
-                          }
-
-                          return (
-                            <li key={m.id} style={{ marginBottom: "6px" }}>
-                              <div className="editable-row" style={{ display: "flex", alignItems: "center", padding: "6px 8px", gap: "8px", width: "100%", boxSizing: "border-box" }}>
-                                <button
-                                  type="button"
-                                  className="icon-button compact-icon"
-                                  onClick={() => handleToggleMilestone(m, group.id)}
-                                  disabled={isToggling}
-                                  style={{ color: m.is_completed ? "var(--primary)" : "var(--text-tertiary)", flexShrink: 0, opacity: isToggling ? 0.5 : 1 }}
-                                >
-                                  {m.is_completed ? <CheckSquare size={16} /> : <Square size={16} />}
-                                </button>
-                                <div style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", minWidth: 0, gap: "6px" }}>
-                                  <strong style={{ fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: m.is_completed ? 0.6 : 1, textDecoration: m.is_completed ? "line-through" : "none" }}>
-                                    {m.title}
-                                  </strong>
-                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", color: "var(--text-tertiary)", flexShrink: 0 }}>
-                                    <span>{m.scheduled_date}</span>
-                                    {m.is_completed && <strong style={{ color: "var(--primary)" }}>{t.completed}</strong>}
-                                  </div>
-                                </div>
-                                <button 
-                                  type="button" 
-                                  className="icon-button compact-icon"
-                                  onClick={() => setEditingItem({ type: "milestone", id: m.id, milestone: m })}
-                                  style={{ flexShrink: 0, opacity: 0.7 }}
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      
-                      {editingItem?.type === "new-milestone" && editingItem.goalId === group.id ? (
-                        <div style={{ marginLeft: "-24px", marginTop: "8px" }}>
-                          <MilestoneCreateEditor
-                            goal={group}
-                            scheduledDate={new Date().toISOString().split("T")[0]}
-                            heading={t.addMilestone}
-                            isLoading={false}
-                            text={dt}
-                            onCancel={() => setEditingItem(null)}
-                            onSave={async (payload) => {
-                              await onCreateMilestone(group.id, payload);
-                              await refreshGoalMilestones(group.id);
-                              setEditingItem(null);
-                            }}
-                            onUpdateGoal={async (p) => {
-                              await onUpdateGoal(group.id, p);
-                              setGoals(prev => prev.map(g => g.id === group.id ? { ...g, ...p } as Goal : g));
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", gap: "8px", marginTop: "12px", marginBottom: "8px" }}>
-                          <button
-                            type="button"
-                            className="button-secondary"
-                            onClick={() => setEditingItem({ type: "new-milestone", goalId: group.id, color: group.color })}
-                            style={{ flex: 1, padding: "6px", fontSize: "12px", display: "flex", justifyContent: "center", alignItems: "center", gap: "4px" }}
-                          >
-                            <Plus size={14} /> {t.addMilestone}
-                          </button>
-                        </div>
-                      )}
+                  <div
+                    onClick={() => setExpandedGoalId(isExpanded ? null : goal.id)}
+                    className="goal-list-content"
+                  >
+                    <div className="goal-list-title-row">
+                      <strong
+                        className="goal-list-title"
+                        style={{ opacity: goal.isCompleted ? 0.6 : 1, textDecoration: goal.isCompleted ? "line-through" : "none" }}
+                      >
+                        {goal.title}
+                      </strong>
                     </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </FloatingPanel>
-    </>
+                    <div className="goal-list-meta">
+                      <span>{goal.deadline} {t.until}</span>
+                      <span>
+                        {goal.isCompleted ? (
+                          <strong className="goal-list-completed-label">{t.completed}</strong>
+                        ) : (
+                          `${progress}%`
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="icon-button compact-icon goal-list-icon-button"
+                    onClick={() => setExpandedGoalId(isExpanded ? null : goal.id)}
+                  >
+                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                </div>
+
+                {isExpanded ? (
+                  <div className="goal-list-nested">
+                    <ul className="plain-list">
+                      {goal.milestones.length === 0 ? (
+                        <li className="goal-list-item">
+                          <div className="editable-row goal-list-row goal-list-milestone-row goal-list-empty-milestone-row">
+                            <span>{t.noMilestones}</span>
+                          </div>
+                        </li>
+                      ) : goal.milestones.map((milestone) => {
+                        const isToggling = isMilestoneToggling === milestone.id;
+                        return (
+                          <li key={milestone.id} className="goal-list-item">
+                            <div className="editable-row goal-list-row goal-list-milestone-row">
+                              <button
+                                type="button"
+                                className="icon-button compact-icon goal-list-icon-button"
+                                onClick={() => void handleToggleMilestone(milestone, goal.id)}
+                                disabled={isToggling}
+                                style={{ color: milestone.is_completed ? "var(--primary)" : "var(--text-tertiary)", opacity: isToggling ? 0.5 : 1 }}
+                              >
+                                {milestone.is_completed ? <CheckSquare size={16} /> : <Square size={16} />}
+                              </button>
+                              <div className="goal-list-milestone-content">
+                                <strong
+                                  className="goal-list-milestone-title"
+                                  style={{ opacity: milestone.is_completed ? 0.6 : 1, textDecoration: milestone.is_completed ? "line-through" : "none" }}
+                                >
+                                  {milestone.title}
+                                </strong>
+                                <div className="goal-list-milestone-meta">
+                                  <span>{milestone.scheduled_date}</span>
+                                  {milestone.is_completed ? <strong className="goal-list-completed-label">{t.completed}</strong> : null}
+                                </div>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </FloatingPanel>
   );
 }

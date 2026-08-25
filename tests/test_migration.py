@@ -74,3 +74,27 @@ def test_recurrence_type_migration_allows_null_for_non_recurring_goals() -> None
     assert "is_recurring = true and recurrence_type in ('daily', 'weekly', 'monthly')" in sql
     assert "is_recurring = false and recurrence_type is null" in sql
     assert "notify pgrst, 'reload schema'" in sql
+
+
+def test_unused_user_settings_columns_are_dropped() -> None:
+    sql_path = (
+        Path(__file__).resolve().parents[1]
+        / "supabase"
+        / "migrations"
+        / "202608250001_drop_unused_user_settings_columns.sql"
+    )
+    sql = sql_path.read_text(encoding="utf-8").lower()
+
+    assert "alter table if exists public.user_settings" in sql
+    for column in [
+        "theme",
+        "accent_color",
+        "font_family",
+        "font_size",
+        "ai_suggestion",
+        "completed_milestones",
+        "default_goal_color",
+        "default_milestone_color",
+    ]:
+        assert f"drop column if exists {column}" in sql
+    assert "notify pgrst, 'reload schema'" in sql

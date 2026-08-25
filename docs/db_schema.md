@@ -93,16 +93,8 @@ FastAPI는 Supabase Auth에서 발급한 JWT를 검증하고, JWT의 sub 값을 
 |---|---|---|---|
 | user_id (PK, FK) | 사용자 ID | uuid | auth.users.id 참조 |
 | calendar_view | 기본 캘린더 표시 기준 | text | 예: monthly, weekly |
-| theme | 화면 테마 | text | 예: light, dark, system |
-| accent_color | 기본 강조 색상 | text | 예: #4F46E5 |
-| font_family | 글꼴 설정 | text | 예: Pretendard, Arial |
-| font_size | 기본 글자 크기 | integer | 예: 14 |
-| ai_suggestion | AI 추천 컴포넌트 사용 여부 | boolean | default: FALSE |
 | holiday_display | 공휴일 표시 방식 | text | 예: normal, weekend_like, hidden |
 | week_starts_on | 주 시작 요일 | integer | 0=일요일, 1=월요일 |
-| completed_milestones | 완료된 마일스톤 표시 여부 | boolean | default: TRUE |
-| default_goal_color | 목표 기본 색상 | text | 새 목표 생성 시 기본값 |
-| default_milestone_color | 마일스톤 기본 색상 | text | 새 마일스톤 생성 시 기본값 |
 | language | 언어 설정 | text | 예: ko, en |
 | timezone | 사용자 시간대 | text | 예: Asia/Seoul |
 | created_at | 생성 시각 | timestamptz | now() |
@@ -111,9 +103,10 @@ FastAPI는 Supabase Auth에서 발급한 JWT를 검증하고, JWT의 sub 값을 
 ### 설계 메모
 
 - 사용자별 앱 설정 값을 저장한다.
-- 캘린더 표시 기준, 테마, 글꼴, 공휴일 표시 방식, AI 추천 컴포넌트 사용 여부처럼 계정 기준으로 유지되어야 하는 설정을 관리한다.
+- 캘린더 표시 기준, 공휴일 표시 방식, 주 시작 요일, 언어, 시간대처럼 계정 기준으로 유지되어야 하는 설정을 관리한다.
 - 사용자 1명당 설정 데이터는 1개만 필요하므로 user_id를 PK로 사용한다.
 - 목표별 색상은 사용자 전체 설정이 아니라 개별 목표의 속성이므로 goals.color에서 관리한다.
+- 테마, 글꼴, 창 크기처럼 현재 PC 화면/환경에 종속되는 값은 user_settings가 아니라 로컬 설정에서 관리한다.
 
 ## 5. external_calendar_connections 테이블
 

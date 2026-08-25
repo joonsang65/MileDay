@@ -11,7 +11,7 @@ from services.auth_service import AuthSession, AuthUser, get_auth_service
 from services.calendar_service import get_calendar_service
 from services.goal_service import get_goal_service
 from services.milestone_service import get_milestone_service
-from services.settings_service import get_settings_service
+from services.settings_service import DEFAULT_SETTINGS, get_settings_service
 
 
 class FakeAuthService:
@@ -307,21 +307,7 @@ def override_calendar_service() -> FakeCalendarService:
 
 class FakeSettingsService:
     def __init__(self) -> None:
-        self.settings = {
-            "calendar_view": "month",
-            "theme": "system",
-            "accent_color": "#4F46E5",
-            "font_family": "system",
-            "font_size": 14,
-            "ai_suggestion": False,
-            "holiday_display": "normal",
-            "week_starts_on": 1,
-            "completed_milestones": True,
-            "default_goal_color": "#4F46E5",
-            "default_milestone_color": "#F97316",
-            "language": "ko",
-            "timezone": "Asia/Seoul",
-        }
+        self.settings = dict(DEFAULT_SETTINGS)
 
     def get_settings(self, *, user_id: str) -> dict:
         assert user_id == "user-1"
@@ -412,6 +398,25 @@ def test_settings_routes_reject_invalid_values(client: TestClient) -> None:
         response = client.patch(
             "/settings",
             json={"calendar_view": "year", "week_starts_on": 2, "language": "jp"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["success"] is False
+    finally:
+        client.app.dependency_overrides.clear()
+
+
+def test_settings_routes_reject_removed_fields(client: TestClient) -> None:
+    client.app.dependency_overrides[require_current_user_id] = override_current_user_id
+    client.app.dependency_overrides[get_settings_service] = override_settings_service
+    try:
+        response = client.patch(
+            "/settings",
+            json={
+                "calendar_view": "week",
+                "accent_color": "#4F46E5",
+                "font_size": 14,
+            },
         )
 
         assert response.status_code == 400

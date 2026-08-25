@@ -171,16 +171,8 @@ auth.users
 
 - `user_id`
 - `calendar_view`
-- `theme`
-- `accent_color`
-- `font_family`
-- `font_size`
-- `ai_suggestion`
 - `holiday_display`
 - `week_starts_on`
-- `completed_milestones`
-- `default_goal_color`
-- `default_milestone_color`
 - `language`
 - `timezone`
 - `created_at`

@@ -5,16 +5,8 @@ import {
 
 const DEFAULT_SETTINGS = {
   calendar_view: "month",
-  theme: "system",
-  accent_color: "#4F46E5",
-  font_family: "system",
-  font_size: 14,
-  ai_suggestion: false,
   holiday_display: "normal",
   week_starts_on: 1,
-  completed_milestones: true,
-  default_goal_color: "#4F46E5",
-  default_milestone_color: "#F97316",
   language: "ko",
   timezone: "Asia/Seoul",
 };

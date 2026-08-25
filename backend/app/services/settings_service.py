@@ -10,16 +10,8 @@ from schemas.settings_schemas import SettingsUpdateRequest
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "calendar_view": "month",
-    "theme": "system",
-    "accent_color": "#4F46E5",
-    "font_family": "system",
-    "font_size": 14,
-    "ai_suggestion": False,
     "holiday_display": "normal",
     "week_starts_on": 1,
-    "completed_milestones": True,
-    "default_goal_color": "#4F46E5",
-    "default_milestone_color": "#F97316",
     "language": "ko",
     "timezone": "Asia/Seoul",
 }

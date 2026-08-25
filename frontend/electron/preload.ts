@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { LocalUiFontSizePayload } from "../src/types/localUiSettings";
 
 contextBridge.exposeInMainWorld("mileday", {
   platform: process.platform,
@@ -14,10 +15,12 @@ contextBridge.exposeInMainWorld("mileday", {
   },
   uiSettings: {
     get: () => ipcRenderer.invoke("ui-settings:get"),
-    setFontSizes: (payload: { baseFontSize: number; goalFontSize: number }) =>
+    setFontSizes: (payload: LocalUiFontSizePayload) =>
       ipcRenderer.invoke("ui-settings:set-font-sizes", payload),
     setResizeEnabled: (resizeEnabled: boolean) =>
       ipcRenderer.invoke("ui-settings:set-resize-enabled", resizeEnabled),
+    setOpacity: (opacity: number) =>
+      ipcRenderer.invoke("ui-settings:set-opacity", opacity),
   },
   windowResize: {
     start: (payload: { direction: string; screenX: number; screenY: number }) =>
