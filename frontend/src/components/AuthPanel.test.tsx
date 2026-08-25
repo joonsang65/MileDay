@@ -23,7 +23,7 @@ describe("AuthPanel", () => {
     await user.click(screen.getByRole("button", { name: "회원가입" }));
 
     const onboarding = screen.getByRole("region", { name: "MileDay 소개" });
-    expect(within(onboarding).getByText("달력에서 목표 확인")).toBeInTheDocument();
+    expect(within(onboarding).getByText("달력에서 흐름 확인")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "로그인" })).toBeInTheDocument();
 
     await user.click(within(onboarding).getByRole("button", { name: "다음" }));

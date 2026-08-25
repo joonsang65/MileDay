@@ -1,5 +1,9 @@
 import { FormEvent, useState } from "react";
-import { ChevronLeft, ChevronRight, LogIn, Plus, Settings, UserPlus } from "lucide-react";
+import { CalendarPlus, CheckSquare, ChevronLeft, ChevronRight, ListTodo, LogIn, Plus, Sparkles, UserPlus } from "lucide-react";
+
+import { AUTH_LANGUAGE_KEY, ONBOARDING_DISMISSED_KEY } from "@/config/storageKeys";
+import type { AuthLanguage } from "@/types/auth";
+import { getInitialAuthLanguage } from "@/utils/authLanguage";
 
 type AuthPanelProps = {
   isLoading: boolean;
@@ -12,17 +16,13 @@ type AuthPanelProps = {
 };
 
 type AuthMode = "login" | "signup";
-export type AuthLanguage = "ko" | "en";
 
 type OnboardingSlide = {
   title: string;
   description: string;
   points: string[];
-  icon: "goal" | "milestone" | "day" | "settings";
+  icon: "goal" | "milestone" | "day" | "quick";
 };
-
-const ONBOARDING_DISMISSED_KEY = "mileday.signup_onboarding_dismissed";
-const AUTH_LANGUAGE_KEY = "mileday.auth_language";
 
 const authText = {
   ko: {
@@ -52,44 +52,44 @@ const authText = {
     },
     onboardingSlides: [
       {
-        title: "달력에서 목표 확인",
-        description: "목표와 마감일을 날짜별로 정리해 한눈에 확인하세요.",
+        title: "달력에서 흐름 확인",
+        description: "목표와 작업 일정을 달력에서 가볍게 확인하고, 필요한 날짜만 열어 자세히 봅니다.",
         points: [
-          "날짜별 목표와 진행 상황을 달력에서 빠르게 확인합니다.",
-          "공휴일과 목표 일정을 함께 보며 겹치는 일정을 미리 파악합니다.",
-          "색상 표시로 중요한 목표가 있는 날짜를 쉽게 구분합니다.",
+          "날짜별 목표와 작업 수를 빠르게 확인합니다.",
+          "공휴일과 일정을 함께 확인합니다.",
+          "날짜를 누르면 하루보기 패널에서 세부 내용을 확인합니다.",
         ],
         icon: "goal",
       },
       {
-        title: "마일스톤으로 나누기",
-        description: "간단한 일정은 목표만 등록하고, 큰 목표는 세부 단계로 나누세요.",
+        title: "목표와 작업 나누기",
+        description: "큰 목표는 마감일과 색상으로 구분하고, 필요한 경우 세부 작업을 날짜별로 나눕니다.",
         points: [
-          "목표 이름과 마감일을 먼저 정해 전체 방향을 잡습니다.",
-          "세부 마일스톤마다 해야 할 일과 날짜를 따로 설정합니다.",
-          "간단한 일정은 마일스톤 없이 목표만 등록해도 됩니다.",
+          "목표 제목과 마감일을 먼저 설정합니다.",
+          "작업은 필요한 만큼 추가합니다.",
+          "단순 일정은 목표만으로도 등록할 수 있습니다.",
         ],
         icon: "milestone",
       },
       {
-        title: "하루 보기에서 관리",
-        description: "목표와 마일스톤을 하루 보기에서 자세히 관리합니다.",
+        title: "하루보기에서 집중 관리",
+        description: "선택한 날짜의 목표와 작업을 플로팅 패널에서 컴팩트하게 확인하고 수정합니다.",
         points: [
-          "선택한 날짜에 예정된 목표와 마일스톤을 한곳에서 확인합니다.",
-          "완료 체크와 수정, 삭제 같은 세부 관리는 하루 보기에서 처리합니다.",
-          "달력은 월간 흐름만 간단히 보여주어 화면이 복잡해지지 않습니다.",
+          "목표와 작업을 한 화면에서 확인합니다.",
+          "완료 체크와 수정 작업을 처리합니다.",
+          "일정이 없을 때는 빈 상태를 중앙에 표시합니다.",
         ],
         icon: "day",
       },
       {
-        title: "내 화면에 맞게 설정",
-        description: "개인 맞춤형 설정을 저장해 편하게 사용할 수 있습니다.",
+        title: "빠르게 추가하고 전체 목표 확인",
+        description: "하루보기의 + 버튼에서 일정 추가, 일정 추천, 전체 목표를 바로 열 수 있습니다.",
         points: [
-          "기본 글자와 일정 글자 크기를 내 화면에 맞게 조절합니다.",
-          "창 크기와 위치를 저장해 원하는 자리에 계속 띄워둘 수 있습니다.",
-          "자동 실행과 자동 로그인을 설정해 컴퓨터를 켜자마자 바로 시작합니다.",
+          "일정 추가로 목표와 작업을 직접 등록합니다.",
+          "일정 추천으로 필요한 일정을 빠르게 만들 수 있습니다.",
+          "전체 목표에서 진행 중, 완료, 전체 목표를 한 번에 확인합니다.",
         ],
-        icon: "settings",
+        icon: "quick",
       },
     ] satisfies OnboardingSlide[],
     visual: {
@@ -105,10 +105,16 @@ const authText = {
       dayView: "하루 보기",
       goalCount: "목표 1",
       taskCount: "작업 0/1",
-      settings: "설정",
-      baseFontSize: "기본 글자 크기(px)",
-      goalFontSize: "목표 글자 크기(px)",
-      autoLaunch: "컴퓨터 시작 시 자동 실행",
+      quickTitle: "빠른 추가",
+      manualCreate: "일정 추가",
+      manualHint: "직접 일정 만들기",
+      aiCreate: "일정 추천",
+      aiHint: "AI에게 제안받기",
+      allGoals: "전체 목표",
+      allGoalsHint: "전체 목표 관리하기",
+      ongoing: "진행중",
+      completed: "완료",
+      all: "전체",
     },
   },
   en: {
@@ -138,44 +144,44 @@ const authText = {
     },
     onboardingSlides: [
       {
-        title: "Check Goals on Calendar",
-        description: "Organize goals and deadlines by date so you can see them at a glance.",
+        title: "Check the Calendar Flow",
+        description: "Lightly scan goals and tasks on the calendar, then open only the dates that need detail.",
         points: [
-          "Quickly check goals and progress for each date.",
-          "View holidays and goal schedules together to spot conflicts early.",
-          "Use color markers to distinguish important goal dates.",
+          "Quickly check goal and task counts by date.",
+          "View holidays and schedules together.",
+          "Open the day view panel from a selected date.",
         ],
         icon: "goal",
       },
       {
-        title: "Break Into Milestones",
-        description: "Split larger goals into steps, or add a simple goal without milestones.",
+        title: "Split Goals and Tasks",
+        description: "Use deadlines and colors for larger goals, then split them into dated tasks when needed.",
         points: [
-          "Set the goal name and deadline first.",
-          "Give each milestone its own task name and date.",
-          "Register simple schedules as goals only when you do not need steps.",
+          "Set the goal title and deadline first.",
+          "Add as many tasks as you need.",
+          "Register simple schedules as goals only.",
         ],
         icon: "milestone",
       },
       {
-        title: "Manage the Day View",
-        description: "Use the day view to manage goals and milestones for the selected date.",
+        title: "Focus in Day View",
+        description: "Use the floating day view panel to compactly review and edit the selected date.",
         points: [
-          "See goals and milestones scheduled for the selected date.",
-          "Handle completion, editing, and deletion in the day view.",
-          "Keep the monthly calendar simple by showing only the overall flow.",
+          "Review goals and tasks in one panel.",
+          "Handle completion and edits in place.",
+          "Show a centered empty state when nothing is scheduled.",
         ],
         icon: "day",
       },
       {
-        title: "Fit Your Screen",
-        description: "Save window position, size, font sizes, and startup settings for easier use.",
+        title: "Add Quickly and Review All Goals",
+        description: "Use the + button in day view to open add schedule, AI suggestion, or all goals.",
         points: [
-          "Adjust base text and schedule text sizes for your screen.",
-          "Keep the widget at your preferred position and size.",
-          "Launch automatically and sign in automatically when enabled.",
+          "Create goals and tasks directly with Add Schedule.",
+          "Generate schedules faster with AI Suggestion.",
+          "Review ongoing, completed, and all goals together.",
         ],
-        icon: "settings",
+        icon: "quick",
       },
     ] satisfies OnboardingSlide[],
     visual: {
@@ -191,10 +197,16 @@ const authText = {
       dayView: "Day View",
       goalCount: "Goal 1",
       taskCount: "Task 0/1",
-      settings: "Settings",
-      baseFontSize: "Base font size (px)",
-      goalFontSize: "Goal font size (px)",
-      autoLaunch: "Open at computer startup",
+      quickTitle: "Quick Add",
+      manualCreate: "Add Schedule",
+      manualHint: "Create manually",
+      aiCreate: "AI Suggestion",
+      aiHint: "Get an AI suggestion",
+      allGoals: "All Goals",
+      allGoalsHint: "Manage all goals",
+      ongoing: "Ongoing",
+      completed: "Done",
+      all: "All",
     },
   },
 };
@@ -469,10 +481,6 @@ function isSignupOnboardingDismissed() {
   return localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
 }
 
-function getInitialAuthLanguage(): AuthLanguage {
-  return localStorage.getItem(AUTH_LANGUAGE_KEY) === "en" ? "en" : "ko";
-}
-
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -515,16 +523,25 @@ function OnboardingVisual({
       <div className="visual-create-panel">
         <div className="visual-panel-header">
           <strong>{text.createTitle}</strong>
-          <Plus size={16} aria-hidden="true" />
         </div>
-        <label>
-          {text.goalTitle}
-          <span>{text.goalExample}</span>
-        </label>
-        <label>
-          {text.deadline}
-          <span>2026-08-30</span>
-        </label>
+        <div className="visual-manual-goal-row">
+          <div className="visual-manual-fields">
+            <label>
+              <span>{text.goalExample}</span>
+            </label>
+            <label>
+              <span>2026-08-30</span>
+            </label>
+          </div>
+          <div className="visual-color-field" aria-hidden="true">
+            <i style={{ background: "#7F9278" }} />
+            <i style={{ background: "#55A873" }} />
+            <i style={{ background: "#E59A45" }} />
+            <i style={{ background: "#8B6FD6" }} />
+            <i style={{ background: "#D96868" }} />
+            <i style={{ background: "#8A94A3" }} />
+          </div>
+        </div>
         <div className="visual-milestone-row">
           <span>{text.milestoneExample}</span>
           <span>08-20</span>
@@ -538,40 +555,58 @@ function OnboardingVisual({
       <div className="visual-day-panel">
         <div className="visual-panel-header">
           <strong>{text.dayView}</strong>
-          <span>2026-08-15</span>
+          <span className="visual-date-pill">2026-08-15</span>
         </div>
-        <div className="visual-summary">
-          <span>{text.goalCount}</span>
-          <span>{text.taskCount}</span>
+        <div className="visual-day-toolbar">
+          <strong>{text.goalCount.split(" ")[0]}</strong>
+          <span>{text.goalCount} | {text.taskCount}</span>
+          <i><Plus size={14} aria-hidden="true" /></i>
         </div>
         <div className="visual-goal-row">
-          <i />
+          <i aria-hidden="true" />
           <div>
-            <strong>{text.taskProgress}</strong>
+            <strong>{text.goalExample}</strong>
             <span>{text.taskCount}</span>
           </div>
+        </div>
+        <div className="visual-task-row">
+          <CheckSquare size={16} aria-hidden="true" />
+          <span>{text.milestoneExample}</span>
+          <small>08-20</small>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="visual-settings-panel">
+    <div className="visual-quick-panel">
       <div className="visual-panel-header">
-        <strong>{text.settings}</strong>
-        <Settings size={16} aria-hidden="true" />
+        <strong>{text.quickTitle}</strong>
       </div>
-      <label>
-        {text.baseFontSize}
-        <span>17</span>
-      </label>
-      <label>
-        {text.goalFontSize}
-        <span>19</span>
-      </label>
-      <div className="visual-toggle-row">
-        <i />
-        <span>{text.autoLaunch}</span>
+      <div className="visual-quick-actions">
+        <button type="button">
+          <CalendarPlus size={20} aria-hidden="true" />
+          <span>
+            <strong>{text.manualCreate}</strong>
+          </span>
+        </button>
+        <button type="button">
+          <Sparkles size={20} aria-hidden="true" />
+          <span>
+            <strong>{text.aiCreate}</strong>
+          </span>
+        </button>
+        <button type="button">
+          <ListTodo size={20} aria-hidden="true" />
+          <span>
+            <strong>{text.allGoals}</strong>
+          </span>
+        </button>
+      </div>
+      <div className="visual-goal-tabs">
+        <span>{text.ongoing}</span>
+        <span>{text.completed}</span>
+        <span>{text.all}</span>
       </div>
     </div>
   );

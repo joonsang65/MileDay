@@ -36,34 +36,38 @@ export function QuickActionPopover({ onManualCreate, onAiCreate, onGoalList, lan
   const text = labels[language];
   return (
     <div className="quick-action-popover" role="menu" aria-label={text.menu}>
-      <h2>{text.title}</h2>
-      <button type="button" role="menuitem" onClick={onManualCreate}>
-        <span className="quick-action-icon">
-          <CalendarPlus size={31} aria-hidden="true" />
-        </span>
-        <span>
-          <strong>{text.manual}</strong>
-          <small>{text.manualHint}</small>
-        </span>
-      </button>
-      <button type="button" role="menuitem" onClick={onAiCreate}>
-        <span className="quick-action-icon">
-          <Sparkles size={31} aria-hidden="true" />
-        </span>
-        <span>
-          <strong>{text.ai}</strong>
-          <small>{text.aiHint}</small>
-        </span>
-      </button>
-      <button type="button" role="menuitem" onClick={onGoalList}>
-        <span className="quick-action-icon">
-          <ListTodo size={31} aria-hidden="true" />
-        </span>
-        <span>
-          <strong>{text.goals}</strong>
-          <small>{text.goalsHint}</small>
-        </span>
-      </button>
+      <header className="quick-action-header">
+        <h2>{text.title}</h2>
+      </header>
+      <div className="quick-action-items">
+        <button type="button" role="menuitem" onClick={onManualCreate}>
+          <span className="quick-action-icon">
+            <CalendarPlus size={31} aria-hidden="true" />
+          </span>
+          <span>
+            <strong>{text.manual}</strong>
+            <small>{text.manualHint}</small>
+          </span>
+        </button>
+        <button type="button" role="menuitem" onClick={onAiCreate}>
+          <span className="quick-action-icon">
+            <Sparkles size={31} aria-hidden="true" />
+          </span>
+          <span>
+            <strong>{text.ai}</strong>
+            <small>{text.aiHint}</small>
+          </span>
+        </button>
+        <button type="button" role="menuitem" onClick={onGoalList}>
+          <span className="quick-action-icon">
+            <ListTodo size={31} aria-hidden="true" />
+          </span>
+          <span>
+            <strong>{text.goals}</strong>
+            <small>{text.goalsHint}</small>
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

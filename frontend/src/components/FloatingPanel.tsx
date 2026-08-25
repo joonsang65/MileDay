@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 
 type FloatingPanelProps = {
   title: string;
+  subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
   onClose: () => void;
@@ -15,6 +16,7 @@ type FloatingPanelProps = {
 
 export function FloatingPanel({
   title,
+  subtitle,
   children,
   footer,
   onClose,
@@ -46,7 +48,10 @@ export function FloatingPanel({
     <div className={`floating-layer ${placement}`} role="presentation" onClick={handleBackdropClick}>
       <section className={`floating-panel ${chrome} ${className}`.trim()} role="dialog" aria-modal="false" aria-labelledby={labelledBy}>
         <header className="floating-panel-header">
-          <h2 id={labelledBy}>{title}</h2>
+          <div className="floating-panel-title-row">
+            <h2 id={labelledBy}>{title}</h2>
+            {subtitle ? <span className="floating-panel-subtitle">{subtitle}</span> : null}
+          </div>
           <button type="button" className="icon-button compact-icon" onClick={onClose} title={closeLabel}>
             <X size={16} aria-hidden="true" />
           </button>

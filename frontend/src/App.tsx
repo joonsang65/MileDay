@@ -15,18 +15,23 @@ import type {
   UserSettings,
   UserSettingsUpdatePayload,
 } from "@/api/types";
-import { AuthPanel, type AuthLanguage } from "@/components/AuthPanel";
+import { AuthPanel } from "@/components/AuthPanel";
 import { AiSchedulePanel } from "@/components/AiSchedulePanel";
 import { CalendarBoard } from "@/components/CalendarBoard";
 import { CalendarHeader } from "@/components/CalendarHeader";
-import { DateDetail } from "@/components/DateDetail";
+import { DateDetail, dateDetailLabels } from "@/components/DateDetail";
 import { FloatingPanel } from "@/components/FloatingPanel";
 import { ManualCreatePanel } from "@/components/ManualCreatePanel";
 import { QuickActionPopover } from "@/components/QuickActionPopover";
 import { GoalListModal } from "@/components/GoalListModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { DEFAULT_USER_SETTINGS } from "@/config/defaultUserSettings";
 import { useCalendarStore, type CalendarMode } from "@/store/calendarStore";
 import { useUiStore } from "@/store/uiStore";
+import type { AuthLanguage } from "@/types/auth";
+import { DEFAULT_LOCAL_UI_SETTINGS, type LocalUiSettings, type LocalUiSettingsPatch } from "@/types/localUiSettings";
+import { RESIZE_DIRECTIONS, type ResizeDirection } from "@/types/windowResize";
+import { getInitialAuthLanguage } from "@/utils/authLanguage";
 import {
   getWeekStartDate,
   getMonthLabel,
@@ -45,39 +50,7 @@ type RequestState = {
 };
 
 type CalendarData = CalendarMonthData | CalendarWeekData;
-type LocalUiSettings = {
-  baseFontSize: number;
-  goalFontSize: number;
-  resizeEnabled: boolean;
-};
 
-type ResizeDirection = "n" | "e" | "s" | "w" | "ne" | "nw" | "se" | "sw";
-
-const DEFAULT_USER_SETTINGS: UserSettings = {
-  calendar_view: "month",
-  theme: "system",
-  accent_color: "#4F46E5",
-  font_family: "system",
-  font_size: 14,
-  ai_suggestion: false,
-  holiday_display: "normal",
-  week_starts_on: 1,
-  completed_milestones: true,
-  default_goal_color: "#4F46E5",
-  default_milestone_color: "#F97316",
-  language: "ko",
-  timezone: "Asia/Seoul",
-};
-
-const DEFAULT_LOCAL_UI_SETTINGS: LocalUiSettings = {
-  baseFontSize: 12,
-  goalFontSize: 13,
-  resizeEnabled: false,
-};
-
-const AUTH_LANGUAGE_KEY = "mileday.auth_language";
-
-const RESIZE_DIRECTIONS: ResizeDirection[] = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
 const PREFETCH_MONTHS_BACK = 3;
 const PREFETCH_MONTHS_FORWARD = 9;
 const PREFETCH_CONCURRENCY = 2;
@@ -107,10 +80,6 @@ const appLabels = {
     credit: "App credit",
   },
 };
-
-function getInitialAuthLanguage(): AuthLanguage {
-  return localStorage.getItem(AUTH_LANGUAGE_KEY) === "en" ? "en" : "ko";
-}
 
 function WindowResizeHandles({ enabled }: { enabled: boolean }) {
   const isDraggingRef = useRef(false);
@@ -487,6 +456,7 @@ export default function App() {
   const [localUiSettings, setLocalUiSettings] = useState<LocalUiSettings>(DEFAULT_LOCAL_UI_SETTINGS);
   const [hasAppliedInitialSettings, setHasAppliedInitialSettings] = useState(false);
   const [isDateDetailEditing, setIsDateDetailEditing] = useState(false);
+  const [isDayViewQuickMenuOpen, setIsDayViewQuickMenuOpen] = useState(false);
   const calendarCacheRef = useRef(new Map<string, CalendarData>());
   const dateDetailCacheRef = useRef(new Map<string, CalendarDateData>());
   const settingsCacheRef = useRef<UserSettings | null>(null);
@@ -494,7 +464,7 @@ export default function App() {
   const prefetchRunRef = useRef(0);
   const hasStartedLoginPrefetchRef = useRef(false);
   const currentViewRef = useRef({ mode, selectedDate, visibleDate, weekStartsOn });
-  const { overlayMode, openQuickMenu, openManualCreate, openAiCreate, openSettings, openDayView, openGoalList, closeOverlay } = useUiStore();
+  const { overlayMode, openManualCreate, openAiCreate, openSettings, openDayView, openGoalList, closeOverlay } = useUiStore();
   const handleWindowMoveStart = useWindowMoveDrag();
 
   currentViewRef.current = { mode, selectedDate, visibleDate, weekStartsOn };
@@ -766,6 +736,12 @@ export default function App() {
   }, [overlayMode]);
 
   useEffect(() => {
+    if (overlayMode !== "day-view") {
+      setIsDayViewQuickMenuOpen(false);
+    }
+  }, [overlayMode]);
+
+  useEffect(() => {
     if (overlayMode === "none") {
       return undefined;
     }
@@ -847,6 +823,27 @@ export default function App() {
     if (mode === "week") {
       setVisibleDate(getWeekStartDate(date, weekStartsOn));
     }
+    setIsDayViewQuickMenuOpen(false);
+    openDayView();
+  }
+
+  function toggleDayViewQuickMenu() {
+    setIsDayViewQuickMenuOpen((current) => !current);
+  }
+
+  function handleOpenManualCreateFromDayView() {
+    setIsDayViewQuickMenuOpen(false);
+    openManualCreate();
+  }
+
+  function handleOpenAiCreateFromDayView() {
+    setIsDayViewQuickMenuOpen(false);
+    openAiCreate();
+  }
+
+  function handleOpenGoalListFromDayView() {
+    setIsDayViewQuickMenuOpen(false);
+    openGoalList();
   }
 
   function handleToday() {
@@ -1074,7 +1071,7 @@ export default function App() {
     }
   }
 
-  async function handleUpdateLocalUiSettings(payload: Partial<LocalUiSettings>) {
+  async function handleUpdateLocalUiSettings(payload: LocalUiSettingsPatch) {
     const nextSettings = {
       ...localUiSettings,
       ...payload,
@@ -1093,6 +1090,13 @@ export default function App() {
 
     if (payload.resizeEnabled !== undefined) {
       const saved = await window.mileday?.uiSettings?.setResizeEnabled(payload.resizeEnabled);
+      if (saved) {
+        setLocalUiSettings(saved);
+      }
+    }
+
+    if (payload.opacity !== undefined) {
+      const saved = await window.mileday?.uiSettings?.setOpacity(payload.opacity);
       if (saved) {
         setLocalUiSettings(saved);
       }
@@ -1144,14 +1148,6 @@ export default function App() {
         onWindowMoveStart={handleWindowMoveStart}
         language={userSettings.language}
       />
-      {overlayMode === "quick-menu" ? (
-        <button
-          type="button"
-          className="quick-menu-backdrop"
-          aria-label={appLabels[userSettings.language].closeMenu}
-          onClick={closeOverlay}
-        />
-      ) : null}
       {requestState.message ? <p className="toast-error">{requestState.message}</p> : null}
       <div className="workspace planner-workspace">
         <div className="primary-pane">
@@ -1167,28 +1163,6 @@ export default function App() {
             allGoals={allGoals}
           />
         </div>
-        <DateDetail
-          detail={dateDetail}
-          goals={allGoals}
-          isLoading={requestState.isLoading && !dateDetail}
-          onToggleMilestone={handleToggleMilestone}
-          onUpdateGoal={handleUpdateGoal}
-          onDeleteGoal={handleDeleteGoal}
-          onCreateMilestone={handleCreateMilestone}
-          onUpdateMilestone={handleUpdateMilestone}
-          onDeleteMilestone={handleDeleteMilestone}
-          onEditingChange={setIsDateDetailEditing}
-          onOpenQuickMenu={openQuickMenu}
-          quickMenuContent={overlayMode === "quick-menu" ? (
-            <QuickActionPopover
-              onManualCreate={openManualCreate}
-              onAiCreate={openAiCreate}
-              onGoalList={openGoalList}
-              language={userSettings.language}
-            />
-          ) : null}
-          language={userSettings.language}
-        />
       </div>
       <footer className="app-credit" aria-label={appLabels[userSettings.language].credit}>
         <strong>mileday</strong>
@@ -1253,10 +1227,12 @@ export default function App() {
       ) : null}
       {overlayMode === "day-view" ? (
         <FloatingPanel
-          title={`${dateDetail?.date ?? selectedDate} ${userSettings.language === "en" ? "Day View" : "하루 보기"}`}
+          title={dateDetailLabels[userSettings.language].title}
+          subtitle={dateDetail?.date ?? selectedDate}
           onClose={closeOverlay}
           closeLabel={appLabels[userSettings.language].close}
           placement="center"
+          className="goal-list-modal-panel date-detail-floating-panel"
         >
           <DateDetail
             detail={dateDetail}
@@ -1269,9 +1245,17 @@ export default function App() {
             onUpdateMilestone={handleUpdateMilestone}
             onDeleteMilestone={handleDeleteMilestone}
             onEditingChange={setIsDateDetailEditing}
-            onOpenQuickMenu={openQuickMenu}
-            quickMenuContent={null}
+            onOpenQuickMenu={toggleDayViewQuickMenu}
+            quickMenuContent={isDayViewQuickMenuOpen ? (
+              <QuickActionPopover
+                onManualCreate={handleOpenManualCreateFromDayView}
+                onAiCreate={handleOpenAiCreateFromDayView}
+                onGoalList={handleOpenGoalListFromDayView}
+                language={userSettings.language}
+              />
+            ) : null}
             language={userSettings.language}
+            hideHeader
           />
         </FloatingPanel>
       ) : null}

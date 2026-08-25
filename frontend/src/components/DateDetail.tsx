@@ -1,5 +1,5 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
-import { CheckCircle2, Circle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CSSProperties, FormEvent, ReactNode, useEffect, useState } from "react";
+import { CheckSquare, Pencil, Plus, Square, Trash2, X } from "lucide-react";
 
 import type {
   CalendarDateData,
@@ -25,6 +25,7 @@ type DateDetailProps = {
   onOpenQuickMenu?: () => void;
   quickMenuContent?: ReactNode;
   language?: Language;
+  hideHeader?: boolean;
 };
 
 type EditingItem =
@@ -44,7 +45,7 @@ type DateGoalGroup = {
 
 const colorOptions = ["#7F9278", "#55A873", "#E59A45", "#8B6FD6", "#D96868", "#8A94A3"];
 
-const dateDetailLabels = {
+export const dateDetailLabels = {
   ko: {
     title: "하루 보기",
     loading: "불러오는 중입니다.",
@@ -196,6 +197,7 @@ export function DateDetail({
   onOpenQuickMenu,
   quickMenuContent,
   language = "ko",
+  hideHeader = false,
 }: DateDetailProps) {
   const [editingItem, setEditingItem] = useState<EditingItem>(null);
   const text = dateDetailLabels[language];
@@ -204,6 +206,9 @@ export function DateDetail({
 
   useEffect(() => {
     onEditingChange?.(editingItem !== null);
+    return () => {
+      onEditingChange?.(false);
+    };
   }, [editingItem, onEditingChange]);
 
   function toggleEditing(item: EditingItem) {
@@ -212,36 +217,61 @@ export function DateDetail({
     ));
   }
 
+  const quickAddControl = onOpenQuickMenu ? (
+    <div className="day-view-add-control">
+      <button
+        type="button"
+        className="add-button day-view-add-button"
+        data-testid="quick-add-button"
+        onClick={onOpenQuickMenu}
+        title={addLabel}
+      >
+        <Plus size={19} aria-hidden="true" />
+      </button>
+      {quickMenuContent ? <div className="day-view-quick-menu">{quickMenuContent}</div> : null}
+    </div>
+  ) : null;
+
   return (
     <section className="detail-panel day-view-panel" data-testid="date-detail-panel" aria-label={text.title}>
-      <div className="panel-heading day-view-heading">
-        <h2 className="day-view-title">
-          {text.title} <span>{detail?.date ?? "-"}</span>
-        </h2>
-        {onOpenQuickMenu ? (
-          <button
-            type="button"
-            className="add-button day-view-add-button"
-            data-testid="quick-add-button"
-            onClick={onOpenQuickMenu}
-            title={addLabel}
-          >
-            <Plus size={19} aria-hidden="true" />
-          </button>
-        ) : null}
-      </div>
-      {quickMenuContent ? <div className="day-view-quick-menu">{quickMenuContent}</div> : null}
+      {hideHeader ? (
+        <div className="day-view-toolbar">
+          <h3 className="day-view-section-title">{text.goals}</h3>
+          <div className="day-view-heading-meta">
+            {detail ? (
+              <span className="day-view-summary">
+                <span>{text.goals} {goalGroups.length}</span>
+                <span className="summary-divider" aria-hidden="true" />
+                <span>{text.task} {detail.completed_milestone_count}/{detail.milestone_count}</span>
+              </span>
+            ) : null}
+          </div>
+          {quickAddControl}
+        </div>
+      ) : (
+        <div className="panel-heading day-view-heading">
+          <h2 className="day-view-title">
+            {text.title}
+            <span className="day-view-date">{detail?.date ?? "-"}</span>
+          </h2>
+          <div className="day-view-heading-meta">
+            {detail ? (
+              <span className="day-view-summary">
+                <span>{text.goals} {goalGroups.length}</span>
+                <span className="summary-divider" aria-hidden="true" />
+                <span>{text.task} {detail.completed_milestone_count}/{detail.milestone_count}</span>
+              </span>
+            ) : null}
+          </div>
+          {quickAddControl}
+        </div>
+      )}
       {isLoading ? <p className="muted-text">{text.loading}</p> : null}
       {detail ? (
         <>
-          <div className="day-view-summary">
-            <span>{text.goals} {goalGroups.length}</span>
-            <span className="summary-divider" aria-hidden="true" />
-            <span>{text.task} {detail.completed_milestone_count}/{detail.milestone_count}</span>
-          </div>
-          <h3>{text.goals}</h3>
+          {hideHeader ? null : <h3 className="day-view-section-title">{text.goals}</h3>}
           {goalGroups.length === 0 ? (
-            <p className="empty-text">{text.empty}</p>
+            <p className="empty-text day-view-empty-text">{text.empty}</p>
           ) : (
             <ul className="plain-list day-view-list">
               {goalGroups.map((group) => (
@@ -251,8 +281,8 @@ export function DateDetail({
                       <div
                         className="goal-edit-target"
                       >
-                        <span className="color-swatch" style={{ background: group.color }} />
-                        <span>
+                        <span className="goal-color-bar" style={{ background: group.color }} />
+                        <span className="day-view-row-content">
                           <strong>{group.title}</strong>
                           <small>{text.task} {group.completed}/{group.milestones.length}</small>
                         </span>
@@ -276,8 +306,8 @@ export function DateDetail({
                     </div>
                   ) : (
                     <div className="editable-row goal-row readonly-row">
-                      <span className="color-swatch" style={{ background: group.color }} />
-                      <span>
+                      <span className="goal-color-bar" style={{ background: group.color }} />
+                      <span className="day-view-row-content">
                         <strong>{group.title}</strong>
                         <small>{text.task} {group.completed}/{group.milestones.length}</small>
                       </span>
@@ -322,26 +352,25 @@ export function DateDetail({
                       {group.milestones.map((milestone) => (
                         <li key={milestone.id} className="editable-item">
                           <div className="milestone-row">
-                            <button
-                              type="button"
-                              className="check-button"
-                              data-testid="milestone-toggle"
-                              data-milestone-id={milestone.id}
-                              aria-pressed={milestone.is_completed}
-                              onClick={() => onToggleMilestone(milestone.id, !milestone.is_completed)}
-                              title={milestone.is_completed ? text.markIncomplete : text.markComplete}
-                              disabled={isLoading}
-                            >
+                            <div className="editable-row split-goal-row milestone-card-row">
+                              <button
+                                type="button"
+                                className="check-button"
+                                data-testid="milestone-toggle"
+                                data-milestone-id={milestone.id}
+                                aria-pressed={milestone.is_completed}
+                                onClick={() => onToggleMilestone(milestone.id, !milestone.is_completed)}
+                                title={milestone.is_completed ? text.markIncomplete : text.markComplete}
+                                disabled={isLoading}
+                              >
                               {milestone.is_completed ? (
-                                <CheckCircle2 size={18} aria-hidden="true" />
+                                <CheckSquare size={18} aria-hidden="true" />
                               ) : (
-                                <Circle size={18} aria-hidden="true" />
+                                <Square size={18} aria-hidden="true" />
                               )}
-                            </button>
-                            <div className="editable-row split-goal-row">
+                              </button>
                               <div className="goal-edit-target">
-                                <span className="color-swatch" style={{ background: group.color }} />
-                                <span>
+                                <span className="day-view-row-content">
                                   <strong>{milestone.title}</strong>
                                   <small>{text.milestone}</small>
                                 </span>
@@ -431,24 +460,28 @@ export function GoalEditor({
 
   return (
     <form className="inline-editor" onSubmit={handleSubmit} noValidate>
-      <label>
-        {text.formTitle}
-        <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
-      </label>
-      <label>
-        {text.deadline}
-        <input
-          type="date"
-          value={deadline}
-          onChange={(event) => setDeadline(event.target.value)}
-          disabled={isLoading}
-          required
-        />
-      </label>
-      <label>
-        {text.color}
-        <ColorPicker value={color} disabled={isLoading} label={text.color} onChange={setColor} />
-      </label>
+      <div className="inline-goal-editor-layout">
+        <div className="inline-editor-fields">
+          <label>
+            {text.formTitle}
+            <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
+          </label>
+          <label>
+            {text.deadline}
+            <input
+              type="date"
+              value={deadline}
+              onChange={(event) => setDeadline(event.target.value)}
+              disabled={isLoading}
+              required
+            />
+          </label>
+        </div>
+        <label className="inline-goal-color-field">
+          {text.color}
+          <ColorPicker value={color} disabled={isLoading} label={text.color} onChange={setColor} />
+        </label>
+      </div>
       {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
       <EditorActions isLoading={isLoading} text={text} onCancel={onCancel} onDelete={onDelete} />
     </form>
@@ -456,14 +489,13 @@ export function GoalEditor({
 }
 
 export function MilestoneEditor({
-  goal,
   milestone,
   isLoading,
   text,
   onCancel,
   onSave,
   onDelete,
-  onUpdateGoal,
+  onUpdateGoal: _onUpdateGoal,
 }: {
   goal?: Goal;
   milestone: Milestone;
@@ -474,7 +506,6 @@ export function MilestoneEditor({
   onDelete: () => Promise<void>;
   onUpdateGoal?: (payload: GoalUpdatePayload) => Promise<void>;
 }) {
-  const [goalTitle, setGoalTitle] = useState(goal?.title ?? "");
   const [title, setTitle] = useState(milestone.title);
   const [scheduledDate, setScheduledDate] = useState(milestone.scheduled_date);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -482,10 +513,6 @@ export function MilestoneEditor({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setValidationMessage(null);
-    if (goal && !goalTitle.trim()) {
-      setValidationMessage(text.goalTitleRequired);
-      return;
-    }
     if (!title.trim()) {
       setValidationMessage(text.milestoneTitleRequired);
       return;
@@ -493,9 +520,6 @@ export function MilestoneEditor({
     if (!scheduledDate) {
       setValidationMessage(text.scheduledDateRequired);
       return;
-    }
-    if (goal && onUpdateGoal && goalTitle.trim() !== goal.title) {
-      await onUpdateGoal({ title: goalTitle.trim() });
     }
     await onSave({
       title: title.trim(),
@@ -505,12 +529,6 @@ export function MilestoneEditor({
 
   return (
     <form className="inline-editor" onSubmit={handleSubmit} noValidate>
-      {goal ? (
-        <label className="secondary-field">
-          {text.goalTitleLabel}
-          <input value={goalTitle} onChange={(event) => setGoalTitle(event.target.value)} disabled={isLoading} required />
-        </label>
-      ) : null}
       <label>
         {text.milestoneTitleLabel || text.formTitle}
         <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={isLoading} required />
@@ -636,7 +654,7 @@ function ColorPicker({
           key={color}
           type="button"
           className={value === color ? "selected" : ""}
-          style={{ background: color }}
+          style={{ "--swatch-color": color } as CSSProperties}
           onClick={() => onChange(color)}
           disabled={disabled}
           title={color}
