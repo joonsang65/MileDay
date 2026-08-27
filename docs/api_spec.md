@@ -254,6 +254,7 @@ Response Body:
 | 기능 | Method | Endpoint | 인증 필요 | 설명 |
 |---|---|---|---|---|
 | 목표 목록 조회 | GET | /goals | O | 현재 사용자의 목표 목록 조회 |
+| 목표와 마일스톤 통합 목록 조회 | GET | /goals/with-milestones | O | 전체 목표 화면용 목표/마일스톤 중첩 조회 |
 | 목표 상세 조회 | GET | /goals/{goal_id} | O | 특정 목표 상세 조회 |
 | 목표 생성 | POST | /goals | O | 새 목표 생성 |
 | 목표 수정 | PATCH | /goals/{goal_id} | O | 목표 정보 수정 |
@@ -281,6 +282,46 @@ Response Body:
       "color": "#4F46E5",
       "created_at": "2026-07-01T10:00:00+09:00",
       "updated_at": "2026-07-01T10:00:00+09:00"
+    }
+  ]
+}
+```
+
+### GET /goals/with-milestones
+
+전체 목표 화면에서 사용할 목표 목록과 각 목표의 하위 마일스톤을 함께 조회한다.
+백엔드는 목표 전체 1회, 마일스톤 전체 1회 조회 후 `goal_id` 기준으로 병합한다.
+
+Response Body:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "title": "AI 엔지니어 취업 준비",
+      "deadline": "2026-09-30",
+      "is_completed": false,
+      "is_recurring": false,
+      "recurrence_type": null,
+      "color": "#4F46E5",
+      "created_at": "2026-07-01T10:00:00+09:00",
+      "updated_at": "2026-07-01T10:00:00+09:00",
+      "milestones": [
+        {
+          "id": "uuid",
+          "goal_id": "uuid",
+          "user_id": "uuid",
+          "title": "이력서 초안 작성",
+          "color": "#4F46E5",
+          "scheduled_date": "2026-07-10",
+          "is_completed": false,
+          "created_at": "2026-07-01T10:00:00+09:00",
+          "updated_at": "2026-07-01T10:00:00+09:00"
+        }
+      ]
     }
   ]
 }

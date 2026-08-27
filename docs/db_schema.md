@@ -185,3 +185,25 @@ FastAPI에서도 JWT를 검증하고 user_id를 기준으로 데이터를 처리
 - milestones
 - user_settings
 - external_calendar_connections
+
+## 8. 완료 상태 RPC 함수
+
+목표/마일스톤 완료 처리는 백엔드에서 여러 쿼리를 순차 실행하지 않고 Supabase RPC로 호출하는 PostgreSQL 함수에서 처리한다.
+
+### public.complete_goal_with_milestones
+
+- 입력: `p_goal_id`, `p_user_id`, `p_is_completed`
+- 동작: 지정한 사용자 소유 목표의 `is_completed`를 변경하고, 같은 목표의 하위 마일스톤 `is_completed`를 동일한 값으로 일괄 변경한다.
+- 반환: 변경된 목표 row
+
+### public.complete_milestone_and_sync_goal
+
+- 입력: `p_milestone_id`, `p_user_id`, `p_is_completed`
+- 동작: 지정한 사용자 소유 마일스톤의 `is_completed`를 변경하고, 같은 목표의 모든 마일스톤 완료 여부를 기준으로 부모 목표의 `is_completed`를 동기화한다.
+- 반환: 변경된 마일스톤 row
+
+### 권한
+
+- 두 함수는 `security definer`로 정의한다.
+- `public`, `anon`, `authenticated`의 실행 권한은 회수한다.
+- 백엔드 서버에서 사용하는 `service_role`에만 실행 권한을 부여한다.
