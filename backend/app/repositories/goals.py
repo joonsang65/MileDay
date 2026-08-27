@@ -57,6 +57,27 @@ class GoalRepository:
         rows = [self._goal_row(row) for row in response.data or []]
         return rows[0] if rows else None
 
+    def complete_with_milestones(
+        self,
+        *,
+        goal_id: str,
+        user_id: str,
+        is_completed: bool,
+    ) -> dict[str, Any] | None:
+        response = (
+            self.client.rpc(
+                "complete_goal_with_milestones",
+                {
+                    "p_goal_id": goal_id,
+                    "p_user_id": user_id,
+                    "p_is_completed": is_completed,
+                },
+            )
+            .execute()
+        )
+        rows = [self._goal_row(row) for row in response.data or []]
+        return rows[0] if rows else None
+
     def delete(self, *, goal_id: str, user_id: str) -> bool:
         response = (
             self.client.table("goals")

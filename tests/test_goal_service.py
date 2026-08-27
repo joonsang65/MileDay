@@ -30,6 +30,7 @@ class InMemoryGoalRepository:
         self.rows = {"goal-1": goal_row()}
         self.created_payloads = []
         self.updated_payloads = []
+        self.completion_updates = []
         self.deleted_filters = []
 
     def list_by_user(self, *, user_id: str):
@@ -55,6 +56,14 @@ class InMemoryGoalRepository:
         row.update(payload)
         return row.copy()
 
+    def complete_with_milestones(self, *, goal_id: str, user_id: str, is_completed: bool):
+        self.completion_updates.append((goal_id, user_id, is_completed))
+        row = self.rows.get(goal_id)
+        if not row or row["user_id"] != user_id:
+            return None
+        row["is_completed"] = is_completed
+        return row.copy()
+
     def delete(self, *, goal_id: str, user_id: str):
         self.deleted_filters.append((goal_id, user_id))
         row = self.rows.get(goal_id)
@@ -62,6 +71,26 @@ class InMemoryGoalRepository:
             return False
         del self.rows[goal_id]
         return True
+
+
+class InMemoryMilestoneRepository:
+    def __init__(self) -> None:
+        self.rows = [
+            {
+                "id": "milestone-1",
+                "goal_id": "goal-1",
+                "user_id": "user-1",
+                "title": "Resume draft",
+                "color": "#4F46E5",
+                "scheduled_date": "2026-09-10",
+                "is_completed": False,
+                "created_at": "2026-07-01T10:00:00+09:00",
+                "updated_at": "2026-07-01T10:00:00+09:00",
+            }
+        ]
+
+    def list_by_user(self, *, user_id: str):
+        return [row.copy() for row in self.rows if row["user_id"] == user_id]
 
 
 def test_goal_service_creates_goal_with_current_user_id_and_serialized_date() -> None:
@@ -147,6 +176,21 @@ def test_goal_service_reads_and_updates_only_current_user_goal() -> None:
         service.get_goal(goal_id="goal-1", user_id="other-user")
 
 
+def test_goal_service_lists_goals_with_milestones_in_two_queries() -> None:
+    repository = InMemoryGoalRepository()
+    milestone_repository = InMemoryMilestoneRepository()
+    service = GoalService(repository=repository, milestone_repository=milestone_repository)
+
+    listed = service.list_goals_with_milestones(user_id="user-1")
+
+    assert listed == [
+        {
+            **goal_row(),
+            "milestones": [milestone_repository.rows[0]],
+        }
+    ]
+
+
 def test_goal_service_validates_partial_recurrence_updates_against_current_state() -> None:
     repository = InMemoryGoalRepository()
     service = GoalService(repository=repository)
@@ -189,25 +233,7 @@ def test_goal_service_delete_checks_ownership_and_failed_delete_result() -> None
 
 def test_goal_service_completes_goal_and_child_milestones() -> None:
     repository = InMemoryGoalRepository()
-
-    class MilestoneRepository:
-        def __init__(self) -> None:
-            self.rows = [{"id": "milestone-1", "goal_id": "goal-1", "user_id": "user-1"}]
-            self.completion_updates = []
-
-        def list_by_goal(self, *, goal_id: str, user_id: str):
-            return [
-                row.copy()
-                for row in self.rows
-                if row["goal_id"] == goal_id and row["user_id"] == user_id
-            ]
-
-        def update_completion_by_goal(self, *, goal_id: str, user_id: str, is_completed: bool):
-            self.completion_updates.append((goal_id, user_id, is_completed))
-            return []
-
-    milestone_repository = MilestoneRepository()
-    service = GoalService(repository=repository, milestone_repository=milestone_repository)
+    service = GoalService(repository=repository)
 
     updated = service.complete_goal(
         goal_id="goal-1",
@@ -216,21 +242,12 @@ def test_goal_service_completes_goal_and_child_milestones() -> None:
     )
 
     assert updated["is_completed"] is True
-    assert repository.updated_payloads[-1] == ("goal-1", "user-1", {"is_completed": True})
-    assert milestone_repository.completion_updates == [("goal-1", "user-1", True)]
+    assert repository.completion_updates == [("goal-1", "user-1", True)]
 
 
 def test_goal_service_completes_single_goal_without_child_milestone_update() -> None:
     repository = InMemoryGoalRepository()
-
-    class MilestoneRepository:
-        def list_by_goal(self, *, goal_id: str, user_id: str):
-            return []
-
-        def update_completion_by_goal(self, *, goal_id: str, user_id: str, is_completed: bool):
-            raise AssertionError("single goals must not trigger child milestone completion updates")
-
-    service = GoalService(repository=repository, milestone_repository=MilestoneRepository())
+    service = GoalService(repository=repository)
 
     updated = service.complete_goal(
         goal_id="goal-1",
@@ -239,4 +256,4 @@ def test_goal_service_completes_single_goal_without_child_milestone_update() -> 
     )
 
     assert updated["is_completed"] is True
-    assert repository.updated_payloads[-1] == ("goal-1", "user-1", {"is_completed": True})
+    assert repository.completion_updates == [("goal-1", "user-1", True)]

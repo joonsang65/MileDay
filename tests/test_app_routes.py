@@ -76,6 +76,28 @@ class FakeGoalService:
         assert user_id == "user-1"
         return list(self.goals.values())
 
+    def list_goals_with_milestones(self, *, user_id: str) -> list[dict]:
+        assert user_id == "user-1"
+        return [
+            {
+                **goal,
+                "milestones": [
+                    {
+                        "id": "milestone-1",
+                        "goal_id": goal["id"],
+                        "user_id": "user-1",
+                        "title": "이력서 초안 작성",
+                        "color": goal["color"],
+                        "scheduled_date": "2026-07-10",
+                        "is_completed": False,
+                        "created_at": "2026-07-01T10:00:00+09:00",
+                        "updated_at": "2026-07-01T10:00:00+09:00",
+                    }
+                ],
+            }
+            for goal in self.goals.values()
+        ]
+
     def get_goal(self, *, goal_id: str, user_id: str) -> dict:
         assert user_id == "user-1"
         if goal_id not in self.goals:
@@ -512,6 +534,10 @@ def test_goal_routes_use_current_user_and_service(client: TestClient) -> None:
         listed = client.get("/goals")
         assert listed.status_code == 200
         assert listed.json()["data"][0]["title"] == "AI engineer job preparation"
+
+        nested = client.get("/goals/with-milestones")
+        assert nested.status_code == 200
+        assert nested.json()["data"][0]["milestones"][0]["goal_id"] == "goal-1"
 
         created = client.post(
             "/goals",

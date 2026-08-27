@@ -110,11 +110,19 @@ class MilestoneService:
         user_id: str,
         body: MilestoneCompleteRequest,
     ) -> dict[str, Any]:
-        return self.update_milestone(
-            milestone_id=milestone_id,
-            user_id=user_id,
-            body=MilestoneUpdateRequest(is_completed=body.is_completed),
-        )
+        try:
+            updated = self.repository.complete_and_sync_goal(
+                milestone_id=milestone_id,
+                user_id=user_id,
+                is_completed=body.is_completed,
+            )
+        except Exception as exc:
+            raise MilestoneUpdateFailedError(
+                detail={"type": exc.__class__.__name__}
+            ) from exc
+        if not updated:
+            raise MilestoneNotFoundError(detail={"milestone_id": milestone_id})
+        return updated
 
     def delete_milestone(self, *, milestone_id: str, user_id: str) -> None:
         self.get_milestone(milestone_id=milestone_id, user_id=user_id)

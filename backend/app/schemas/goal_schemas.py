@@ -1,7 +1,9 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from schemas.milestone_schemas import Milestone
 
 
 RecurrenceType = Literal["daily", "weekly", "monthly"]
@@ -58,10 +60,19 @@ class Goal(GoalBase):
     updated_at: datetime
 
 
+class GoalWithMilestones(Goal):
+    milestones: list[Milestone] = Field(default_factory=list)
+
+
 # 목표 목록 조회 응답 DTO
 class GoalListResponse(BaseModel):
     success: bool
     data: list[Goal]
+
+
+class GoalWithMilestonesListResponse(BaseModel):
+    success: bool
+    data: list[GoalWithMilestones]
 
 
 # 목표 단건 조회/생성/수정 응답 DTO

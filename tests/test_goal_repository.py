@@ -52,15 +52,28 @@ class FakeGoalQuery:
         return FakeResponse(self.rows)
 
 
+class FakeRpcQuery:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def execute(self):
+        return FakeResponse(self.rows)
+
+
 class FakeSupabaseClient:
     def __init__(self, rows):
         self.rows = rows
         self.queries = []
+        self.rpc_calls = []
 
     def table(self, name):
         query = FakeGoalQuery(self.rows)
         self.queries.append((name, query))
         return query
+
+    def rpc(self, name, params):
+        self.rpc_calls.append((name, params))
+        return FakeRpcQuery(self.rows)
 
 
 def latest_query(client):
@@ -116,6 +129,22 @@ def test_goal_repository_applies_user_filters_to_mutations() -> None:
         ("update", {"title": "Updated"}),
         ("eq", "id", "goal-1"),
         ("eq", "user_id", "user-1"),
+    ]
+
+    assert repository.complete_with_milestones(
+        goal_id="goal-1",
+        user_id="user-1",
+        is_completed=True,
+    ) == {"id": "goal-1", "is_completed": False}
+    assert client.rpc_calls == [
+        (
+            "complete_goal_with_milestones",
+            {
+                "p_goal_id": "goal-1",
+                "p_user_id": "user-1",
+                "p_is_completed": True,
+            },
+        )
     ]
 
     assert repository.delete(goal_id="goal-1", user_id="user-1") is True

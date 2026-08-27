@@ -27,6 +27,21 @@ class GoalService:
     def list_goals(self, *, user_id: str) -> list[dict[str, Any]]:
         return self.repository.list_by_user(user_id=user_id)
 
+    def list_goals_with_milestones(self, *, user_id: str) -> list[dict[str, Any]]:
+        goals = self.repository.list_by_user(user_id=user_id)
+        milestones = self.milestone_repository.list_by_user(user_id=user_id)
+        milestones_by_goal: dict[str, list[dict[str, Any]]] = {}
+        for milestone in milestones:
+            milestones_by_goal.setdefault(str(milestone["goal_id"]), []).append(milestone)
+
+        return [
+            {
+                **goal,
+                "milestones": milestones_by_goal.get(str(goal["id"]), []),
+            }
+            for goal in goals
+        ]
+
     def get_goal(self, *, goal_id: str, user_id: str) -> dict[str, Any]:
         goal = self.repository.get_by_id(goal_id=goal_id, user_id=user_id)
         if not goal:
@@ -104,23 +119,12 @@ class GoalService:
         user_id: str,
         body: GoalCompleteRequest,
     ) -> dict[str, Any]:
-        self.get_goal(goal_id=goal_id, user_id=user_id)
         try:
-            child_milestones = self.milestone_repository.list_by_goal(
+            updated = self.repository.complete_with_milestones(
                 goal_id=goal_id,
                 user_id=user_id,
+                is_completed=body.is_completed,
             )
-            updated = self.repository.update(
-                goal_id=goal_id,
-                user_id=user_id,
-                payload={"is_completed": body.is_completed},
-            )
-            if child_milestones:
-                self.milestone_repository.update_completion_by_goal(
-                    goal_id=goal_id,
-                    user_id=user_id,
-                    is_completed=body.is_completed,
-                )
         except Exception as exc:
             raise GoalUpdateFailedError(detail={"type": exc.__class__.__name__}) from exc
         if not updated:

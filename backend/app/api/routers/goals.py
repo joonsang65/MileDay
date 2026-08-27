@@ -10,6 +10,7 @@ from schemas.goal_schemas import (
     GoalListResponse,
     GoalResponse,
     GoalUpdateRequest,
+    GoalWithMilestonesListResponse,
 )
 from services.goal_service import GoalService, get_goal_service
 
@@ -28,6 +29,22 @@ def list_goals(
     goal_service: GoalService = Depends(get_goal_service),
 ):
     return {"success": True, "data": goal_service.list_goals(user_id=user_id)}
+
+
+@router.get(
+    "/with-milestones",
+    response_model=GoalWithMilestonesListResponse,
+    summary="목표와 마일스톤 목록 통합 조회",
+    description="현재 사용자가 소유한 전체 목표와 각 목표의 하위 마일스톤을 함께 조회합니다.",
+)
+def list_goals_with_milestones(
+    user_id: str = Depends(require_current_user_id),
+    goal_service: GoalService = Depends(get_goal_service),
+):
+    return {
+        "success": True,
+        "data": goal_service.list_goals_with_milestones(user_id=user_id),
+    }
 
 
 @router.get(

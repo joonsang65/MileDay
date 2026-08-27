@@ -52,15 +52,28 @@ class FakeMilestoneQuery:
         return FakeResponse(self.rows)
 
 
+class FakeRpcQuery:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def execute(self):
+        return FakeResponse(self.rows)
+
+
 class FakeSupabaseClient:
     def __init__(self, rows):
         self.rows = rows
         self.queries = []
+        self.rpc_calls = []
 
     def table(self, name):
         query = FakeMilestoneQuery(self.rows)
         self.queries.append((name, query))
         return query
+
+    def rpc(self, name, params):
+        self.rpc_calls.append((name, params))
+        return FakeRpcQuery(self.rows)
 
 
 def latest_query(client):
@@ -90,6 +103,13 @@ def test_milestone_repository_applies_filters_to_reads() -> None:
     assert latest_query(client).calls == [
         ("select", MILESTONE_SELECT_COLUMNS),
         ("eq", "goal_id", "goal-1"),
+        ("eq", "user_id", "user-1"),
+        ("order", "scheduled_date"),
+    ]
+
+    assert repository.list_by_user(user_id="user-1") == [{"id": "milestone-1"}]
+    assert latest_query(client).calls == [
+        ("select", MILESTONE_SELECT_COLUMNS),
         ("eq", "user_id", "user-1"),
         ("order", "scheduled_date"),
     ]
@@ -148,6 +168,22 @@ def test_milestone_repository_applies_filters_to_mutations() -> None:
         ("update", {"is_completed": True}),
         ("eq", "goal_id", "goal-1"),
         ("eq", "user_id", "user-1"),
+    ]
+
+    assert repository.complete_and_sync_goal(
+        milestone_id="milestone-1",
+        user_id="user-1",
+        is_completed=True,
+    ) == {"id": "milestone-1"}
+    assert client.rpc_calls == [
+        (
+            "complete_milestone_and_sync_goal",
+            {
+                "p_milestone_id": "milestone-1",
+                "p_user_id": "user-1",
+                "p_is_completed": True,
+            },
+        )
     ]
 
     assert repository.delete(milestone_id="milestone-1", user_id="user-1") is True

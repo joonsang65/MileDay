@@ -24,6 +24,16 @@ class MilestoneRepository:
         )
         return [self._milestone_row(row) for row in response.data or []]
 
+    def list_by_user(self, *, user_id: str) -> list[dict[str, Any]]:
+        response = (
+            self.client.table("milestones")
+            .select(MILESTONE_SELECT_COLUMNS)
+            .eq("user_id", user_id)
+            .order("scheduled_date")
+            .execute()
+        )
+        return [self._milestone_row(row) for row in response.data or []]
+
     def list_by_scheduled_date(
         self,
         *,
@@ -105,6 +115,27 @@ class MilestoneRepository:
             .execute()
         )
         return list(response.data or [])
+
+    def complete_and_sync_goal(
+        self,
+        *,
+        milestone_id: str,
+        user_id: str,
+        is_completed: bool,
+    ) -> dict[str, Any] | None:
+        response = (
+            self.client.rpc(
+                "complete_milestone_and_sync_goal",
+                {
+                    "p_milestone_id": milestone_id,
+                    "p_user_id": user_id,
+                    "p_is_completed": is_completed,
+                },
+            )
+            .execute()
+        )
+        rows = [self._milestone_row(row) for row in response.data or []]
+        return rows[0] if rows else None
 
     def delete(self, *, milestone_id: str, user_id: str) -> bool:
         response = (

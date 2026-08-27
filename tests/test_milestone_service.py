@@ -73,6 +73,7 @@ class InMemoryMilestoneRepository:
         self.created_payloads = []
         self.bulk_payloads = []
         self.updated_payloads = []
+        self.completion_updates = []
         self.deleted_filters = []
         self.today_queries = []
 
@@ -118,6 +119,14 @@ class InMemoryMilestoneRepository:
         if not row or row["user_id"] != user_id:
             return None
         row.update(payload)
+        return row.copy()
+
+    def complete_and_sync_goal(self, *, milestone_id: str, user_id: str, is_completed: bool):
+        self.completion_updates.append((milestone_id, user_id, is_completed))
+        row = self.rows.get(milestone_id)
+        if not row or row["user_id"] != user_id:
+            return None
+        row["is_completed"] = is_completed
         return row.copy()
 
     def delete(self, *, milestone_id: str, user_id: str):
@@ -217,11 +226,8 @@ def test_milestone_service_reads_updates_completes_and_deletes_owned_milestone()
         body=MilestoneCompleteRequest(is_completed=True),
     )
     assert completed["is_completed"] is True
-    assert goal_repository.updated_payloads[-1] == (
-        "goal-1",
-        "user-1",
-        {"is_completed": True},
-    )
+    assert milestone_repository.completion_updates == [("milestone-1", "user-1", True)]
+    assert goal_repository.updated_payloads == []
 
     service.delete_milestone(milestone_id="milestone-1", user_id="user-1")
     assert milestone_repository.deleted_filters == [("milestone-1", "user-1")]

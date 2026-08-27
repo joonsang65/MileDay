@@ -112,3 +112,25 @@ def test_goal_completion_migration_adds_is_completed_column() -> None:
     assert "alter table if exists public.goals" in sql
     assert "add column if not exists is_completed boolean not null default false" in sql
     assert "notify pgrst, 'reload schema'" in sql
+
+
+def test_completion_rpc_migration_adds_transactional_completion_functions() -> None:
+    sql_path = (
+        Path(__file__).resolve().parents[1]
+        / "supabase"
+        / "migrations"
+        / "202608270001_add_completion_rpc_functions.sql"
+    )
+    sql = sql_path.read_text(encoding="utf-8").lower()
+
+    assert "create or replace function public.complete_goal_with_milestones" in sql
+    assert "create or replace function public.complete_milestone_and_sync_goal" in sql
+    assert "security definer" in sql
+    assert "update public.goals as g" in sql
+    assert "update public.milestones as m" in sql
+    assert "not exists (" in sql
+    assert "revoke all on function public.complete_goal_with_milestones" in sql
+    assert "revoke all on function public.complete_milestone_and_sync_goal" in sql
+    assert "grant execute on function public.complete_goal_with_milestones" in sql
+    assert "grant execute on function public.complete_milestone_and_sync_goal" in sql
+    assert "notify pgrst, 'reload schema'" in sql
