@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckSquare, ChevronDown, ChevronUp, Square } from "lucide-react";
 
 import { apiClient } from "@/api/client";
-import type { Goal, GoalUpdatePayload, Language, Milestone, MilestoneCreatePayload, MilestoneUpdatePayload } from "@/api/types";
+import type { Goal, GoalUpdatePayload, GoalWithMilestones, Language, Milestone, MilestoneCreatePayload, MilestoneUpdatePayload } from "@/api/types";
 
 import { FloatingPanel } from "./FloatingPanel";
 
@@ -79,17 +79,10 @@ export function GoalListModal({
         setIsLoading(true);
       }
       try {
-        const fetchedGoals = initialGoals.length > 0 ? initialGoals : await apiClient.listGoals();
-        if (initialGoals.length === 0) {
-          setGoals(fetchedGoals);
-        }
-
-        const milestonesByGoal: Record<string, Milestone[]> = {};
-        await Promise.all(
-          fetchedGoals.map(async (goal) => {
-            milestonesByGoal[goal.id] = await apiClient.getGoalMilestones(goal.id);
-          }),
-        );
+        const fetchedGoals = await apiClient.listGoalsWithMilestones();
+        const goalsOnly = fetchedGoals.map(({ milestones, ...goal }) => goal);
+        const milestonesByGoal = buildMilestonesMap(fetchedGoals);
+        setGoals(goalsOnly);
         setMilestonesMap(milestonesByGoal);
       } catch (error) {
         console.error("Failed to load goals/milestones", error);
@@ -349,4 +342,11 @@ export function GoalListModal({
       )}
     </FloatingPanel>
   );
+}
+
+function buildMilestonesMap(goals: GoalWithMilestones[]): Record<string, Milestone[]> {
+  return goals.reduce<Record<string, Milestone[]>>((milestonesByGoal, goal) => {
+    milestonesByGoal[goal.id] = goal.milestones;
+    return milestonesByGoal;
+  }, {});
 }

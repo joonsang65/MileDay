@@ -10,6 +10,7 @@ import type {
   AiScheduleDraft,
   AiScheduleDraftRequest,
   GoalUpdatePayload,
+  GoalWithMilestones,
   Milestone,
   MilestoneCreatePayload,
   MilestoneUpdatePayload,
@@ -135,6 +136,10 @@ export class MileDayApiClient {
 
   listGoals(): Promise<Goal[]> {
     return this.request<Goal[]>("/goals");
+  }
+
+  listGoalsWithMilestones(): Promise<GoalWithMilestones[]> {
+    return this.request<GoalWithMilestones[]>("/goals/with-milestones");
   }
 
   createGoal(payload: GoalCreatePayload): Promise<Goal> {

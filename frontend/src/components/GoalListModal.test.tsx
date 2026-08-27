@@ -9,8 +9,7 @@ import { GoalListModal } from "./GoalListModal";
 
 vi.mock("@/api/client", () => ({
   apiClient: {
-    listGoals: vi.fn(),
-    getGoalMilestones: vi.fn(),
+    listGoalsWithMilestones: vi.fn(),
   },
 }));
 
@@ -59,8 +58,9 @@ function renderGoalList(overrides = {}) {
 
 describe("GoalListModal", () => {
   beforeEach(() => {
-    vi.mocked(apiClient.listGoals).mockResolvedValue([goal]);
-    vi.mocked(apiClient.getGoalMilestones).mockResolvedValue([milestone]);
+    vi.mocked(apiClient.listGoalsWithMilestones).mockResolvedValue([
+      { ...goal, milestones: [milestone] },
+    ]);
   });
 
   it("진행중 패널에서만 목표 완료 체크를 표시하고 목표 완료를 전달한다", async () => {
@@ -81,7 +81,9 @@ describe("GoalListModal", () => {
   it("마일스톤이 없는 단일 목표도 완료 체크 요청을 처리한다", async () => {
     const user = userEvent.setup();
     const onToggleGoal = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(apiClient.getGoalMilestones).mockResolvedValue([]);
+    vi.mocked(apiClient.listGoalsWithMilestones).mockResolvedValue([
+      { ...goal, milestones: [] },
+    ]);
     renderGoalList({ onToggleGoal });
 
     await waitFor(() => expect(screen.getByText("포트폴리오 준비")).toBeInTheDocument());
@@ -99,7 +101,6 @@ describe("GoalListModal", () => {
     await userEvent.click(screen.getByRole("button", { name: /포트폴리오 준비/ }));
 
     expect(screen.getByText("이력서 초안 작성")).toBeInTheDocument();
-    expect(apiClient.listGoals).toHaveBeenCalled();
-    expect(apiClient.getGoalMilestones).toHaveBeenCalledWith("goal-1");
+    expect(apiClient.listGoalsWithMilestones).toHaveBeenCalledTimes(1);
   });
 });

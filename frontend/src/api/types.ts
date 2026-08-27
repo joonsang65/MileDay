@@ -41,6 +41,10 @@ export type Goal = {
   updated_at: string;
 };
 
+export type GoalWithMilestones = Goal & {
+  milestones: Milestone[];
+};
+
 export type RecurrenceType = "daily" | "weekly" | "monthly";
 
 export type GoalCreatePayload = {

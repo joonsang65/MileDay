@@ -115,6 +115,29 @@ describe("MileDayApiClient", () => {
     );
   });
 
+  it("목표와 마일스톤 통합 목록을 조회한다", async () => {
+    const fetchMock = mockFetch({
+      success: true,
+      data: [],
+    });
+
+    const client = new MileDayApiClient({
+      baseUrl: "http://api.test",
+      accessToken: "access-token",
+    });
+    await client.listGoalsWithMilestones();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api.test/goals/with-milestones",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer access-token",
+        }),
+      }),
+    );
+  });
+
   it("목표 생성 payload를 그대로 전송한다", async () => {
     const payload = {
       title: "포트폴리오 준비",
