@@ -2,22 +2,25 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from core.middleware import RequestContextMiddleware
 from exceptions.common import BadRequestError
+from exceptions.base import MileDayBaseException
 from exceptions.handlers import (
     http_exception_handler,
     mileday_exception_handler,
+    response_validation_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
-from exceptions.base import MileDayBaseException
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class Payload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     count: int
 
 
@@ -26,6 +29,7 @@ def build_error_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(MileDayBaseException, mileday_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(ResponseValidationError, response_validation_exception_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
@@ -47,6 +51,10 @@ def build_error_app() -> FastAPI:
     @app.get("/boom")
     def boom() -> None:
         raise RuntimeError("database password leaked")
+
+    @app.get("/bad-response", response_model=Payload)
+    def bad_response() -> dict[str, int | str]:
+        return {"count": 1, "unexpected": "value"}
 
     return app
 
@@ -91,3 +99,14 @@ def test_unhandled_error_response_hides_internal_message() -> None:
     assert body["error"]["code"] == "INTERNAL_SERVER_ERROR"
     assert body["error"]["message"] == "Internal server error."
     assert "database password leaked" not in str(body)
+
+
+def test_response_validation_error_response_includes_validation_detail() -> None:
+    client = TestClient(build_error_app(), raise_server_exceptions=False)
+    response = client.get("/bad-response")
+
+    assert response.status_code == 500
+    body = response.json()
+    assert body["error"]["code"] == "INTERNAL_SERVER_ERROR"
+    assert body["error"]["detail"][0]["loc"] == ["response", "unexpected"]
+    assert body["error"]["detail"][0]["type"] == "extra_forbidden"

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, status
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -27,6 +27,7 @@ from exceptions.base import MileDayBaseException
 from exceptions.handlers import (
     http_exception_handler,
     mileday_exception_handler,
+    response_validation_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
@@ -48,6 +49,7 @@ app.add_middleware(
 
 app.add_exception_handler(MileDayBaseException, mileday_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(ResponseValidationError, response_validation_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
