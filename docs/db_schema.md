@@ -47,6 +47,7 @@ FastAPI는 Supabase Auth에서 발급한 JWT를 검증하고, JWT의 sub 값을 
 | user_id (FK) | 목표를 생성한 사용자 ID | uuid | auth.users.id 참조 |
 | title | 목표 제목 | text | - |
 | deadline | 목표 마감일 | date | - |
+| is_completed | 완료 여부 | boolean | default: FALSE |
 | is_recurring | 반복 여부 | boolean | default: FALSE |
 | recurrence_type | 반복 유형 | text | default: None / 매일, 매주 등 |
 | color | 목표 표시 색상 | text | HEX 형식 |

@@ -257,6 +257,7 @@ Response Body:
 | 목표 상세 조회 | GET | /goals/{goal_id} | O | 특정 목표 상세 조회 |
 | 목표 생성 | POST | /goals | O | 새 목표 생성 |
 | 목표 수정 | PATCH | /goals/{goal_id} | O | 목표 정보 수정 |
+| 목표 완료 처리 | PATCH | /goals/{goal_id}/complete | O | 목표 완료 여부 변경, 하위 마일스톤 함께 변경 |
 | 목표 삭제 | DELETE | /goals/{goal_id} | O | 목표 삭제 |
 
 ### GET /goals
@@ -274,6 +275,7 @@ Response Body:
       "user_id": "uuid",
       "title": "AI 엔지니어 취업 준비",
       "deadline": "2026-09-30",
+      "is_completed": false,
       "is_recurring": false,
       "recurrence_type": null,
       "color": "#4F46E5",
@@ -303,6 +305,7 @@ Response Body:
     "id": "uuid",
     "title": "AI 엔지니어 취업 준비",
     "deadline": "2026-09-30",
+    "is_completed": false,
     "is_recurring": false,
     "recurrence_type": null,
     "color": "#4F46E5",
@@ -322,6 +325,7 @@ Request Body:
 {
   "title": "AI 엔지니어 취업 준비",
   "deadline": "2026-09-30",
+  "is_completed": false,
   "is_recurring": false,
   "recurrence_type": null,
   "color": "#4F46E5"
@@ -337,6 +341,7 @@ Response Body:
     "id": "uuid",
     "title": "AI 엔지니어 취업 준비",
     "deadline": "2026-09-30",
+    "is_completed": false,
     "is_recurring": false,
     "recurrence_type": null,
     "color": "#4F46E5",
@@ -357,6 +362,21 @@ Request Body:
   "title": "AI 엔지니어 포트폴리오 준비",
   "deadline": "2026-10-15",
   "color": "#22C55E"
+}
+```
+
+Response Body는 수정된 목표 객체를 반환한다.
+
+### PATCH /goals/{goal_id}/complete
+
+목표 완료 여부를 변경한다.
+하위 마일스톤이 있는 목표는 동일한 완료 상태를 모든 하위 마일스톤에도 적용한다.
+
+Request Body:
+
+```json
+{
+  "is_completed": true
 }
 ```
 
