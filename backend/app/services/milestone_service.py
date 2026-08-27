@@ -99,6 +99,8 @@ class MilestoneService:
             ) from exc
         if not updated:
             raise MilestoneNotFoundError(detail={"milestone_id": milestone_id})
+        if "is_completed" in payload:
+            self._sync_goal_completion(goal_id=updated["goal_id"], user_id=user_id)
         return updated
 
     def complete_milestone(
@@ -185,6 +187,17 @@ class MilestoneService:
         if not goal:
             raise GoalNotFoundError(detail={"goal_id": goal_id})
         return goal
+
+    def _sync_goal_completion(self, *, goal_id: str, user_id: str) -> None:
+        milestones = self.repository.list_by_goal(goal_id=goal_id, user_id=user_id)
+        if not milestones:
+            return
+        is_completed = all(milestone.get("is_completed") is True for milestone in milestones)
+        self.goal_repository.update(
+            goal_id=goal_id,
+            user_id=user_id,
+            payload={"is_completed": is_completed},
+        )
 
     def _next_date(
         self,

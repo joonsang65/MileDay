@@ -4,7 +4,7 @@ import pytest
 
 from exceptions.common import BadRequestError
 from exceptions.goals import GoalCreateFailedError, GoalDeleteFailedError, GoalNotFoundError
-from schemas.goal_schemas import GoalCreateRequest, GoalUpdateRequest
+from schemas.goal_schemas import GoalCompleteRequest, GoalCreateRequest, GoalUpdateRequest
 from services.goal_service import GoalService
 
 
@@ -14,6 +14,7 @@ def goal_row(**overrides):
         "user_id": "user-1",
         "title": "Prepare portfolio",
         "deadline": "2026-09-30",
+        "is_completed": False,
         "is_recurring": False,
         "recurrence_type": None,
         "color": "#4F46E5",
@@ -84,6 +85,7 @@ def test_goal_service_creates_goal_with_current_user_id_and_serialized_date() ->
         {
             "title": "Weekly planning",
             "deadline": "2026-08-01",
+            "is_completed": False,
             "is_recurring": True,
             "recurrence_type": "weekly",
             "color": "#22C55E",
@@ -183,3 +185,58 @@ def test_goal_service_delete_checks_ownership_and_failed_delete_result() -> None
     repository.delete = lambda *, goal_id, user_id: False
     with pytest.raises(GoalDeleteFailedError):
         service.delete_goal(goal_id="goal-1", user_id="user-1")
+
+
+def test_goal_service_completes_goal_and_child_milestones() -> None:
+    repository = InMemoryGoalRepository()
+
+    class MilestoneRepository:
+        def __init__(self) -> None:
+            self.rows = [{"id": "milestone-1", "goal_id": "goal-1", "user_id": "user-1"}]
+            self.completion_updates = []
+
+        def list_by_goal(self, *, goal_id: str, user_id: str):
+            return [
+                row.copy()
+                for row in self.rows
+                if row["goal_id"] == goal_id and row["user_id"] == user_id
+            ]
+
+        def update_completion_by_goal(self, *, goal_id: str, user_id: str, is_completed: bool):
+            self.completion_updates.append((goal_id, user_id, is_completed))
+            return []
+
+    milestone_repository = MilestoneRepository()
+    service = GoalService(repository=repository, milestone_repository=milestone_repository)
+
+    updated = service.complete_goal(
+        goal_id="goal-1",
+        user_id="user-1",
+        body=GoalCompleteRequest(is_completed=True),
+    )
+
+    assert updated["is_completed"] is True
+    assert repository.updated_payloads[-1] == ("goal-1", "user-1", {"is_completed": True})
+    assert milestone_repository.completion_updates == [("goal-1", "user-1", True)]
+
+
+def test_goal_service_completes_single_goal_without_child_milestone_update() -> None:
+    repository = InMemoryGoalRepository()
+
+    class MilestoneRepository:
+        def list_by_goal(self, *, goal_id: str, user_id: str):
+            return []
+
+        def update_completion_by_goal(self, *, goal_id: str, user_id: str, is_completed: bool):
+            raise AssertionError("single goals must not trigger child milestone completion updates")
+
+    service = GoalService(repository=repository, milestone_repository=MilestoneRepository())
+
+    updated = service.complete_goal(
+        goal_id="goal-1",
+        user_id="user-1",
+        body=GoalCompleteRequest(is_completed=True),
+    )
+
+    assert updated["is_completed"] is True
+    assert repository.updated_payloads[-1] == ("goal-1", "user-1", {"is_completed": True})

@@ -92,7 +92,7 @@ def check_supabase_db_health() -> dict[str, Any]:
     response = (
         get_supabase_admin_client()
         .table("goals")
-        .select("id,title,deadline,is_recurring,recurrence_type,color")
+        .select("id,title,deadline,is_completed,is_recurring,recurrence_type,color")
         .limit(1)
         .execute()
     )

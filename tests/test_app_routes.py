@@ -62,6 +62,7 @@ class FakeGoalService:
                 "user_id": "user-1",
                 "title": "AI engineer job preparation",
                 "deadline": "2026-09-30",
+                "is_completed": False,
                 "is_recurring": False,
                 "recurrence_type": None,
                 "color": "#4F46E5",
@@ -96,6 +97,11 @@ class FakeGoalService:
     def update_goal(self, *, goal_id: str, user_id: str, body) -> dict:
         current = self.get_goal(goal_id=goal_id, user_id=user_id)
         current.update(body.model_dump(exclude_unset=True, mode="json"))
+        return current
+
+    def complete_goal(self, *, goal_id: str, user_id: str, body) -> dict:
+        current = self.get_goal(goal_id=goal_id, user_id=user_id)
+        current["is_completed"] = body.is_completed
         return current
 
     def delete_goal(self, *, goal_id: str, user_id: str) -> None:
@@ -185,6 +191,7 @@ class FakeCalendarService:
             "user_id": "user-1",
             "title": "포트폴리오 준비",
             "deadline": "2026-07-10",
+            "is_completed": False,
             "is_recurring": False,
             "recurrence_type": None,
             "color": "#4F46E5",
@@ -229,6 +236,7 @@ class FakeCalendarService:
             "user_id": "user-1",
             "title": "포트폴리오 준비",
             "deadline": "2026-07-10",
+            "is_completed": False,
             "is_recurring": False,
             "recurrence_type": None,
             "color": "#4F46E5",
@@ -280,6 +288,7 @@ class FakeCalendarService:
                     "user_id": "user-1",
                     "title": "포트폴리오 준비",
                     "deadline": "2026-07-10",
+                    "is_completed": False,
                     "is_recurring": False,
                     "recurrence_type": None,
                     "color": "#4F46E5",
@@ -538,6 +547,10 @@ def test_goal_routes_use_current_user_and_service(client: TestClient) -> None:
         updated = client.patch("/goals/goal-1", json={"title": "Updated"})
         assert updated.status_code == 200
         assert updated.json()["data"]["title"] == "Updated"
+
+        completed = client.patch("/goals/goal-1/complete", json={"is_completed": True})
+        assert completed.status_code == 200
+        assert completed.json()["data"]["is_completed"] is True
 
         missing = client.get("/goals/not-owned")
         assert missing.status_code == 404

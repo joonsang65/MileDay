@@ -20,6 +20,7 @@ def goal_row(**overrides):
         "user_id": "user-1",
         "title": "포트폴리오 준비",
         "deadline": "2026-03-31",
+        "is_completed": False,
         "is_recurring": False,
         "recurrence_type": None,
         "color": "#4F46E5",
@@ -49,12 +50,21 @@ def milestone_row(**overrides):
 class InMemoryGoalRepository:
     def __init__(self) -> None:
         self.rows = {"goal-1": goal_row()}
+        self.updated_payloads = []
 
     def get_by_id(self, *, goal_id: str, user_id: str):
         row = self.rows.get(goal_id)
         if row and row["user_id"] == user_id:
             return row.copy()
         return None
+
+    def update(self, *, goal_id: str, user_id: str, payload: dict):
+        self.updated_payloads.append((goal_id, user_id, payload.copy()))
+        row = self.rows.get(goal_id)
+        if not row or row["user_id"] != user_id:
+            return None
+        row.update(payload)
+        return row.copy()
 
 
 class InMemoryMilestoneRepository:
@@ -178,7 +188,7 @@ def test_milestone_service_rejects_milestone_for_unowned_goal() -> None:
 
 
 def test_milestone_service_reads_updates_completes_and_deletes_owned_milestone() -> None:
-    service, milestone_repository, _ = make_service()
+    service, milestone_repository, goal_repository = make_service()
 
     listed = service.list_goal_milestones(goal_id="goal-1", user_id="user-1")
     assert [row["id"] for row in listed] == ["milestone-1"]
@@ -207,6 +217,11 @@ def test_milestone_service_reads_updates_completes_and_deletes_owned_milestone()
         body=MilestoneCompleteRequest(is_completed=True),
     )
     assert completed["is_completed"] is True
+    assert goal_repository.updated_payloads[-1] == (
+        "goal-1",
+        "user-1",
+        {"is_completed": True},
+    )
 
     service.delete_milestone(milestone_id="milestone-1", user_id="user-1")
     assert milestone_repository.deleted_filters == [("milestone-1", "user-1")]

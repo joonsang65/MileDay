@@ -73,7 +73,7 @@ def test_supabase_db_health_checks_goal_columns_used_by_app(
     assert result == {"row_count": 1}
     assert fake_client.table_name == "goals"
     assert fake_client.query.calls == [
-        ("select", "id,title,deadline,is_recurring,recurrence_type,color"),
+        ("select", "id,title,deadline,is_completed,is_recurring,recurrence_type,color"),
         ("limit", 1),
         ("execute", None),
     ]

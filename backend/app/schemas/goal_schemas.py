@@ -13,6 +13,7 @@ class GoalBase(BaseModel):
 
     title: str
     deadline: date
+    is_completed: bool = False
     is_recurring: bool = False
     recurrence_type: Optional[RecurrenceType] = None
     color: str
@@ -35,11 +36,18 @@ class GoalCreateRequest(GoalBase):
 class GoalUpdateRequest(BaseModel):
     title: Optional[str] = None
     deadline: Optional[date] = None
+    is_completed: Optional[bool] = None
     is_recurring: Optional[bool] = None
     recurrence_type: Optional[RecurrenceType] = None
     color: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+
+class GoalCompleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_completed: bool = True
 
 
 # 목표 데이터 DTO

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from repositories.milestones import MilestoneRepository
+from repositories.milestones import MILESTONE_SELECT_COLUMNS, MilestoneRepository
 
 
 class FakeResponse:
@@ -81,14 +81,14 @@ def test_milestone_repository_default_client_uses_admin_client(monkeypatch) -> N
 
 
 def test_milestone_repository_applies_filters_to_reads() -> None:
-    client = FakeSupabaseClient(rows=[{"id": "milestone-1"}])
+    client = FakeSupabaseClient(rows=[{"id": "milestone-1", "extra_column": "ignored"}])
     repository = MilestoneRepository(supabase_client=client)
 
     assert repository.list_by_goal(goal_id="goal-1", user_id="user-1") == [
         {"id": "milestone-1"}
     ]
     assert latest_query(client).calls == [
-        ("select", "*"),
+        ("select", MILESTONE_SELECT_COLUMNS),
         ("eq", "goal_id", "goal-1"),
         ("eq", "user_id", "user-1"),
         ("order", "scheduled_date"),
@@ -109,7 +109,7 @@ def test_milestone_repository_applies_filters_to_reads() -> None:
         "id": "milestone-1"
     }
     assert latest_query(client).calls == [
-        ("select", "*"),
+        ("select", MILESTONE_SELECT_COLUMNS),
         ("eq", "id", "milestone-1"),
         ("eq", "user_id", "user-1"),
         ("limit", 1),
@@ -136,6 +136,17 @@ def test_milestone_repository_applies_filters_to_mutations() -> None:
     assert latest_query(client).calls == [
         ("update", {"title": "수정"}),
         ("eq", "id", "milestone-1"),
+        ("eq", "user_id", "user-1"),
+    ]
+
+    assert repository.update_completion_by_goal(
+        goal_id="goal-1",
+        user_id="user-1",
+        is_completed=True,
+    ) == [{"id": "milestone-1"}]
+    assert latest_query(client).calls == [
+        ("update", {"is_completed": True}),
+        ("eq", "goal_id", "goal-1"),
         ("eq", "user_id", "user-1"),
     ]
 

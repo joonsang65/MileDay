@@ -98,3 +98,17 @@ def test_unused_user_settings_columns_are_dropped() -> None:
     ]:
         assert f"drop column if exists {column}" in sql
     assert "notify pgrst, 'reload schema'" in sql
+
+
+def test_goal_completion_migration_adds_is_completed_column() -> None:
+    sql_path = (
+        Path(__file__).resolve().parents[1]
+        / "supabase"
+        / "migrations"
+        / "202608260001_add_goal_completion.sql"
+    )
+    sql = sql_path.read_text(encoding="utf-8").lower()
+
+    assert "alter table if exists public.goals" in sql
+    assert "add column if not exists is_completed boolean not null default false" in sql
+    assert "notify pgrst, 'reload schema'" in sql

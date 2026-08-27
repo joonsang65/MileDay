@@ -12,7 +12,7 @@ from exceptions.goals import (
 from exceptions.common import BadRequestError
 from repositories.goals import GoalRepository, get_goal_repository
 from repositories.milestones import MilestoneRepository, get_milestone_repository
-from schemas.goal_schemas import GoalCreateRequest, GoalUpdateRequest
+from schemas.goal_schemas import GoalCompleteRequest, GoalCreateRequest, GoalUpdateRequest
 
 
 class GoalService:
@@ -96,6 +96,36 @@ class GoalService:
             raise GoalDeleteFailedError(detail={"type": exc.__class__.__name__}) from exc
         if not deleted:
             raise GoalDeleteFailedError(detail={"goal_id": goal_id})
+
+    def complete_goal(
+        self,
+        *,
+        goal_id: str,
+        user_id: str,
+        body: GoalCompleteRequest,
+    ) -> dict[str, Any]:
+        self.get_goal(goal_id=goal_id, user_id=user_id)
+        try:
+            child_milestones = self.milestone_repository.list_by_goal(
+                goal_id=goal_id,
+                user_id=user_id,
+            )
+            updated = self.repository.update(
+                goal_id=goal_id,
+                user_id=user_id,
+                payload={"is_completed": body.is_completed},
+            )
+            if child_milestones:
+                self.milestone_repository.update_completion_by_goal(
+                    goal_id=goal_id,
+                    user_id=user_id,
+                    is_completed=body.is_completed,
+                )
+        except Exception as exc:
+            raise GoalUpdateFailedError(detail={"type": exc.__class__.__name__}) from exc
+        if not updated:
+            raise GoalNotFoundError(detail={"goal_id": goal_id})
+        return updated
 
     def _validate_recurrence_state(self, payload: dict[str, Any]) -> None:
         is_recurring = bool(payload.get("is_recurring"))

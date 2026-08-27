@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from repositories.goals import GoalRepository
+from repositories.goals import GOAL_SELECT_COLUMNS, GoalRepository
 
 
 class FakeResponse:
@@ -78,19 +78,19 @@ def test_goal_repository_default_client_uses_admin_client(monkeypatch) -> None:
 
 
 def test_goal_repository_applies_user_filters_to_reads() -> None:
-    client = FakeSupabaseClient(rows=[{"id": "goal-1"}])
+    client = FakeSupabaseClient(rows=[{"id": "goal-1", "is_completed": True, "extra_column": "ignored"}])
     repository = GoalRepository(supabase_client=client)
 
-    assert repository.list_by_user(user_id="user-1") == [{"id": "goal-1"}]
+    assert repository.list_by_user(user_id="user-1") == [{"id": "goal-1", "is_completed": True}]
     assert latest_query(client).calls == [
-        ("select", "*"),
+        ("select", GOAL_SELECT_COLUMNS),
         ("eq", "user_id", "user-1"),
         ("order", "deadline"),
     ]
 
-    assert repository.get_by_id(goal_id="goal-1", user_id="user-1") == {"id": "goal-1"}
+    assert repository.get_by_id(goal_id="goal-1", user_id="user-1") == {"id": "goal-1", "is_completed": True}
     assert latest_query(client).calls == [
-        ("select", "*"),
+        ("select", GOAL_SELECT_COLUMNS),
         ("eq", "id", "goal-1"),
         ("eq", "user_id", "user-1"),
         ("limit", 1),
@@ -102,7 +102,7 @@ def test_goal_repository_applies_user_filters_to_mutations() -> None:
     repository = GoalRepository(supabase_client=client)
 
     payload = {"title": "M3", "user_id": "user-1"}
-    assert repository.create(payload=payload) == {"id": "goal-1"}
+    assert repository.create(payload=payload) == {"id": "goal-1", "is_completed": False}
     create_query = latest_query(client)
     assert create_query.operation == "insert"
     assert create_query.payload == payload
@@ -111,7 +111,7 @@ def test_goal_repository_applies_user_filters_to_mutations() -> None:
         goal_id="goal-1",
         user_id="user-1",
         payload={"title": "Updated"},
-    ) == {"id": "goal-1"}
+    ) == {"id": "goal-1", "is_completed": False}
     assert latest_query(client).calls == [
         ("update", {"title": "Updated"}),
         ("eq", "id", "goal-1"),
@@ -134,3 +134,10 @@ def test_goal_repository_returns_none_or_false_for_empty_results() -> None:
     assert repository.create(payload={"title": "M3"}) is None
     assert repository.update(goal_id="missing", user_id="user-1", payload={}) is None
     assert repository.delete(goal_id="missing", user_id="user-1") is False
+
+
+def test_goal_repository_defaults_missing_completion_for_older_schema_rows() -> None:
+    client = FakeSupabaseClient(rows=[{"id": "goal-1"}])
+    repository = GoalRepository(supabase_client=client)
+
+    assert repository.list_by_user(user_id="user-1") == [{"id": "goal-1", "is_completed": False}]

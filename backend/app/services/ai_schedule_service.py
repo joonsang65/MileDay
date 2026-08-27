@@ -215,6 +215,7 @@ def build_create_goal_payload(draft: dict[str, Any]) -> dict[str, Any]:
         "goal": {
             "title": goal["title"],
             "deadline": goal["deadline"],
+            "is_completed": False,
             "is_recurring": False,
             "recurrence_type": None,
             "color": goal_color,

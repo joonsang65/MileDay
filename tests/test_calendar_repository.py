@@ -3,7 +3,7 @@ from __future__ import annotations
 from repositories.calendar import CalendarRepository
 
 
-GOAL_SELECT_COLUMNS = "id,user_id,title,deadline,is_recurring,recurrence_type,color,created_at,updated_at"
+GOAL_SELECT_COLUMNS = "id,user_id,title,deadline,is_completed,is_recurring,recurrence_type,color,created_at,updated_at"
 MILESTONE_SELECT_COLUMNS = (
     "id,goal_id,user_id,title,color,scheduled_date,is_completed,created_at,updated_at,goals(title)"
 )

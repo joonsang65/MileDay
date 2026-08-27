@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Path
 
 from core.auth import require_current_user_id
 from schemas.goal_schemas import (
+    GoalCompleteRequest,
     GoalCreateRequest,
     GoalDeleteResponse,
     GoalListResponse,
@@ -78,6 +79,24 @@ def update_goal(
     return {
         "success": True,
         "data": goal_service.update_goal(goal_id=goal_id, user_id=user_id, body=body),
+    }
+
+
+@router.patch(
+    "/{goal_id}/complete",
+    response_model=GoalResponse,
+    summary="목표 완료 처리",
+    description="현재 사용자가 소유한 목표의 완료 여부를 변경합니다. 하위 마일스톤이 있으면 함께 변경됩니다.",
+)
+def complete_goal(
+    goal_id: Annotated[str, Path(description="완료 여부를 변경할 목표 ID")],
+    body: GoalCompleteRequest,
+    user_id: str = Depends(require_current_user_id),
+    goal_service: GoalService = Depends(get_goal_service),
+):
+    return {
+        "success": True,
+        "data": goal_service.complete_goal(goal_id=goal_id, user_id=user_id, body=body),
     }
 
 

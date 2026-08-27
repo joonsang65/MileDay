@@ -11,6 +11,7 @@ def goal_row(**overrides):
         "user_id": "user-1",
         "title": "포트폴리오 준비",
         "deadline": "2026-07-10",
+        "is_completed": False,
         "is_recurring": False,
         "recurrence_type": None,
         "color": "#4F46E5",

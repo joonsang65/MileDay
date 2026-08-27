@@ -181,6 +181,7 @@ def test_build_create_goal_payload_matches_existing_goal_api_shape() -> None:
     assert payload["goal"] == {
         "title": "데이터 분석 과제 마무리",
         "deadline": "2026-09-30",
+        "is_completed": False,
         "is_recurring": False,
         "recurrence_type": None,
         "color": "#7F9278",
