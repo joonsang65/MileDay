@@ -33,6 +33,7 @@ export type Goal = {
   user_id?: string | null;
   title: string;
   deadline: string;
+  is_completed: boolean;
   is_recurring: boolean;
   recurrence_type: "daily" | "weekly" | "monthly" | null;
   color: string;
@@ -45,6 +46,7 @@ export type RecurrenceType = "daily" | "weekly" | "monthly";
 export type GoalCreatePayload = {
   title: string;
   deadline: string;
+  is_completed?: boolean;
   is_recurring: boolean;
   recurrence_type: RecurrenceType | null;
   color: string;

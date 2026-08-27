@@ -157,6 +157,13 @@ export class MileDayApiClient {
     });
   }
 
+  completeGoal(goalId: string, isCompleted: boolean): Promise<Goal> {
+    return this.request<Goal>(`/goals/${goalId}/complete`, {
+      method: "PATCH",
+      body: { is_completed: isCompleted },
+    });
+  }
+
   createMilestone(goalId: string, payload: MilestoneCreatePayload): Promise<Milestone> {
     return this.request<Milestone>(`/goals/${goalId}/milestones`, {
       method: "POST",

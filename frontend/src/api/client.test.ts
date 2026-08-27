@@ -119,6 +119,7 @@ describe("MileDayApiClient", () => {
     const payload = {
       title: "포트폴리오 준비",
       deadline: "2026-07-31",
+      is_completed: false,
       is_recurring: true,
       recurrence_type: "weekly" as const,
       color: "#0F766E",
@@ -213,6 +214,7 @@ describe("MileDayApiClient", () => {
         id: "goal-1",
         title: "Updated",
         deadline: "2026-07-31",
+        is_completed: false,
         is_recurring: false,
         recurrence_type: null,
         color: "#0F766E",
@@ -246,6 +248,37 @@ describe("MileDayApiClient", () => {
       "http://api.test/goals/goal-1",
       expect.objectContaining({
         method: "DELETE",
+      }),
+    );
+  });
+
+  it("sends goal complete requests to the goal complete endpoint", async () => {
+    const fetchMock = mockFetch({
+      success: true,
+      data: {
+        id: "goal-1",
+        title: "Updated",
+        deadline: "2026-07-31",
+        is_completed: true,
+        is_recurring: false,
+        recurrence_type: null,
+        color: "#0F766E",
+        created_at: "2026-07-01T10:00:00+09:00",
+        updated_at: "2026-07-01T10:00:00+09:00",
+      },
+    });
+
+    const client = new MileDayApiClient({
+      baseUrl: "http://api.test",
+      accessToken: "access-token",
+    });
+
+    await client.completeGoal("goal-1", true);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://api.test/goals/goal-1/complete",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ is_completed: true }),
       }),
     );
   });

@@ -1390,6 +1390,10 @@ button:disabled {
   box-sizing: border-box;
 }
 
+.goal-list-row-with-toggle {
+  grid-template-columns: 24px 18px minmax(0, 1fr) 24px;
+}
+
 .goal-list-milestone-row {
   grid-template-columns: 24px minmax(0, 1fr);
   padding: clamp(6px, 0.52vw, 10px);
@@ -2324,9 +2328,13 @@ button:disabled {
 }
 
 .detail-panel .split-goal-row {
-  grid-template-columns: minmax(0, 1fr) 22px;
+  grid-template-columns: minmax(0, 1fr) max-content;
   padding: 0;
   overflow: hidden;
+}
+
+.detail-panel .single-goal-row {
+  grid-template-columns: 28px minmax(0, 1fr) max-content;
 }
 
 .detail-panel .milestone-card-row {
@@ -2407,6 +2415,20 @@ button:disabled {
   background: transparent;
 }
 
+.day-view-panel .single-goal-row .goal-check-button {
+  width: 28px;
+  height: 100%;
+  min-height: 31px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--primary);
+  background: transparent;
+}
+
+.day-view-panel .single-goal-row .goal-check-button:hover {
+  background: var(--selected-date-bg);
+}
+
 .day-view-panel .milestone-card-row .check-button:hover {
   background: var(--selected-date-bg);
 }
@@ -2426,6 +2448,12 @@ button:disabled {
 .row-icon-button:hover {
   color: var(--primary);
   background: var(--selected-date-bg);
+}
+
+.goal-row-actions {
+  height: 100%;
+  display: inline-flex;
+  align-items: stretch;
 }
 
 .editable-item {

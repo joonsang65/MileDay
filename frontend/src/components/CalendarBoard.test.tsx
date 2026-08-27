@@ -29,6 +29,7 @@ describe("CalendarBoard", () => {
                 id: "goal-1",
                 title: "아동센터 작성",
                 deadline: "2026-07-10",
+                is_completed: false,
                 is_recurring: false,
                 recurrence_type: null,
                 color: "#0F766E",

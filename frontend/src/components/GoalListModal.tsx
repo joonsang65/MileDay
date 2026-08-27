@@ -13,6 +13,8 @@ type GoalListModalProps = {
   onUpdateGoal: (goalId: string, payload: GoalUpdatePayload) => Promise<void>;
   onDeleteGoal: (goalId: string) => Promise<void>;
   onCreateMilestone: (goalId: string, payload: MilestoneCreatePayload) => Promise<void>;
+  onToggleGoal: (goalId: string, isCompleted: boolean) => Promise<void>;
+  onToggleMilestone: (milestoneId: string, isCompleted: boolean) => Promise<void>;
   onUpdateMilestone: (milestoneId: string, payload: MilestoneUpdatePayload) => Promise<void>;
   onDeleteMilestone: (milestoneId: string) => Promise<void>;
 };
@@ -48,7 +50,8 @@ export function GoalListModal({
   language,
   initialGoals = [],
   onClose,
-  onUpdateMilestone,
+  onToggleGoal,
+  onToggleMilestone,
 }: GoalListModalProps) {
   const t = labels[language];
 
@@ -58,6 +61,17 @@ export function GoalListModal({
   const [activeTab, setActiveTab] = useState<TabType>("ongoing");
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
   const [isMilestoneToggling, setIsMilestoneToggling] = useState<string | null>(null);
+  const [isGoalToggling, setIsGoalToggling] = useState<string | null>(null);
+  const initialGoalIdsKey = useMemo(
+    () => initialGoals.map((goal) => goal.id).sort().join("|"),
+    [initialGoals],
+  );
+
+  useEffect(() => {
+    if (initialGoals.length > 0) {
+      setGoals(initialGoals);
+    }
+  }, [initialGoals]);
 
   useEffect(() => {
     async function loadData() {
@@ -65,8 +79,10 @@ export function GoalListModal({
         setIsLoading(true);
       }
       try {
-        const fetchedGoals = await apiClient.listGoals();
-        setGoals(fetchedGoals);
+        const fetchedGoals = initialGoals.length > 0 ? initialGoals : await apiClient.listGoals();
+        if (initialGoals.length === 0) {
+          setGoals(fetchedGoals);
+        }
 
         const milestonesByGoal: Record<string, Milestone[]> = {};
         await Promise.all(
@@ -82,12 +98,12 @@ export function GoalListModal({
       }
     }
     void loadData();
-  }, [initialGoals.length]);
+  }, [initialGoalIdsKey]);
 
   const goalData = useMemo(() => {
     return goals.map((goal) => {
       const milestones = milestonesMap[goal.id] ?? [];
-      const isCompleted = milestones.length > 0 && milestones.every((milestone) => milestone.is_completed);
+      const isCompleted = goal.is_completed || (milestones.length > 0 && milestones.every((milestone) => milestone.is_completed));
       const completedCount = milestones.filter((milestone) => milestone.is_completed).length;
       return {
         ...goal,
@@ -111,27 +127,88 @@ export function GoalListModal({
     }
   }, [activeTab, goalData]);
 
+  useEffect(() => {
+    if (activeTab === "ongoing" && filteredGoals.length === 0 && goalData.length > 0) {
+      setActiveTab("all");
+    }
+  }, [activeTab, filteredGoals.length, goalData.length]);
+
   async function handleToggleMilestone(milestone: Milestone, goalId: string) {
     if (isMilestoneToggling === milestone.id) {
       return;
     }
 
+    const nextMilestoneCompleted = !milestone.is_completed;
+    const goalMilestones = milestonesMap[goalId] ?? [];
+    const previousGoal = goals.find((goal) => goal.id === goalId);
+    const nextGoalCompleted = goalMilestones.length > 0 && goalMilestones.every((item) => (
+      item.id === milestone.id ? nextMilestoneCompleted : item.is_completed
+    ));
+
     setIsMilestoneToggling(milestone.id);
+    setMilestonesMap((current) => {
+      const milestones = current[goalId] ?? [];
+      return {
+        ...current,
+        [goalId]: milestones.map((item) => (
+          item.id === milestone.id ? { ...item, is_completed: nextMilestoneCompleted } : item
+        )),
+      };
+    });
+    setGoals((current) => current.map((goal) => (
+      goal.id === goalId ? { ...goal, is_completed: nextGoalCompleted } : goal
+    )));
     try {
-      await onUpdateMilestone(milestone.id, { is_completed: !milestone.is_completed });
+      await onToggleMilestone(milestone.id, nextMilestoneCompleted);
+    } catch (error) {
       setMilestonesMap((current) => {
         const milestones = current[goalId] ?? [];
         return {
           ...current,
           [goalId]: milestones.map((item) => (
-            item.id === milestone.id ? { ...item, is_completed: !item.is_completed } : item
+            item.id === milestone.id ? { ...item, is_completed: milestone.is_completed } : item
           )),
         };
       });
-    } catch (error) {
+      setGoals((current) => current.map((goal) => (
+        goal.id === goalId && previousGoal ? previousGoal : goal
+      )));
       console.error("Failed to toggle milestone", error);
     } finally {
       setIsMilestoneToggling(null);
+    }
+  }
+
+  async function handleToggleGoal(goalId: string, isCompleted: boolean) {
+    if (isGoalToggling === goalId) {
+      return;
+    }
+
+    const previousGoal = goals.find((goal) => goal.id === goalId);
+    const previousMilestones = milestonesMap[goalId] ?? [];
+    setIsGoalToggling(goalId);
+    setGoals((current) => current.map((goal) => (
+      goal.id === goalId ? { ...goal, is_completed: isCompleted } : goal
+    )));
+    setMilestonesMap((current) => ({
+      ...current,
+      [goalId]: (current[goalId] ?? []).map((milestone) => ({ ...milestone, is_completed: isCompleted })),
+    }));
+    try {
+      await onToggleGoal(goalId, isCompleted);
+    } catch (error) {
+      if (previousGoal) {
+        setGoals((current) => current.map((goal) => (
+          goal.id === goalId ? previousGoal : goal
+        )));
+      }
+      setMilestonesMap((current) => ({
+        ...current,
+        [goalId]: previousMilestones,
+      }));
+      console.error("Failed to toggle goal", error);
+    } finally {
+      setIsGoalToggling(null);
     }
   }
 
@@ -166,11 +243,26 @@ export function GoalListModal({
             const isExpanded = expandedGoalId === goal.id;
             const progress = goal.totalCount > 0
               ? Math.round((goal.completedCount / goal.totalCount) * 100)
-              : 0;
+              : goal.isCompleted ? 100 : 0;
+            const showGoalToggle = activeTab === "ongoing";
+            const isGoalToggleLoading = isGoalToggling === goal.id;
 
             return (
               <li key={goal.id} className="goal-list-item">
-                <div className="editable-row goal-list-row">
+                <div className={`editable-row goal-list-row ${showGoalToggle ? "goal-list-row-with-toggle" : ""}`}>
+                  {showGoalToggle ? (
+                    <button
+                      type="button"
+                      className="icon-button compact-icon goal-list-icon-button"
+                      onClick={() => void handleToggleGoal(goal.id, true)}
+                      disabled={isGoalToggleLoading}
+                      aria-label={language === "en" ? "Complete goal" : "목표 완료"}
+                      title={language === "en" ? "Complete goal" : "목표 완료"}
+                      style={{ color: "var(--text-tertiary)", opacity: isGoalToggleLoading ? 0.5 : 1 }}
+                    >
+                      <Square size={16} />
+                    </button>
+                  ) : null}
                   <div className="goal-list-color-cell">
                     <span className="color-swatch goal-list-color-swatch" style={{ background: goal.color }} aria-hidden="true" />
                   </div>

@@ -15,7 +15,8 @@ type DateDetailProps = {
   detail?: CalendarDateData | null;
   goals?: Goal[];
   isLoading: boolean;
-  onToggleMilestone: (milestoneId: string, isCompleted: boolean) => void;
+  onToggleGoal: (goalId: string, isCompleted: boolean) => void | Promise<void>;
+  onToggleMilestone: (milestoneId: string, isCompleted: boolean) => void | Promise<void>;
   onUpdateGoal: (goalId: string, payload: GoalUpdatePayload) => Promise<void>;
   onDeleteGoal: (goalId: string) => Promise<void>;
   onCreateMilestone: (goalId: string, payload: MilestoneCreatePayload) => Promise<void>;
@@ -138,6 +139,7 @@ function getDateGoalGroups(
           id: milestone.goal_id,
           title: milestone.goal_title ?? noGoalLabel,
           deadline: detail.date,
+          is_completed: false,
           color: milestone.color,
           is_recurring: false,
           recurrence_type: null,
@@ -187,6 +189,7 @@ export function DateDetail({
   detail,
   goals,
   isLoading,
+  onToggleGoal,
   onToggleMilestone,
   onUpdateGoal,
   onDeleteGoal,
@@ -268,7 +271,7 @@ export function DateDetail({
       )}
       {isLoading ? <p className="muted-text">{text.loading}</p> : null}
       {detail ? (
-        <>
+        <div className="section-block">
           {hideHeader ? null : <h3 className="day-view-section-title">{text.goals}</h3>}
           {goalGroups.length === 0 ? (
             <p className="empty-text day-view-empty-text">{text.empty}</p>
@@ -277,32 +280,54 @@ export function DateDetail({
               {goalGroups.map((group) => (
                 <li key={group.id} className="goal-group">
                   {group.goal ? (
-                    <div className="editable-row goal-row split-goal-row">
-                      <div
+                    <div className={`editable-row goal-row split-goal-row ${group.milestones.length === 0 ? "single-goal-row" : ""}`}>
+                      {group.milestones.length === 0 ? (
+                        <button
+                          type="button"
+                          className="check-button goal-check-button"
+                          data-testid="goal-toggle"
+                          data-goal-id={group.id}
+                          aria-pressed={group.goal.is_completed}
+                          onClick={() => {
+                            void Promise.resolve(onToggleGoal(group.id, !group.goal!.is_completed)).catch(() => undefined);
+                          }}
+                          title={group.goal.is_completed ? text.markIncomplete : text.markComplete}
+                          disabled={isLoading}
+                        >
+                          {group.goal.is_completed ? (
+                            <CheckSquare size={18} aria-hidden="true" />
+                          ) : (
+                            <Square size={18} aria-hidden="true" />
+                          )}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
                         className="goal-edit-target"
+                        onClick={() => toggleEditing({ type: "goal", id: group.id })}
                       >
                         <span className="goal-color-bar" style={{ background: group.color }} />
                         <span className="day-view-row-content">
-                          <strong>{group.title}</strong>
+                          <strong style={{
+                            opacity: group.goal.is_completed ? 0.6 : 1,
+                            textDecoration: group.goal.is_completed ? "line-through" : "none",
+                          }}>
+                            {group.title}
+                          </strong>
                           <small>{text.task} {group.completed}/{group.milestones.length}</small>
                         </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="row-icon-button"
-                        onClick={() => toggleEditing(
-                          group.milestones.length > 0
-                            ? { type: "goal", id: group.id }
-                            : { type: "new-milestone", goalId: group.id },
-                        )}
-                        title={
-                          group.milestones.length > 0
-                            ? (language === "en" ? "Edit goal" : "목표 수정")
-                            : (language === "en" ? "Add milestone" : "마일스톤 추가")
-                        }
-                      >
-                        <Pencil size={14} aria-hidden="true" />
                       </button>
+                      <div className="goal-row-actions">
+                        <button
+                          type="button"
+                          className="row-icon-button"
+                          onClick={() => toggleEditing({ type: "goal", id: group.id })}
+                          title={language === "en" ? "Edit goal" : "목표 수정"}
+                          aria-label={language === "en" ? "Edit goal" : "목표 수정"}
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="editable-row goal-row readonly-row">
@@ -359,7 +384,9 @@ export function DateDetail({
                                 data-testid="milestone-toggle"
                                 data-milestone-id={milestone.id}
                                 aria-pressed={milestone.is_completed}
-                                onClick={() => onToggleMilestone(milestone.id, !milestone.is_completed)}
+                                onClick={() => {
+                                  void Promise.resolve(onToggleMilestone(milestone.id, !milestone.is_completed)).catch(() => undefined);
+                                }}
                                 title={milestone.is_completed ? text.markIncomplete : text.markComplete}
                                 disabled={isLoading}
                               >
@@ -369,12 +396,16 @@ export function DateDetail({
                                 <Square size={18} aria-hidden="true" />
                               )}
                               </button>
-                              <div className="goal-edit-target">
+                              <button
+                                type="button"
+                                className="goal-edit-target"
+                                onClick={() => toggleEditing({ type: "milestone", id: milestone.id })}
+                              >
                                 <span className="day-view-row-content">
                                   <strong>{milestone.title}</strong>
                                   <small>{text.milestone}</small>
                                 </span>
-                              </div>
+                              </button>
                               <button
                                 type="button"
                                 className="row-icon-button"
@@ -412,7 +443,7 @@ export function DateDetail({
               ))}
             </ul>
           )}
-        </>
+        </div>
       ) : null}
     </section>
   );

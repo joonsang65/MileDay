@@ -17,6 +17,7 @@ const detail: CalendarDateData = {
       id: "goal-1",
       title: "포트폴리오 준비",
       deadline: "2026-07-10",
+      is_completed: false,
       is_recurring: false,
       recurrence_type: null,
       color: "#0F766E",
@@ -45,6 +46,7 @@ function renderDateDetail(overrides = {}) {
     <DateDetail
       detail={detail}
       isLoading={false}
+      onToggleGoal={vi.fn()}
       onToggleMilestone={vi.fn()}
       onUpdateGoal={vi.fn().mockResolvedValue(undefined)}
       onDeleteGoal={vi.fn().mockResolvedValue(undefined)}
@@ -103,31 +105,50 @@ describe("DateDetail", () => {
     expect(screen.getByLabelText("Deadline")).toBeInTheDocument();
   });
 
-  it("adds a milestone from the goal row action when a goal has no milestones", async () => {
+  it("allows deleting a goal when the goal has no milestones", async () => {
     const user = userEvent.setup();
-    const onCreateMilestone = vi.fn().mockResolvedValue(undefined);
+    const onDeleteGoal = vi.fn().mockResolvedValue(undefined);
     renderDateDetail({
       language: "en",
-      onCreateMilestone,
+      onDeleteGoal,
       detail: {
         ...detail,
         milestone_count: 0,
         completed_milestone_count: 0,
-        goals: [{ ...detail.goals[0], title: "Portfolio work" }],
+        goals: [{ ...detail.goals[0], title: "Inbox cleanup" }],
         milestones: [],
       },
     });
 
-    await user.click(screen.getByTitle("Add milestone"));
-    const editor = screen.getByLabelText("Schedule date").closest("form") as HTMLElement;
+    await user.click(screen.getByTitle("Edit goal"));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
 
-    await user.type(within(editor).getByLabelText("Milestone title"), "Draft outline");
-    await user.click(within(editor).getByRole("button", { name: "Save" }));
+    expect(onDeleteGoal).toHaveBeenCalledWith("goal-1");
+  });
 
-    expect(onCreateMilestone).toHaveBeenCalledWith("goal-1", {
-      title: "Draft outline",
-      scheduled_date: "2026-07-10",
+  it("단일 목표에는 완료 체크를 표시하고 목표 완료를 전달한다", async () => {
+    const user = userEvent.setup();
+    const onToggleGoal = vi.fn();
+    renderDateDetail({
+      onToggleGoal,
+      detail: {
+        ...detail,
+        milestone_count: 0,
+        completed_milestone_count: 0,
+        milestones: [],
+      },
     });
+
+    await user.click(screen.getByTestId("goal-toggle"));
+
+    expect(onToggleGoal).toHaveBeenCalledWith("goal-1", true);
+  });
+
+  it("마일스톤이 있는 목표에는 목표 완료 체크를 표시하지 않는다", () => {
+    renderDateDetail();
+
+    expect(screen.queryByTestId("goal-toggle")).not.toBeInTheDocument();
+    expect(screen.getByTestId("milestone-toggle")).toBeInTheDocument();
   });
 
   it("목표 마감일이 아닌 날짜의 하루 보기에서도 해당 목표를 눌러 수정할 수 있다", async () => {
@@ -137,6 +158,7 @@ describe("DateDetail", () => {
       id: "goal-2",
       title: "장기 프로젝트",
       deadline: "2026-07-31",
+      is_completed: false,
       color: "#8B6FD6",
       is_recurring: false,
       recurrence_type: null,

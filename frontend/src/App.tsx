@@ -428,6 +428,58 @@ function removeMilestoneFromDateDetail(detail: CalendarDateData, milestoneId: st
   };
 }
 
+function updateGoalCompletionInCalendar(calendar: CalendarData, goalId: string, isCompleted: boolean): CalendarData {
+  const updateGoal = (goal: Goal): Goal => (
+    goal.id === goalId ? { ...goal, is_completed: isCompleted } : goal
+  );
+  return {
+    ...calendar,
+    goals: calendar.goals.map(updateGoal),
+    days: calendar.days.map((day) => ({
+      ...day,
+      goals: day.goals.map(updateGoal),
+    })),
+  };
+}
+
+function updateGoalCompletionInDateDetail(detail: CalendarDateData, goalId: string, isCompleted: boolean): CalendarDateData {
+  return {
+    ...detail,
+    goals: detail.goals.map((goal) => (
+      goal.id === goalId ? { ...goal, is_completed: isCompleted } : goal
+    )),
+  };
+}
+
+function updateGoalMilestonesCompletionInCalendar(calendar: CalendarData, goalId: string, isCompleted: boolean): CalendarData {
+  const updateMilestone = (milestone: Milestone): Milestone => (
+    milestone.goal_id === goalId ? { ...milestone, is_completed: isCompleted } : milestone
+  );
+  return {
+    ...calendar,
+    milestones: calendar.milestones.map(updateMilestone),
+    days: calendar.days.map((day) => {
+      const milestones = day.milestones.map(updateMilestone);
+      return {
+        ...day,
+        milestones,
+        completed_milestone_count: countCompletedMilestones(milestones),
+      };
+    }),
+  };
+}
+
+function updateGoalMilestonesCompletionInDateDetail(detail: CalendarDateData, goalId: string, isCompleted: boolean): CalendarDateData {
+  const milestones = detail.milestones.map((milestone) => (
+    milestone.goal_id === goalId ? { ...milestone, is_completed: isCompleted } : milestone
+  ));
+  return {
+    ...detail,
+    milestones,
+    completed_milestone_count: countCompletedMilestones(milestones),
+  };
+}
+
 export default function App() {
   const {
     mode,
@@ -858,7 +910,76 @@ export default function App() {
     setVisibleDate(toDateKey(nextDate));
   }
 
+  function findMilestoneGoalId(milestoneId: string): string | null {
+    const dateDetailMilestone = dateDetail?.milestones.find((milestone) => milestone.id === milestoneId);
+    if (dateDetailMilestone) {
+      return dateDetailMilestone.goal_id;
+    }
+    const calendarMilestone = calendarData?.milestones.find((milestone) => milestone.id === milestoneId)
+      ?? calendarData?.days.flatMap((day) => day.milestones).find((milestone) => milestone.id === milestoneId);
+    return calendarMilestone?.goal_id ?? null;
+  }
+
+  function getMilestoneBasedGoalCompletion(goalId: string, milestoneId: string, isCompleted: boolean): boolean | null {
+    const sourceMilestones = [
+      ...(dateDetail?.milestones ?? []),
+      ...(calendarData?.milestones ?? []),
+      ...(calendarData?.days.flatMap((day) => day.milestones) ?? []),
+    ].filter((milestone) => milestone.goal_id === goalId);
+    const uniqueMilestones = Array.from(
+      new Map(sourceMilestones.map((milestone) => [milestone.id, milestone])).values(),
+    );
+    if (uniqueMilestones.length === 0) {
+      return null;
+    }
+    return uniqueMilestones.every((milestone) => (
+      milestone.id === milestoneId ? isCompleted : milestone.is_completed
+    ));
+  }
+
+  function findGoalCompletion(goalId: string): boolean | null {
+    const goal = allGoals.find((item) => item.id === goalId)
+      ?? dateDetail?.goals.find((item) => item.id === goalId)
+      ?? calendarData?.goals.find((item) => item.id === goalId)
+      ?? calendarData?.days.flatMap((day) => day.goals).find((item) => item.id === goalId);
+    return goal?.is_completed ?? null;
+  }
+
+  function applyGoalCompletion(goalId: string, isCompleted: boolean) {
+    setAllGoals((current) => current.map((goal) => (
+      goal.id === goalId ? { ...goal, is_completed: isCompleted } : goal
+    )));
+    updateCachedCalendars((calendar) => updateGoalCompletionInCalendar(calendar, goalId, isCompleted));
+    updateCachedDateDetails((detail) => updateGoalCompletionInDateDetail(detail, goalId, isCompleted));
+  }
+
+  function applyGoalAndMilestonesCompletion(goalId: string, isCompleted: boolean) {
+    applyGoalCompletion(goalId, isCompleted);
+    updateCachedCalendars((calendar) => updateGoalMilestonesCompletionInCalendar(calendar, goalId, isCompleted));
+    updateCachedDateDetails((detail) => updateGoalMilestonesCompletionInDateDetail(detail, goalId, isCompleted));
+  }
+
+  async function handleToggleGoal(goalId: string, isCompleted: boolean) {
+    applyGoalAndMilestonesCompletion(goalId, isCompleted);
+    setRequestState({ isLoading: false, message: null, notice: null });
+    try {
+      const goal = await apiClient.completeGoal(goalId, isCompleted);
+      setAllGoals((current) => current.map((item) => (item.id === goal.id ? { ...item, ...goal } : item)));
+      updateCachedCalendars((calendar) => upsertGoalInCalendar(calendar, goal));
+      updateCachedDateDetails((detail) => upsertGoalInDateDetail(detail, goal));
+    } catch (error) {
+      applyGoalAndMilestonesCompletion(goalId, !isCompleted);
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, userSettings.language), notice: null });
+      throw error;
+    }
+  }
+
   async function handleToggleMilestone(milestoneId: string, isCompleted: boolean) {
+    const goalId = findMilestoneGoalId(milestoneId);
+    const previousGoalCompletion = goalId ? findGoalCompletion(goalId) : null;
+    const nextGoalCompletion = goalId
+      ? getMilestoneBasedGoalCompletion(goalId, milestoneId, isCompleted)
+      : null;
     const updateMilestone = (milestone: Milestone): Milestone => (
       milestone.id === milestoneId ? { ...milestone, is_completed: isCompleted } : milestone
     );
@@ -882,12 +1003,14 @@ export default function App() {
         completed_milestone_count: countCompletedMilestones(milestones),
       };
     });
+    if (goalId && nextGoalCompletion !== null) {
+      applyGoalCompletion(goalId, nextGoalCompletion);
+    }
     setRequestState({ isLoading: false, message: null, notice: null });
     try {
       const milestone = await apiClient.completeMilestone(milestoneId, isCompleted);
       updateCachedCalendars((calendar) => upsertMilestoneInCalendar(calendar, milestone));
       updateCachedDateDetails((detail) => upsertMilestoneInDateDetail(detail, milestone));
-      refreshCalendarInBackground();
     } catch (error) {
       const rollbackMilestone = (milestone: Milestone): Milestone => (
         milestone.id === milestoneId ? { ...milestone, is_completed: !isCompleted } : milestone
@@ -912,7 +1035,11 @@ export default function App() {
           completed_milestone_count: countCompletedMilestones(milestones),
         };
       });
+      if (goalId && previousGoalCompletion !== null) {
+        applyGoalCompletion(goalId, previousGoalCompletion);
+      }
       setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, userSettings.language), notice: null });
+      throw error;
     }
   }
 
@@ -1223,6 +1350,8 @@ export default function App() {
           onCreateMilestone={handleCreateMilestone}
           onUpdateMilestone={handleUpdateMilestone}
           onDeleteMilestone={handleDeleteMilestone}
+          onToggleGoal={handleToggleGoal}
+          onToggleMilestone={handleToggleMilestone}
         />
       ) : null}
       {overlayMode === "day-view" ? (
@@ -1238,6 +1367,7 @@ export default function App() {
             detail={dateDetail}
             goals={allGoals}
             isLoading={requestState.isLoading && !dateDetail}
+            onToggleGoal={handleToggleGoal}
             onToggleMilestone={handleToggleMilestone}
             onUpdateGoal={handleUpdateGoal}
             onDeleteGoal={handleDeleteGoal}

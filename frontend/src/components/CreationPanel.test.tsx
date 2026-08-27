@@ -11,6 +11,7 @@ const goals: Goal[] = [
     id: "goal-1",
     title: "포트폴리오 준비",
     deadline: "2026-07-31",
+    is_completed: false,
     is_recurring: false,
     recurrence_type: null,
     color: "#0F766E",
