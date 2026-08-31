@@ -361,9 +361,10 @@ describe("MileDayApiClient", () => {
       data: {
         calendar_view: "month",
         holiday_display: "normal",
-        week_starts_on: 1,
+        week_starts_on: 0,
         language: "ko",
         timezone: "Asia/Seoul",
+        gemini_data_consent: false,
       },
     });
 
@@ -381,6 +382,7 @@ describe("MileDayApiClient", () => {
         week_starts_on: 0,
         language: "en",
         timezone: "Asia/Seoul",
+        gemini_data_consent: true,
       },
     });
 
@@ -389,6 +391,7 @@ describe("MileDayApiClient", () => {
       holiday_display: "weekend_like",
       week_starts_on: 0,
       language: "en",
+      gemini_data_consent: true,
     });
     expect(fetchMock).toHaveBeenLastCalledWith(
       "http://api.test/settings",
@@ -399,9 +402,32 @@ describe("MileDayApiClient", () => {
           holiday_display: "weekend_like",
           week_starts_on: 0,
           language: "en",
+          gemini_data_consent: true,
         }),
       }),
     );
+  });
+
+  it("sends account deletion request and clears the access token", async () => {
+    const client = new MileDayApiClient({
+      baseUrl: "http://api.test",
+      accessToken: "access-token",
+    });
+    const fetchMock = mockFetch({
+      success: true,
+      data: { message: "deleted" },
+    });
+
+    await client.deleteAccount();
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "http://api.test/auth/account",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({ Authorization: "Bearer access-token" }),
+      }),
+    );
+    expect(client.hasAccessToken()).toBe(false);
   });
 
   it("keeps backend error detail for troubleshooting", async () => {

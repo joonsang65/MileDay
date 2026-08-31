@@ -91,6 +91,7 @@ export type UserSettings = {
   week_starts_on: 0 | 1;
   language: Language;
   timezone: string;
+  gemini_data_consent: boolean;
 };
 
 export type UserSettingsUpdatePayload = Partial<UserSettings>;

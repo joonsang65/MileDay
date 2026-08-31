@@ -38,7 +38,8 @@ def test_settings_service_creates_default_row_when_missing() -> None:
     result = service.get_settings(user_id="user-1")
 
     assert result["calendar_view"] == "month"
-    assert result["week_starts_on"] == 1
+    assert result["week_starts_on"] == 0
+    assert result["gemini_data_consent"] is False
     assert repository.upserts == [{"user_id": "user-1", **DEFAULT_SETTINGS}]
 
 
@@ -55,6 +56,7 @@ def test_settings_service_updates_only_given_fields() -> None:
             holiday_display="hidden",
             week_starts_on=0,
             language="en",
+            gemini_data_consent=True,
         ),
     )
 
@@ -62,6 +64,7 @@ def test_settings_service_updates_only_given_fields() -> None:
     assert result["holiday_display"] == "hidden"
     assert result["week_starts_on"] == 0
     assert result["language"] == "en"
+    assert result["gemini_data_consent"] is True
     assert repository.updates == [
         (
             "user-1",
@@ -70,6 +73,7 @@ def test_settings_service_updates_only_given_fields() -> None:
                 "holiday_display": "hidden",
                 "week_starts_on": 0,
                 "language": "en",
+                "gemini_data_consent": True,
             },
         )
     ]

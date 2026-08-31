@@ -6,6 +6,7 @@ from schemas.auth_schemas import (
     LogInRequest,
     LogInResponse,
     LogOutResponse,
+    DeleteAccountResponse,
     SignUpRequest,
     SignUpResponse,
     UserStatusResponse,
@@ -81,6 +82,23 @@ def logout(
     return {
         "success": True,
         "message": "로그아웃되었습니다.",
+    }
+
+
+@router.delete(
+    "/account",
+    response_model=DeleteAccountResponse,
+    summary="계정 삭제",
+    description="현재 접근 토큰 검증 후 사용자 계정을 삭제합니다.",
+)
+def delete_account(
+    access_token: str = Depends(get_bearer_token),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> dict:
+    auth_service.delete_account(access_token)
+    return {
+        "success": True,
+        "message": "계정이 삭제되었습니다.",
     }
 
 

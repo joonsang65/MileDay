@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Bot, GripVertical, ListPlus, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Bot, GripVertical, HelpCircle, ListPlus, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import type {
   AiScheduleDraft,
@@ -18,9 +18,11 @@ type AiSchedulePanelProps = {
   today: string;
   timezone: string;
   availability: AiScheduleDraftRequest["availability"];
+  geminiDataConsent: boolean;
   isSaving: boolean;
   onCreateDraft: (payload: AiScheduleDraftRequest) => Promise<AiScheduleDraft>;
   onSaveDraft: (goal: GoalCreatePayload, milestones: MilestoneCreatePayload[]) => Promise<void>;
+  onGeminiDataConsentChange: (isAllowed: boolean) => Promise<void>;
   onClose: () => void;
   language: Language;
 };
@@ -34,6 +36,17 @@ const labels = {
     draftFailedFallback: "일정 제안에 실패했습니다.",
     draftFailed: "일정 제안에 실패했습니다. 입력한 내용은 그대로 유지됩니다.",
     retryFailed: "다시 제안에 실패했습니다. 기존 초안은 유지됩니다.",
+    consentRequired: "Gemini 전송 동의가 필요합니다.",
+    consentLabel: "Gemini 전송 동의",
+    consentHint: "일정 추천을 만들 때 입력한 목표와 가능 날짜를 Gemini로 전송합니다.",
+    consentHelp: "동의가 필요한 이유와 전송 내용",
+    consentHelpTitle: "왜 동의가 필요한가요?",
+    consentHelpDescription: "AI가 목표에 맞는 마일스톤과 날짜를 제안하려면 입력한 목표와 일정 가능 범위를 Gemini에 보내야 합니다.",
+    consentHelpItems: [
+      "전송 내용: 목표 설명, 오늘 날짜, 시간대, 추천에 사용할 가능 날짜와 가능 시간",
+      "전송하지 않는 내용: 비밀번호를 포함한 모든 개인 정보, 사용자 앱 설정 값",
+      "동의는 사용자 설정에 저장되며, 언제든 이 체크박스에서 변경할 수 있습니다.",
+    ],
     creating: "제안 만드는 중",
     create: "제안 만들기",
     goalTitle: "목표 제목",
@@ -67,6 +80,17 @@ const labels = {
     draftFailedFallback: "Could not create a schedule suggestion.",
     draftFailed: "Could not create a suggestion. Your input is still here.",
     retryFailed: "Could not regenerate the suggestion. The current draft is kept.",
+    consentRequired: "Gemini transfer consent is required.",
+    consentLabel: "Allow Gemini transfer",
+    consentHint: "MileDay sends your goal text and available dates to Gemini when creating suggestions.",
+    consentHelp: "Why consent is needed and what is sent",
+    consentHelpTitle: "Why is consent needed?",
+    consentHelpDescription: "MileDay needs to send your goal and availability range to Gemini so AI can suggest milestones and dates.",
+    consentHelpItems: [
+      "Sent: goal description, today's date, timezone, candidate dates, and available minutes",
+      "Not sent: password, account deletion details, or local UI settings",
+      "Consent is saved to your user settings and can be changed here anytime.",
+    ],
     creating: "Creating suggestion",
     create: "Create suggestion",
     goalTitle: "Goal title",
@@ -99,9 +123,11 @@ export function AiSchedulePanel({
   today,
   timezone,
   availability,
+  geminiDataConsent,
   isSaving,
   onCreateDraft,
   onSaveDraft,
+  onGeminiDataConsentChange,
   onClose,
   language,
 }: AiSchedulePanelProps) {
@@ -112,12 +138,18 @@ export function AiSchedulePanel({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [isConsentHelpOpen, setIsConsentHelpOpen] = useState(false);
+  const [isConsentSaving, setIsConsentSaving] = useState(false);
 
   const isBusy = step === "loading" || isSaving;
 
   async function requestDraft() {
     setErrorMessage(null);
     setValidationMessage(null);
+    if (!geminiDataConsent) {
+      setValidationMessage(text.consentRequired);
+      return;
+    }
     if (!prompt.trim()) {
       setValidationMessage(text.promptRequired);
       return;
@@ -141,6 +173,18 @@ export function AiSchedulePanel({
   async function handleInputSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await requestDraft();
+  }
+
+  async function handleGeminiDataConsentChange(nextValue: boolean) {
+    setValidationMessage(null);
+    setIsConsentSaving(true);
+    try {
+      await onGeminiDataConsentChange(nextValue);
+    } catch (error) {
+      setValidationMessage(error instanceof Error ? error.message : text.draftFailedFallback);
+    } finally {
+      setIsConsentSaving(false);
+    }
   }
 
   async function handleSaveDraft() {
@@ -252,11 +296,46 @@ export function AiSchedulePanel({
       {step === "input" || step === "loading" || step === "error" ? (
         <form className="ai-input-panel" onSubmit={handleInputSubmit} noValidate>
           <p className="muted-text">{text.description}</p>
+          <div className="ai-consent-box">
+            <label className="toggle-row ai-consent-toggle">
+              <input
+                type="checkbox"
+                aria-label={text.consentLabel}
+                checked={geminiDataConsent}
+                disabled={isBusy || isConsentSaving}
+                onChange={(event) => void handleGeminiDataConsentChange(event.target.checked)}
+              />
+              <span>
+                <strong>{text.consentLabel}</strong>
+                <small>{text.consentHint}</small>
+              </span>
+            </label>
+            <button
+              type="button"
+              className="icon-button compact-icon ai-consent-help-button"
+              aria-label={text.consentHelp}
+              aria-expanded={isConsentHelpOpen}
+              onClick={() => setIsConsentHelpOpen((current) => !current)}
+            >
+              <HelpCircle size={15} aria-hidden="true" />
+            </button>
+          </div>
+          {isConsentHelpOpen ? (
+            <div className="ai-consent-help" role="note">
+              <strong>{text.consentHelpTitle}</strong>
+              <p>{text.consentHelpDescription}</p>
+              <ul>
+                {text.consentHelpItems.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             placeholder={text.defaultPrompt}
-            disabled={isBusy}
+            disabled={isBusy || isConsentSaving}
             rows={7}
           />
           {validationMessage ? <p className="error-text">{validationMessage}</p> : null}
@@ -264,7 +343,7 @@ export function AiSchedulePanel({
             <p className="error-text">{text.draftFailed}</p>
           ) : null}
           <div className="panel-actions">
-            <button type="submit" className="primary-button panel-primary" disabled={isBusy}>
+            <button type="submit" className="primary-button panel-primary" disabled={isBusy || isConsentSaving}>
               <Bot size={16} aria-hidden="true" />
               {step === "loading" ? text.creating : text.create}
             </button>

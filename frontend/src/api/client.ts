@@ -138,6 +138,17 @@ export class MileDayApiClient {
     return this.request<Goal[]>("/goals");
   }
 
+  async deleteAccount(): Promise<void> {
+    try {
+      await this.request<{ message: string }>("/auth/account", {
+        method: "DELETE",
+      });
+    } finally {
+      this.setAccessToken(null);
+      await this.persistAccessToken(null);
+    }
+  }
+
   listGoalsWithMilestones(): Promise<GoalWithMilestones[]> {
     return this.request<GoalWithMilestones[]>("/goals/with-milestones");
   }

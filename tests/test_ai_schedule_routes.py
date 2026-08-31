@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from core.auth import require_current_user_id
 from services.ai_schedule_service import get_ai_schedule_service
+from services.settings_service import get_settings_service
 
 
 class FakeAiScheduleService:
@@ -58,6 +59,15 @@ class FakeAiScheduleService:
         }
 
 
+class FakeSettingsService:
+    def __init__(self, *, gemini_data_consent: bool) -> None:
+        self.gemini_data_consent = gemini_data_consent
+
+    def get_settings(self, *, user_id: str) -> dict:
+        assert user_id == "user-1"
+        return {"gemini_data_consent": self.gemini_data_consent}
+
+
 def override_current_user_id() -> str:
     return "user-1"
 
@@ -80,6 +90,7 @@ def test_ai_schedule_draft_route_returns_service_result(client: TestClient) -> N
     service = FakeAiScheduleService()
     client.app.dependency_overrides[require_current_user_id] = override_current_user_id
     client.app.dependency_overrides[get_ai_schedule_service] = lambda: service
+    client.app.dependency_overrides[get_settings_service] = lambda: FakeSettingsService(gemini_data_consent=True)
     try:
         response = client.post(
             "/ai/schedule/draft",
@@ -101,3 +112,26 @@ def test_ai_schedule_draft_route_returns_service_result(client: TestClient) -> N
     assert body["data"]["create_goal_payload"]["write_policy"] == "user_confirmation_required"
     assert service.calls[0][0] == "user-1"
     assert service.calls[0][1].today == date(2026, 8, 14)
+
+
+def test_ai_schedule_draft_route_requires_gemini_consent(client: TestClient) -> None:
+    service = FakeAiScheduleService()
+    client.app.dependency_overrides[require_current_user_id] = override_current_user_id
+    client.app.dependency_overrides[get_ai_schedule_service] = lambda: service
+    client.app.dependency_overrides[get_settings_service] = lambda: FakeSettingsService(gemini_data_consent=False)
+    try:
+        response = client.post(
+            "/ai/schedule/draft",
+            json={
+                "prompt": "9월 말까지 데이터 분석 과제를 끝내고 싶어.",
+                "today": "2026-08-14",
+                "timezone": "Asia/Seoul",
+                "availability": [{"date": "2026-08-22", "available_minutes": 240}],
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json()["error"]["detail"]["code"] == "GEMINI_DATA_CONSENT_REQUIRED"
+    assert service.calls == []

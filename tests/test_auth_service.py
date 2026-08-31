@@ -4,6 +4,7 @@ import pytest
 
 from exceptions.auth import (
     AuthEmailNotConfirmedError,
+    AuthAccountDeleteFailedError,
     AuthInvalidCredentialsError,
     AuthInvalidTokenError,
     AuthLogoutFailedError,
@@ -35,13 +36,20 @@ class FakeAdminAuthClient:
     def __init__(self) -> None:
         self.sign_out_token = None
         self.sign_out_scope = None
+        self.deleted_user_id = None
         self.sign_out_error: Exception | None = None
+        self.delete_user_error: Exception | None = None
 
     def sign_out(self, jwt: str, scope: str = "global") -> None:
         self.sign_out_token = jwt
         self.sign_out_scope = scope
         if self.sign_out_error:
             raise self.sign_out_error
+
+    def delete_user(self, user_id: str) -> None:
+        self.deleted_user_id = user_id
+        if self.delete_user_error:
+            raise self.delete_user_error
 
 
 class FakeAuthClient:
@@ -230,6 +238,33 @@ def test_logout_maps_admin_sign_out_failures() -> None:
     client.auth.admin.sign_out_error = FakeAuthError("auth unavailable", status=503)
     with pytest.raises(SupabaseUnavailableError):
         service.logout("access-token")
+
+
+def test_delete_account_verifies_token_and_deletes_auth_user() -> None:
+    client = FakeSupabaseClient()
+    service = AuthService(client, supabase_admin_client=client)
+
+    user = service.delete_account("access-token")
+
+    assert user.id == "user-1"
+    assert client.auth.user_token == "access-token"
+    assert client.auth.admin.deleted_user_id == "user-1"
+
+
+def test_delete_account_maps_admin_delete_failures() -> None:
+    client = FakeSupabaseClient()
+    service = AuthService(client, supabase_admin_client=client)
+
+    with pytest.raises(AuthInvalidTokenError):
+        service.delete_account("")
+
+    client.auth.admin.delete_user_error = FakeAuthError("delete failed", status=400)
+    with pytest.raises(AuthAccountDeleteFailedError):
+        service.delete_account("access-token")
+
+    client.auth.admin.delete_user_error = FakeAuthError("auth unavailable", status=503)
+    with pytest.raises(SupabaseUnavailableError):
+        service.delete_account("access-token")
 
 
 def test_get_bearer_token_validates_header() -> None:

@@ -34,6 +34,10 @@ class FakeAuthService:
     def logout(self, access_token: str) -> None:
         assert access_token == "jwt_access_token"
 
+    def delete_account(self, access_token: str) -> AuthUser:
+        assert access_token == "jwt_access_token"
+        return AuthUser(id="user-1", email="user@example.com")
+
 
 def override_auth_service() -> FakeAuthService:
     # FastAPI 의존성 override용 생성 함수
@@ -395,7 +399,8 @@ def test_settings_get_and_patch(client: TestClient) -> None:
         body = get_response.json()
         assert body["success"] is True
         assert body["data"]["calendar_view"] == "month"
-        assert body["data"]["week_starts_on"] == 1
+        assert body["data"]["week_starts_on"] == 0
+        assert body["data"]["gemini_data_consent"] is False
 
         patch_response = client.patch(
             "/settings",
@@ -404,6 +409,7 @@ def test_settings_get_and_patch(client: TestClient) -> None:
                 "holiday_display": "weekend_like",
                 "week_starts_on": 0,
                 "language": "en",
+                "gemini_data_consent": True,
             },
         )
         assert patch_response.status_code == 200
@@ -412,6 +418,7 @@ def test_settings_get_and_patch(client: TestClient) -> None:
         assert patched["data"]["holiday_display"] == "weekend_like"
         assert patched["data"]["week_starts_on"] == 0
         assert patched["data"]["language"] == "en"
+        assert patched["data"]["gemini_data_consent"] is True
     finally:
         client.app.dependency_overrides.clear()
 
@@ -487,6 +494,13 @@ def test_auth_placeholder_routes(client: TestClient) -> None:
     )
     assert current_user.status_code == 200
     assert current_user.json()["data"]["email"] == "user@example.com"
+
+    delete_account = client.delete(
+        "/auth/account",
+        headers={"Authorization": "Bearer jwt_access_token"},
+    )
+    assert delete_account.status_code == 200
+    assert delete_account.json()["success"] is True
 
     client.app.dependency_overrides.clear()
 

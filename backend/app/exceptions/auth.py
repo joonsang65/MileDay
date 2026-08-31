@@ -62,3 +62,13 @@ class AuthLogoutFailedError(MileDayBaseException):
             message="로그아웃 처리에 실패했습니다.",
             detail=detail,
         )
+
+
+class AuthAccountDeleteFailedError(MileDayBaseException):
+    def __init__(self, detail: object | None = None):
+        super().__init__(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_code=ErrorCode.AUTH_ACCOUNT_DELETE_FAILED,
+            message="계정 삭제에 실패했습니다.",
+            detail=detail,
+        )

@@ -80,9 +80,10 @@ create table if not exists public.user_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
   calendar_view text not null default 'month',
   holiday_display text not null default 'normal',
-  week_starts_on integer not null default 1,
+  week_starts_on integer not null default 0,
   language text not null default 'ko',
   timezone text not null default 'Asia/Seoul',
+  gemini_data_consent boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

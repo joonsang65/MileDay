@@ -56,6 +56,12 @@ class LogOutResponse(BaseModel):
     message: str
 
 
+class DeleteAccountResponse(BaseModel):
+    # 계정 삭제 성공 응답 envelope
+    success: bool
+    message: str
+
+
 class CurrentUserData(BaseModel):
     # JWT 검증 결과 기반 현재 사용자 정보
     user_id: str
