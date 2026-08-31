@@ -43,9 +43,9 @@
 
 ### 관련 문서
 
-- [성능 개선 리포트 v1](performance_report._v1.md)
-- [성능 개선 리포트 v2](performance_report._v2.md)
-- [전체 목표 조회 및 완료 처리 최적화](decisions/0021-전체_목표_조회_및_완료_처리_최적화.md)
+- [성능 개선 리포트 v1](../performance/performance_report._v1.md)
+- [성능 개선 리포트 v2](../performance/performance_report._v2.md)
+- [전체 목표 조회 및 완료 처리 최적화](../decisions/0021-전체_목표_조회_및_완료_처리_최적화.md)
 
 ## v0.1.1
 
@@ -73,8 +73,8 @@
 
 - [트러블 슈팅 기록 - 설정 글자 크기 범위 적용 불가 문제](troubleshooting.md#19-설정-글자-크기-범위-적용-불가-문제)
 - [트러블 슈팅 기록 - 목표 및 마일스톤 색상 동기화 불일치 문제](troubleshooting.md#21-목표-및-마일스톤-색상-동기화-불일치-문제)
-- [UI 설정 동기화 및 폰트 크기 정규화 범위 조정](decisions/0016-UI_글자_크기_설정_동기화.md)
-- [메인 레이아웃 전체 스크롤 및 팝업 표시 수정](decisions/0019-메인_레이아웃_전체_스크롤_및_팝업_수정.md)
+- [UI 설정 동기화 및 폰트 크기 정규화 범위 조정](../decisions/0016-UI_글자_크기_설정_동기화.md)
+- [메인 레이아웃 전체 스크롤 및 팝업 표시 수정](../decisions/0019-메인_레이아웃_전체_스크롤_및_팝업_수정.md)
 
 ## v0.1.2
 
@@ -100,8 +100,8 @@
 
 ### 관련 문서
 
-- [물리 화면 대응 크기 조정 및 중복 정의 정리](decisions/0020-물리_화면_대응_크기_조정_및_중복_정리.md)
-- [전체 목표 조회 및 완료 처리 최적화](decisions/0021-전체_목표_조회_및_완료_처리_최적화.md)
+- [물리 화면 대응 크기 조정 및 중복 정의 정리](../decisions/0020-물리_화면_대응_크기_조정_및_중복_정리.md)
+- [전체 목표 조회 및 완료 처리 최적화](../decisions/0021-전체_목표_조회_및_완료_처리_최적화.md)
 - [트러블 슈팅 기록 - 목표 편집 날짜 제한 문제](troubleshooting.md#18-목표-편집-날짜-제한-문제)
 - [트러블 슈팅 기록 - 목표 및 마일스톤 색상 동기화 불일치 문제](troubleshooting.md#21-목표-및-마일스톤-색상-동기화-불일치-문제)
 
@@ -130,8 +130,8 @@
 
 ### 관련 문서
 
-- [전체 목표 조회 및 완료 처리 최적화](decisions/0021-전체_목표_조회_및_완료_처리_최적화.md)
-- [성능 개선 리포트 v2](performance_report._v2.md)
+- [전체 목표 조회 및 완료 처리 최적화](../decisions/0021-전체_목표_조회_및_완료_처리_최적화.md)
+- [성능 개선 리포트 v2](../performance/performance_report._v2.md)
 
 ## v0.1.4
 
@@ -167,28 +167,28 @@ Gemini 전송 동의가 꺼져 있으면 AI 일정 추천 생성이 진행되지
 
 ### 관련 문서
 
-- [물리 화면 대응 크기 조정 및 중복 정의 정리](decisions/0020-물리_화면_대응_크기_조정_및_중복_정리.md)
-- [UI 설정 동기화 및 폰트 크기 정규화 범위 조정](decisions/0016-UI_글자_크기_설정_동기화.md)
-- [사용자 설정 마일스톤](milestones/m6_5_1_user_settings.md)
-- [인증 마일스톤](milestones/m2_authentication.md)
+- [물리 화면 대응 크기 조정 및 중복 정의 정리](../decisions/0020-물리_화면_대응_크기_조정_및_중복_정리.md)
+- [UI 설정 동기화 및 폰트 크기 정규화 범위 조정](../decisions/0016-UI_글자_크기_설정_동기화.md)
+- [사용자 설정 마일스톤](../milestones/m6_5_1_user_settings.md)
+- [인증 마일스톤](../milestones/m2_authentication.md)
 - [API 명세](api_spec.md)
 - [DB 스키마](db_schema.md)
-- [Compact layout 검증 스크립트](../frontend/scripts/verify-compact-layout.mjs)
+- [Compact layout 검증 스크립트](../../../frontend/scripts/verify-compact-layout.mjs)
 
 ## 관련 문서 링크 모음
 
 | 문서 | 내용 |
 |---|---|
 | [트러블 슈팅 기록](troubleshooting.md) | 실제 사용자 피드백, 증상, 원인, 대응 내역 |
-| [성능 개선 리포트 v1](performance_report._v1.md) | 초기 성능 문제, 마일스톤 토글 낙관적 업데이트 필요성 |
-| [성능 개선 리포트 v2](performance_report._v2.md) | 캐시 갱신, 중복 조회 제거, 낙관적 UI 갱신 결과 |
-| [성능 개선 리포트 v3](performance_report._v3.md) | API 5xx 재시도와 성능 검증 |
-| [ADR 0016: UI 설정 동기화 및 폰트 크기 정규화 범위 조정](decisions/0016-UI_글자_크기_설정_동기화.md) | 글자 크기 설정 범위와 IPC 저장값 동기화 |
-| [ADR 0019: 메인 레이아웃 전체 스크롤 및 팝업 표시 수정](decisions/0019-메인_레이아웃_전체_스크롤_및_팝업_수정.md) | 전체 스크롤, sticky 흐름, 팝업 clipping 개선 |
-| [ADR 0020: 물리 화면 대응 크기 조정 및 중복 정의 정리](decisions/0020-물리_화면_대응_크기_조정_및_중복_정리.md) | 노트북 화면 크기별 UI 깨짐 대응과 반응형 크기 정책 |
-| [ADR 0021: 전체 목표 조회 및 완료 처리 최적화](decisions/0021-전체_목표_조회_및_완료_처리_최적화.md) | 전체 목표 통합 조회 API, 완료 처리 RPC, 성능 비교 |
-| [사용자 설정 마일스톤](milestones/m6_5_1_user_settings.md) | 주 시작 요일, 공휴일 표시, 계정 기준 사용자 설정 |
-| [인증 마일스톤](milestones/m2_authentication.md) | 회원가입, 로그인, 로그아웃 등 계정 흐름 |
+| [성능 개선 리포트 v1](../performance/performance_report._v1.md) | 초기 성능 문제, 마일스톤 토글 낙관적 업데이트 필요성 |
+| [성능 개선 리포트 v2](../performance/performance_report._v2.md) | 캐시 갱신, 중복 조회 제거, 낙관적 UI 갱신 결과 |
+| [성능 개선 리포트 v3](../performance/performance_report._v3.md) | API 5xx 재시도와 성능 검증 |
+| [ADR 0016: UI 설정 동기화 및 폰트 크기 정규화 범위 조정](../decisions/0016-UI_글자_크기_설정_동기화.md) | 글자 크기 설정 범위와 IPC 저장값 동기화 |
+| [ADR 0019: 메인 레이아웃 전체 스크롤 및 팝업 표시 수정](../decisions/0019-메인_레이아웃_전체_스크롤_및_팝업_수정.md) | 전체 스크롤, sticky 흐름, 팝업 clipping 개선 |
+| [ADR 0020: 물리 화면 대응 크기 조정 및 중복 정의 정리](../decisions/0020-물리_화면_대응_크기_조정_및_중복_정리.md) | 노트북 화면 크기별 UI 깨짐 대응과 반응형 크기 정책 |
+| [ADR 0021: 전체 목표 조회 및 완료 처리 최적화](../decisions/0021-전체_목표_조회_및_완료_처리_최적화.md) | 전체 목표 통합 조회 API, 완료 처리 RPC, 성능 비교 |
+| [사용자 설정 마일스톤](../milestones/m6_5_1_user_settings.md) | 주 시작 요일, 공휴일 표시, 계정 기준 사용자 설정 |
+| [인증 마일스톤](../milestones/m2_authentication.md) | 회원가입, 로그인, 로그아웃 등 계정 흐름 |
 | [API 명세](api_spec.md) | 사용자 설정, 인증, 일정 추천 API 기준 |
 | [DB 스키마](db_schema.md) | `user_settings`와 계정 기준 데이터 구조 |
-| [Compact layout 검증 스크립트](../frontend/scripts/verify-compact-layout.mjs) | 작은 창 크기와 시스템 글자 `작게/크게` 상태의 주요 패널 overflow 검증 |
+| [Compact layout 검증 스크립트](../../../frontend/scripts/verify-compact-layout.mjs) | 작은 창 크기와 시스템 글자 `작게/크게` 상태의 주요 패널 overflow 검증 |

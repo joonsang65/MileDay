@@ -605,3 +605,11 @@ main/preload 변경 시 Electron이 자동으로 재시작되는 watch 모드도
 ### 반영 위치
 
 - `frontend/src/components/DateDetail.tsx`
+
+## 이후 기록 기준
+
+M7 이후 수정 내역은 개별 troubleshooting 항목으로 계속 늘리기보다
+[user_feedback_changes.md](user_feedback_changes.md)의 사용자 피드백 기반 변경 이력에 이어서 관리한다.
+
+운영 전환, 배포 승인, migration 적용처럼 사용자 피드백과 직접 연결되지 않는 기록은
+필요할 때 [../milestones/m9_release_and_docs.md](../milestones/m9_release_and_docs.md)에 짧게 남긴다.
