@@ -260,7 +260,8 @@ export function GoalListModal({
                     <span className="color-swatch goal-list-color-swatch" style={{ background: goal.color }} aria-hidden="true" />
                   </div>
 
-                  <div
+                  <button
+                    type="button"
                     onClick={() => setExpandedGoalId(isExpanded ? null : goal.id)}
                     className="goal-list-content"
                   >
@@ -282,7 +283,7 @@ export function GoalListModal({
                         )}
                       </span>
                     </div>
-                  </div>
+                  </button>
 
                   <button
                     type="button"

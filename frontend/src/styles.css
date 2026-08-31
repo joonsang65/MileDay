@@ -24,6 +24,25 @@
   --danger: #B75D57;
   --app-font-size: 10px;
   --goal-font-size: 10px;
+  --settings-title-font-size: clamp(12px, 0.78vw, 15px);
+  --settings-label-font-size: clamp(10px, 0.63vw, 12px);
+  --settings-control-font-size: clamp(10px, 0.63vw, 12px);
+  --settings-toggle-title-font-size: clamp(10px, 0.68vw, 13px);
+  --settings-helper-font-size: clamp(8px, 0.52vw, 10px);
+  --settings-button-font-size: clamp(11px, 0.73vw, 14px);
+  --settings-control-height: clamp(30px, 1.88vw, 36px);
+  --system-panel-heading-font-size: 16px;
+  --system-panel-label-font-size: clamp(10px, 0.68vw, 13px);
+  --system-panel-control-font-size: clamp(10px, 0.68vw, 13px);
+  --system-panel-small-font-size: clamp(9px, 0.57vw, 11px);
+  --system-panel-button-font-size: 12px;
+  --system-panel-goal-title-font-size: clamp(11px, 0.78vw, 15px);
+  --system-panel-goal-meta-font-size: clamp(9px, 0.57vw, 11px);
+  --system-panel-row-font-size: 10px;
+  --system-panel-section-font-size: 14px;
+  --system-panel-input-height: clamp(30px, 1.88vw, 36px);
+  --system-panel-button-height: clamp(32px, 1.72vw, 33px);
+  --floating-panel-title-font-size: 16px;
   --sticky-header-safe-area: clamp(44px, 2.71vw, 52px);
   color: var(--text-primary);
   background: var(--bg-app);
@@ -41,6 +60,28 @@
   text-rendering: optimizeLegibility;
 }
 
+:root[data-settings-panel-size="large"] {
+  --settings-title-font-size: clamp(14px, 0.94vw, 18px);
+  --settings-label-font-size: clamp(12px, 0.78vw, 14px);
+  --settings-control-font-size: clamp(12px, 0.78vw, 14px);
+  --settings-toggle-title-font-size: clamp(12px, 0.83vw, 16px);
+  --settings-helper-font-size: clamp(10px, 0.63vw, 12px);
+  --settings-button-font-size: clamp(13px, 0.89vw, 16px);
+  --settings-control-height: clamp(34px, 2.19vw, 42px);
+  --system-panel-heading-font-size: 20px;
+  --system-panel-label-font-size: clamp(13px, 0.89vw, 16px);
+  --system-panel-control-font-size: clamp(13px, 0.89vw, 16px);
+  --system-panel-small-font-size: clamp(11px, 0.73vw, 13px);
+  --system-panel-button-font-size: 15px;
+  --system-panel-goal-title-font-size: clamp(14px, 0.99vw, 18px);
+  --system-panel-goal-meta-font-size: clamp(11px, 0.73vw, 13px);
+  --system-panel-row-font-size: 13px;
+  --system-panel-section-font-size: 17px;
+  --system-panel-input-height: clamp(35px, 2.29vw, 44px);
+  --system-panel-button-height: clamp(36px, 2.19vw, 42px);
+  --floating-panel-title-font-size: 20px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -55,8 +96,8 @@
 
 body {
   margin: 0;
-  min-width: 520px;
-  min-height: 380px;
+  min-width: 420px;
+  min-height: 300px;
   font-size: var(--app-font-size);
   background: var(--bg-app);
   overflow-x: hidden;
@@ -1343,7 +1384,7 @@ button:disabled {
   height: clamp(26px, 1.77vw, 34px);
   padding: 0 clamp(6px, 0.42vw, 8px);
   border-radius: 7px;
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
   border: 0;
   background: transparent;
@@ -1404,7 +1445,7 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   color: rgba(63, 69, 59, 0.68);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 800;
   text-align: center;
 }
@@ -1429,7 +1470,12 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: clamp(8px, 0.63vw, 12px);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
   cursor: pointer;
+  text-align: left;
 }
 
 .goal-list-title-row {
@@ -1442,7 +1488,7 @@ button:disabled {
 .goal-list-title {
   overflow: hidden;
   color: var(--text-primary);
-  font-size: clamp(11px, 0.78vw, 15px);
+  font-size: var(--system-panel-goal-title-font-size);
   font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1455,7 +1501,7 @@ button:disabled {
   justify-content: flex-end;
   gap: clamp(5px, 0.42vw, 8px);
   color: rgba(63, 69, 59, 0.68);
-  font-size: clamp(9px, 0.57vw, 11px);
+  font-size: var(--system-panel-goal-meta-font-size);
   font-weight: 750;
   white-space: nowrap;
 }
@@ -1496,7 +1542,7 @@ button:disabled {
 
 .goal-list-milestone-title {
   overflow: hidden;
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1508,7 +1554,7 @@ button:disabled {
   align-items: center;
   gap: clamp(5px, 0.42vw, 8px);
   color: rgba(63, 69, 59, 0.68);
-  font-size: clamp(9px, 0.57vw, 11px);
+  font-size: var(--system-panel-goal-meta-font-size);
   font-weight: 750;
   white-space: nowrap;
 }
@@ -1538,6 +1584,14 @@ button:disabled {
   color: var(--text-secondary);
   font-size: 10px;
   font-weight: 850;
+}
+
+.weekday-row span.sunday {
+  color: var(--danger);
+}
+
+.weekday-row span.saturday {
+  color: #1478f2;
 }
 
 .calendar-grid {
@@ -1612,8 +1666,13 @@ button:disabled {
   color: #98a2b3;
 }
 
+.day-cell.sunday .day-number,
 .day-cell.holiday .day-number {
   color: var(--danger);
+}
+
+.day-cell.saturday:not(.holiday) .day-number {
+  color: #1478f2;
 }
 
 .day-number {
@@ -1754,7 +1813,7 @@ button:disabled {
 
 .settings-section-title h3 {
   margin: 0;
-  font-size: clamp(12px, 0.78vw, 15px);
+  font-size: var(--settings-title-font-size);
   font-weight: 850;
   line-height: 1.2;
 }
@@ -1771,7 +1830,7 @@ button:disabled {
   align-items: center;
   gap: clamp(8px, 0.63vw, 12px);
   color: #191917;
-  font-size: clamp(10px, 0.63vw, 12px);
+  font-size: var(--settings-label-font-size);
   font-weight: 800;
   line-height: 1.2;
 }
@@ -1782,13 +1841,13 @@ button:disabled {
 
 .settings-form select {
   width: 100%;
-  height: clamp(30px, 1.88vw, 36px);
+  height: var(--settings-control-height);
   border: 1px solid rgba(24, 24, 22, 0.16);
   border-radius: 8px;
   padding: 0 clamp(9px, 0.63vw, 12px);
   color: #191917;
   background: rgba(255, 255, 255, 0.64);
-  font-size: clamp(10px, 0.63vw, 12px);
+  font-size: var(--settings-control-font-size);
   font-weight: 750;
 }
 
@@ -1859,7 +1918,7 @@ button:disabled {
 .settings-range-value {
   width: clamp(36px, 2.29vw, 44px);
   color: #191917;
-  font-size: clamp(10px, 0.63vw, 12px);
+  font-size: var(--settings-control-font-size);
   font-weight: 800;
   text-align: right;
 }
@@ -1927,18 +1986,19 @@ button:disabled {
 
 .settings-toggle-row strong {
   color: #191917;
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--settings-toggle-title-font-size);
   line-height: 1.25;
 }
 
 .settings-toggle-row small {
   color: rgba(25, 25, 23, 0.68);
-  font-size: clamp(8px, 0.52vw, 10px);
+  font-size: var(--settings-helper-font-size);
   font-weight: 650;
   line-height: 1.4;
 }
 
-.settings-logout {
+.settings-logout,
+.settings-delete-account {
   width: 100%;
   margin-top: clamp(7px, 0.52vw, 10px);
 }
@@ -1955,7 +2015,7 @@ button:disabled {
   border-radius: 8px;
   color: var(--text-primary);
   background: rgba(239, 236, 226, 0.68);
-  font-size: clamp(11px, 0.73vw, 14px);
+  font-size: var(--settings-button-font-size);
   font-weight: 850;
   text-decoration: none;
 }
@@ -1965,15 +2025,17 @@ button:disabled {
 }
 
 .settings-panel .primary-button.compact,
-.settings-logout {
+.settings-logout,
+.settings-delete-account {
   height: clamp(32px, 1.98vw, 38px);
   border-radius: 8px;
-  font-size: clamp(11px, 0.73vw, 14px);
+  font-size: var(--settings-button-font-size);
   font-weight: 850;
 }
 
 .settings-panel .primary-button.compact svg,
 .settings-logout svg,
+.settings-delete-account svg,
 .survey-button svg {
   width: clamp(13px, 0.83vw, 16px);
   height: clamp(13px, 0.83vw, 16px);
@@ -2181,13 +2243,13 @@ button:disabled {
 
 .panel-heading h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--system-panel-heading-font-size);
   font-weight: 800;
 }
 
 .panel-heading span {
   color: #667085;
-  font-size: 12px;
+  font-size: var(--system-panel-small-font-size);
   font-weight: 800;
 }
 
@@ -2212,7 +2274,7 @@ button:disabled {
 
 .day-view-heading .day-view-date {
   color: var(--text-secondary);
-  font-size: clamp(10px, 0.63vw, 12px);
+  font-size: var(--system-panel-small-font-size);
   font-weight: 850;
   white-space: nowrap;
 }
@@ -2229,7 +2291,7 @@ button:disabled {
   border-radius: 8px;
   background: var(--selected-date-bg);
   color: var(--text-primary);
-  font-size: clamp(9px, 0.57vw, 11px);
+  font-size: var(--system-panel-small-font-size);
   font-weight: 800;
   white-space: nowrap;
 }
@@ -2271,13 +2333,13 @@ button:disabled {
 
 .day-view-section-title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--system-panel-section-font-size);
   font-weight: 850;
 }
 
 .date-detail-floating-panel .floating-panel-subtitle {
   padding: 3px clamp(8px, 0.63vw, 12px);
-  font-size: clamp(12px, 0.78vw, 15px);
+  font-size: var(--system-panel-label-font-size);
 }
 
 /* DateDetail과 TodayList row */
@@ -2288,7 +2350,7 @@ button:disabled {
 .section-block h3 {
   margin: 0 0 clamp(4px, 0.31vw, 6px);
   color: #344054;
-  font-size: 12px;
+  font-size: var(--system-panel-label-font-size);
   font-weight: 800;
 }
 
@@ -2474,7 +2536,7 @@ button:disabled {
   padding: clamp(5px, 0.31vw, 6px);
   border: 1px solid #e0e6ef;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: var(--system-panel-row-font-size);
   text-align: left;
   background: #fbfcfd;
   box-sizing: border-box;
@@ -2565,6 +2627,18 @@ button:disabled {
   line-height: 1.3;
 }
 
+:root[data-settings-panel-size="large"] .date-detail-floating-panel .today-list strong,
+:root[data-settings-panel-size="large"] .date-detail-floating-panel .milestone-row strong,
+:root[data-settings-panel-size="large"] .date-detail-floating-panel .goal-row strong {
+  font-size: var(--system-panel-goal-title-font-size);
+}
+
+:root[data-settings-panel-size="large"] .date-detail-floating-panel .today-list small,
+:root[data-settings-panel-size="large"] .date-detail-floating-panel .milestone-row small,
+:root[data-settings-panel-size="large"] .date-detail-floating-panel .goal-row small {
+  font-size: var(--system-panel-goal-meta-font-size);
+}
+
 /* DateDetail inline editors */
 .inline-editor {
   display: grid;
@@ -2584,7 +2658,7 @@ button:disabled {
   padding-bottom: clamp(4px, 0.31vw, 6px);
   border-bottom: 1px solid rgba(24, 24, 22, 0.12);
   color: var(--text-primary);
-  font-size: clamp(12px, 0.73vw, 14px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
 }
 
@@ -2594,7 +2668,7 @@ button:disabled {
   align-items: center;
   gap: clamp(7px, 0.52vw, 10px);
   color: var(--text-primary);
-  font-size: clamp(11px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
   line-height: 1.2;
 }
@@ -2606,7 +2680,7 @@ button:disabled {
 
 .inline-editor label.secondary-field input {
   height: clamp(28px, 1.67vw, 32px);
-  font-size: clamp(10px, 0.63vw, 12px);
+  font-size: var(--system-panel-small-font-size);
   background: rgba(255, 253, 247, 0.72);
   border-color: rgba(24, 24, 22, 0.12);
   color: #667085;
@@ -2924,9 +2998,21 @@ button:disabled {
   overflow: hidden;
 }
 
+.floating-panel.settings-floating-panel {
+  width: min(clamp(360px, 32vw, 460px), calc(100vw - 16px));
+}
+
+:root[data-settings-panel-size="large"] .floating-panel.settings-floating-panel {
+  width: min(clamp(420px, 38vw, 540px), calc(100vw - 16px));
+}
+
 .floating-panel.goal-list-modal-panel {
   width: min(clamp(460px, 42vw, 780px), calc(100vw - 24px));
   min-height: 200px;
+}
+
+:root[data-settings-panel-size="large"] .floating-panel.goal-list-modal-panel {
+  width: min(clamp(520px, 48vw, 860px), calc(100vw - 24px));
 }
 
 .floating-panel.plain {
@@ -2960,7 +3046,7 @@ button:disabled {
 
 .floating-panel-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--floating-panel-title-font-size);
   font-weight: 850;
   letter-spacing: 0;
 }
@@ -2993,7 +3079,7 @@ button:disabled {
 }
 
 .floating-panel.schedule-create-panel .floating-panel-header h2 {
-  font-size: 16px;
+  font-size: var(--floating-panel-title-font-size);
 }
 
 .floating-panel-body {
@@ -3023,8 +3109,8 @@ button:disabled {
 .panel-actions .panel-button {
   width: 100%;
   min-width: 0;
-  height: clamp(32px, 1.72vw, 33px);
-  font-size: 12px;
+  height: var(--system-panel-button-height);
+  font-size: var(--system-panel-button-font-size);
 }
 
 .panel-actions .panel-primary svg,
@@ -3062,8 +3148,77 @@ button:disabled {
   display: grid;
   gap: clamp(5px, 0.31vw, 6px);
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: var(--system-panel-label-font-size);
   font-weight: 800;
+}
+
+.ai-consent-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: start;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.78);
+}
+
+.ai-input-panel .ai-consent-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--system-panel-label-font-size);
+}
+
+.ai-consent-toggle input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.ai-consent-toggle span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ai-consent-toggle small {
+  color: var(--text-muted);
+  font-size: var(--system-panel-small-font-size);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ai-consent-help-button {
+  justify-self: end;
+}
+
+.ai-consent-help {
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px;
+  border: 1px solid rgba(127, 146, 120, 0.34);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: rgba(240, 246, 236, 0.82);
+  font-size: var(--system-panel-small-font-size);
+  line-height: 1.45;
+}
+
+.ai-consent-help strong {
+  color: var(--text-primary);
+  font-size: var(--system-panel-label-font-size);
+}
+
+.ai-consent-help p,
+.ai-consent-help ul {
+  margin: 0;
+}
+
+.ai-consent-help ul {
+  display: grid;
+  gap: 4px;
+  padding-left: 16px;
 }
 
 .panel-form input,
@@ -3080,21 +3235,21 @@ button:disabled {
 .panel-form input,
 .draft-title-input,
 .draft-date-input {
-  height: clamp(32px, 1.72vw, 33px);
+  height: var(--system-panel-button-height);
   padding: 0 clamp(8px, 0.52vw, 10px);
-  font-size: 12px;
+  font-size: var(--system-panel-control-font-size);
 }
 
 .ai-input-panel textarea {
   min-height: clamp(112px, 6.77vw, 130px);
   resize: vertical;
   padding: clamp(9px, 0.57vw, 11px);
-  font-size: 14px;
+  font-size: var(--system-panel-control-font-size);
   line-height: 1.5;
 }
 
 .ai-input-panel .muted-text {
-  font-size: 11px;
+  font-size: var(--system-panel-small-font-size);
 }
 
 .color-field {
@@ -3108,7 +3263,7 @@ button:disabled {
 .color-field legend {
   margin-bottom: 3px;
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: var(--system-panel-label-font-size);
   font-weight: 800;
 }
 
@@ -3142,7 +3297,7 @@ button:disabled {
 .manual-milestone-field legend {
   margin-bottom: 3px;
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: var(--system-panel-label-font-size);
   font-weight: 800;
 }
 
@@ -3200,7 +3355,7 @@ button:disabled {
   color: var(--text-secondary);
   background: transparent;
   box-shadow: none;
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
 }
 
@@ -3216,17 +3371,17 @@ button:disabled {
   grid-template-columns: minmax(72px, 0.38fr) minmax(0, 1fr);
   align-items: center;
   gap: clamp(8px, 0.63vw, 12px);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
 }
 
 .panel-form > label input,
 .panel-form > label select {
-  height: clamp(30px, 1.88vw, 36px);
+  height: var(--system-panel-input-height);
   border: 1px solid rgba(24, 24, 22, 0.14);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.58);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-control-font-size);
   font-weight: 750;
 }
 
@@ -3251,17 +3406,17 @@ button:disabled {
   align-items: center;
   gap: clamp(6px, 0.52vw, 10px);
   color: var(--text-primary);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
 }
 
 .manual-goal-fields input {
   min-width: 0;
-  height: clamp(30px, 1.88vw, 36px);
+  height: var(--system-panel-input-height);
   border: 1px solid rgba(24, 24, 22, 0.14);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.58);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-control-font-size);
   font-weight: 750;
 }
 
@@ -3275,7 +3430,7 @@ button:disabled {
 .panel-form .color-field legend,
 .panel-form .manual-milestone-field legend {
   color: var(--text-primary);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
 }
 
@@ -3326,16 +3481,16 @@ button:disabled {
 .panel-form .manual-milestone-list label {
   gap: 3px;
   color: var(--text-secondary);
-  font-size: clamp(8px, 0.52vw, 10px);
+  font-size: var(--system-panel-small-font-size);
   font-weight: 800;
 }
 
 .panel-form .manual-milestone-list input {
-  height: clamp(28px, 1.77vw, 34px);
+  height: var(--system-panel-input-height);
   border: 1px solid rgba(24, 24, 22, 0.14);
   border-radius: 8px;
   background: rgba(255, 253, 247, 0.72);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-control-font-size);
 }
 
 .panel-form .manual-milestone-list .danger-icon {
@@ -3352,7 +3507,7 @@ button:disabled {
   border-radius: 8px;
   color: var(--text-primary);
   background: rgba(233, 230, 216, 0.62);
-  font-size: clamp(10px, 0.68vw, 13px);
+  font-size: var(--system-panel-label-font-size);
   font-weight: 850;
 }
 
@@ -3367,7 +3522,7 @@ button:disabled {
   border-radius: 999px;
   color: var(--text-secondary);
   background: var(--bg-surface);
-  font-size: 11px;
+  font-size: var(--system-panel-small-font-size);
   font-weight: 800;
 }
 
@@ -3388,7 +3543,7 @@ button:disabled {
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: #fffdfb;
-  font-size: 12px;
+  font-size: var(--system-panel-row-font-size);
 }
 
 .drag-handle {
@@ -3433,6 +3588,106 @@ button:disabled {
   .auth-credit {
     position: static;
     transform: none;
+  }
+}
+
+:root[data-settings-panel-size="large"] .floating-panel.plain.schedule-create-panel {
+  width: min(clamp(500px, 42vw, 740px), calc(100vw - 24px));
+}
+
+@media (max-width: 460px), (max-height: 330px) {
+  :root {
+    --sticky-header-safe-area: 40px;
+  }
+
+  .app-shell {
+    padding: 6px;
+  }
+
+  .app-header {
+    min-height: 30px;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .app-header h1 {
+    font-size: 15px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .segmented {
+    height: 25px;
+    padding: 2px;
+  }
+
+  .segmented button {
+    min-width: 34px;
+    height: 20px;
+  }
+
+  .icon-button {
+    width: 25px;
+    height: 25px;
+  }
+
+  .add-button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .weekday-row {
+    min-height: 18px;
+  }
+
+  .weekday-row span {
+    padding: 0 4px;
+    font-size: 9px;
+  }
+
+  .day-cell {
+    grid-template-rows: auto 1fr auto;
+    padding: 2px;
+  }
+
+  .day-number {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+  }
+
+  .holiday-name,
+  .event-list {
+    display: none;
+  }
+
+  .dot-row {
+    top: 8px;
+    left: 22px;
+    max-width: calc(100% - 25px);
+    gap: 2px;
+  }
+
+  .dot {
+    width: 5px;
+    height: 5px;
+  }
+
+  .app-credit {
+    gap: 1px;
+    margin-top: 1px;
+    padding-top: 1px;
+    font-size: 8px;
+  }
+
+  .floating-layer {
+    padding: 6px;
+  }
+
+  .floating-panel-body {
+    padding: 8px;
   }
 }
 

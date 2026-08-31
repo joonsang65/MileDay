@@ -113,4 +113,24 @@ describe("CalendarBoard", () => {
     expect(screen.queryByText("숨김 휴일")).not.toBeInTheDocument();
     expect(screen.queryByText("제출")).not.toBeInTheDocument();
   });
+
+  it("marks saturday blue and keeps sunday separate from holidays", () => {
+    render(
+      <CalendarBoard
+        mode="week"
+        visibleDate="2026-07-11"
+        selectedDate="2026-07-11"
+        weekStartsOn={0}
+        holidayDisplay="hidden"
+        onSelectDate={vi.fn()}
+        days={[]}
+      />,
+    );
+
+    expect(screen.getByText("일")).toHaveClass("sunday");
+    expect(screen.getByText("토")).toHaveClass("saturday");
+    expect(screen.getByRole("button", { name: "11" })).toHaveClass("saturday");
+    expect(screen.getByRole("button", { name: "12" })).toHaveClass("sunday");
+    expect(screen.getByRole("button", { name: "11" })).not.toHaveClass("holiday");
+  });
 });

@@ -9,8 +9,8 @@ describe("createMainWindowOptions", () => {
     expect(options).toMatchObject({
       width: 612,
       height: 422,
-      minWidth: 520,
-      minHeight: 380,
+      minWidth: 420,
+      minHeight: 300,
       maxWidth: 980,
       maxHeight: 760,
       frame: false,
@@ -33,15 +33,15 @@ describe("createMainWindowOptions", () => {
     const options = createMainWindowOptions("C:/app/out/main", {
       x: 120,
       y: 80,
-      width: 520,
-      height: 380,
+      width: 420,
+      height: 300,
     });
 
     expect(options).toMatchObject({
       x: 120,
       y: 80,
-      width: 520,
-      height: 380,
+      width: 420,
+      height: 300,
     });
   });
 

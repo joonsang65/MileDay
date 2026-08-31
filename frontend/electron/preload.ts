@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld("mileday", {
       ipcRenderer.invoke("ui-settings:set-resize-enabled", resizeEnabled),
     setOpacity: (opacity: number) =>
       ipcRenderer.invoke("ui-settings:set-opacity", opacity),
+    setSettingsPanelSize: (settingsPanelSize: "small" | "large") =>
+      ipcRenderer.invoke("ui-settings:set-settings-panel-size", settingsPanelSize),
   },
   windowResize: {
     start: (payload: { direction: string; screenX: number; screenY: number }) =>

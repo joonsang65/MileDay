@@ -1,6 +1,7 @@
 export type LocalUiSettings = {
   baseFontSize: number;
   goalFontSize: number;
+  settingsPanelSize: "small" | "large";
   resizeEnabled: boolean;
   theme: "system";
   fontFamily: "system";
@@ -14,6 +15,7 @@ export type LocalUiFontSizePayload = Pick<LocalUiSettings, "baseFontSize" | "goa
 export const DEFAULT_LOCAL_UI_SETTINGS: LocalUiSettings = {
   baseFontSize: 12,
   goalFontSize: 13,
+  settingsPanelSize: "small",
   resizeEnabled: false,
   theme: "system",
   fontFamily: "system",

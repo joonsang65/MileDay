@@ -2,8 +2,8 @@ import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
 
 export const WINDOW_SIZE_LIMITS = {
-  minWidth: 520,
-  minHeight: 380,
+  minWidth: 420,
+  minHeight: 300,
   maxWidth: 980,
   maxHeight: 760,
 } as const;

@@ -124,9 +124,14 @@ export function CalendarBoard({
   return (
     <section className="calendar-surface" aria-label={language === "en" ? "Calendar" : "캘린더"}>
       <div className="weekday-row">
-        {weekdayLabels.map((label) => (
-          <span key={label}>{label}</span>
-        ))}
+        {weekdayLabels.map((label, index) => {
+          const weekday = (weekStartsOn + index) % 7;
+          return (
+            <span key={label} className={weekday === 0 ? "sunday" : weekday === 6 ? "saturday" : undefined}>
+              {label}
+            </span>
+          );
+        })}
       </div>
       <div className={mode === "month" ? "calendar-grid month" : "calendar-grid week"}>
         {cells.map((cellDate) => {
@@ -134,7 +139,8 @@ export function CalendarBoard({
           const day = dayMap.get(dateKey);
           const isSelected = selectedDate === dateKey;
           const isMuted = mode === "month" && !isSameMonth(cellDate, visible);
-          const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
+          const isSunday = cellDate.getDay() === 0;
+          const isSaturday = cellDate.getDay() === 6;
           const shouldShowHoliday = holidayDisplay === "normal" && day?.is_holiday;
           const shouldMarkHoliday =
             shouldShowHoliday || (holidayDisplay === "weekend_like" && day?.is_holiday);
@@ -150,7 +156,9 @@ export function CalendarBoard({
                 day?.is_today ? "today" : "",
                 isSelected ? "selected" : "",
                 isMuted ? "muted" : "",
-                isWeekend || shouldMarkHoliday ? "holiday" : "",
+                isSunday ? "sunday" : "",
+                isSaturday ? "saturday" : "",
+                shouldMarkHoliday ? "holiday" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}

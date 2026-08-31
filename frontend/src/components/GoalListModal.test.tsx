@@ -58,6 +58,7 @@ function renderGoalList(overrides = {}) {
 
 describe("GoalListModal", () => {
   beforeEach(() => {
+    vi.mocked(apiClient.listGoalsWithMilestones).mockReset();
     vi.mocked(apiClient.listGoalsWithMilestones).mockResolvedValue([
       { ...goal, milestones: [milestone] },
     ]);

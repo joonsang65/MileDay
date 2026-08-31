@@ -22,6 +22,7 @@ declare global {
         setFontSizes: (payload: LocalUiFontSizePayload) => Promise<LocalUiSettings>;
         setResizeEnabled: (resizeEnabled: boolean) => Promise<LocalUiSettings>;
         setOpacity: (opacity: number) => Promise<LocalUiSettings>;
+        setSettingsPanelSize: (settingsPanelSize: LocalUiSettings["settingsPanelSize"]) => Promise<LocalUiSettings>;
       };
       windowResize?: {
         start: (payload: { direction: ResizeDirection; screenX: number; screenY: number }) => Promise<boolean>;

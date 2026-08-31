@@ -69,6 +69,7 @@ function readUiSettings(): StoredLocalUiSettings {
     return {
       baseFontSize: normalizeFontSize(parsed.baseFontSize, DEFAULT_LOCAL_UI_SETTINGS.baseFontSize),
       goalFontSize: normalizeFontSize(parsed.goalFontSize, DEFAULT_LOCAL_UI_SETTINGS.goalFontSize),
+      settingsPanelSize: normalizeSettingsPanelSize(parsed.settingsPanelSize),
       resizeEnabled: Boolean(parsed.resizeEnabled),
       theme: DEFAULT_LOCAL_UI_SETTINGS.theme,
       fontFamily: DEFAULT_LOCAL_UI_SETTINGS.fontFamily,
@@ -84,6 +85,7 @@ function writeUiSettings(settings: StoredLocalUiSettings): StoredLocalUiSettings
   const normalized = {
     baseFontSize: normalizeFontSize(settings.baseFontSize, DEFAULT_LOCAL_UI_SETTINGS.baseFontSize),
     goalFontSize: normalizeFontSize(settings.goalFontSize, DEFAULT_LOCAL_UI_SETTINGS.goalFontSize),
+    settingsPanelSize: normalizeSettingsPanelSize(settings.settingsPanelSize),
     resizeEnabled: settings.resizeEnabled,
     theme: DEFAULT_LOCAL_UI_SETTINGS.theme,
     fontFamily: DEFAULT_LOCAL_UI_SETTINGS.fontFamily,
@@ -143,6 +145,10 @@ function normalizeFontSize(value: unknown, fallback: number): number {
     return fallback;
   }
   return Math.min(25, Math.max(1, Math.round(parsed)));
+}
+
+function normalizeSettingsPanelSize(value: unknown): LocalUiSettings["settingsPanelSize"] {
+  return value === "large" ? "large" : DEFAULT_LOCAL_UI_SETTINGS.settingsPanelSize;
 }
 
 function normalizeOpacity(value: unknown): number {
@@ -369,6 +375,9 @@ function registerUiSettingsHandlers(): void {
     mainWindow?.setOpacity(normalizedOpacity);
     return updateUiSettings({ opacity: normalizedOpacity });
   });
+  ipcMain.handle("ui-settings:set-settings-panel-size", (_event, settingsPanelSize: unknown) =>
+    updateUiSettings({ settingsPanelSize: normalizeSettingsPanelSize(settingsPanelSize) }),
+  );
 
   ipcMain.handle("window-resize:start", (_event, payload: { direction: unknown; screenX: number; screenY: number }) => {
     if (!mainWindow || !isResizeDirection(payload.direction)) {
