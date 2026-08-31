@@ -183,46 +183,26 @@ mileday-vx.x.x.exe
 
 ## 🏗️ Architecture
 
-```mermaid
-flowchart TB
-    U[User] --> D[Windows Desktop App]
+<p align="center">
+  <img src="docs/images/full-Architecture.png" width="60%" />
+</p>
 
-    subgraph Client["Electron + React"]
-        D --> UI[Calendar / Goal / Milestone UI]
-        UI --> ST[Local State & Settings]
-    end
+MileDay는 Electron 기반 데스크톱 앱과 FastAPI 백엔드를 분리하고,  
+인증과 데이터 처리는 Supabase를 통해 관리합니다.
 
-    UI -->|REST API| API[FastAPI]
+AI 일정 생성도 백엔드 내부 기능으로 분리해  
+일반 일정 관리 기능과 같은 API 흐름 안에서 동작하도록 구성했습니다.
 
-    subgraph Server["Backend"]
-        API --> AUTH[Authentication]
-        API --> LOGIC[Business Logic]
-        LOGIC --> AI[AI Schedule]
-    end
+### AI Schedule Flow
 
-    AUTH --> SB[(Supabase Auth)]
-    LOGIC --> DB[(Supabase PostgreSQL)]
-    AI --> GM[Gemini API]
+<p align="center">
+  <img src="docs/images/simple-Architecture.png" width="30%" />
+</p>
 
-```
+AI는 사용자의 요청을 바탕으로 목표와 마일스톤 초안을 생성합니다.
 
-MileDay는 프론트엔드가 Supabase에 직접 접근하지 않고,
-FastAPI를 통해 인증·권한 검증·비즈니스 로직을 처리하도록 구성했습니다.
-
-AI 기능 역시 Gemini 응답을 바로 DB에 저장하지 않습니다.
-
-```mermaid
-flowchart LR
-    U[사용자 자연어 요청] --> A[AI 일정 생성]
-    A --> G[Gemini API]
-    G --> D[Goal / Milestone Draft]
-    D --> V[일정 검증]
-    V --> C[사용자 확인 및 수정]
-    C --> S[일정 저장]
-
-```
-
-즉, AI는 일정 초안을 만들고, 애플리케이션 코드는 검증과 실제 저장을 책임지는 구조​입니다.
+생성된 결과는 바로 DB에 저장하지 않고,  
+일정 검증과 사용자 확인을 거친 뒤 실제 일정에 반영합니다.
 
 ---
 
