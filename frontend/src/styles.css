@@ -1591,7 +1591,7 @@ button:disabled {
 }
 
 .weekday-row span.saturday {
-  color: #1478f2;
+  color: #5586c7;
 }
 
 .calendar-grid {
@@ -1672,7 +1672,7 @@ button:disabled {
 }
 
 .day-cell.saturday:not(.holiday) .day-number {
-  color: #1478f2;
+  color: #5586c7;
 }
 
 .day-number {
