@@ -23,3 +23,16 @@ M8은 MVP 이후 기능 고도화 범위다. 현재는 AI 일정 초안 생성�
 - AI 결과는 DB에 직접 반영되지 않는다.
 - 저장은 기존 Goal/Milestone API를 통해 사용자 확인 후 수행한다.
 - 실패/경고 코드는 backend validation 결과를 기준으로 UI에 표시한다.
+
+## 재평가 기준
+
+최종 기능 기준 모델 평가는 [../../ai.md](../../ai.md)의 평가 기준을 따르고, SLM/API 재평가 결과는 [../decisions/0022-최종_AI_초안_모델_재평가.md](../decisions/0022-최종_AI_초안_모델_재평가.md)에 기록한다.
+
+| 지표 | 목적 |
+|---|---|
+| Draft validity | 저장 가능한 초안 비율 확인 |
+| Constraint pass | 날짜, 마감일, availability 제약 준수 확인 |
+| Preference adherence | 계획 강도와 선호 요일 반영 확인 |
+| Avg edit count | 사용자 수정 비용 확인 |
+| Latency | 실제 사용 지연 확인 |
+| Cost | API/로컬 실행 비용 비교 |

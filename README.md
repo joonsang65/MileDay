@@ -40,6 +40,29 @@
 
 ---
 
+## 🧠 AI Engineering Highlights
+
+MileDay의 AI 기능은 LLM을 일정 저장 주체로 쓰지 않고, **편집 가능한 일정 초안 생성기**로 제한했습니다. 날짜 제약, availability, 중복 검증, 저장 payload, DB write는 deterministic application logic이 담당합니다.
+
+| 설계 포인트 | 내용 |
+|---|---|
+| 모델 평가 | Local SLM과 Gemini Flash Lite를 같은 제품 태스크로 비교 |
+| Structured Output | Gemini response schema와 backend parser/validator로 출력 계약 고정 |
+| Failure taxonomy | JSON/schema, 날짜 제약, availability, 선호 불일치, 과분해, 제목 품질 실패 분류 |
+| 책임 경계 | LLM은 의도 해석과 초안 생성, Application은 검증과 저장 담당 |
+| Trade-off | 품질, 사용자 수정 횟수, latency, 비용을 함께 비교 |
+
+1차 재평가 결과, `granite4.1:3b`는 저장 가능한 초안을 일부 만들었지만 한국어 제목 품질과 사용자 수정 비용에서 불리했습니다. 현재 기본 모델은 `gemini-3.5-flash-lite`를 유지합니다.
+
+| Model | Validity | Constraint | Preference | Avg edit | Latency |
+|---|---:|---:|---:|---:|---:|
+| Local SLM `granite4.1:3b` | 8/10 | 8/10 | 7/10 | 4.7 | 4.183s |
+| Gemini Flash Lite | 10/10 | 10/10 | 10/10 | 0.2 | 2.598s |
+
+자세한 기준과 근거는 [`docs/ai.md`](docs/ai.md), [`ADR 0022`](docs/archive/decisions/0022-최종_AI_초안_모델_재평가.md), [`ADR 0023`](docs/archive/decisions/0023-RLS_service_role_보안_구조_검증.md)에 정리했습니다.
+
+---
+
 ## ✨ About MileDay
 
 큰 목표를 세웠지만,
@@ -208,20 +231,7 @@ AI는 사용자의 요청을 바탕으로 목표와 마일스톤 초안을 생�
 
 ## 🧠 AI Design
 
-MileDay의 AI 기능은 단순히 LLM 응답을 화면에 보여주는 방식으로 만들지 않았습니다.
-
-초기 개발 과정에서는 여러 로컬 SLM을 비교하면서
-
-* 한국어 지시 수행 능력
-* 구조화 출력 안정성
-* Parser Error
-* Inference Latency
-* TTFT
-* Tokens/sec
-
-등을 함께 평가했습니다.
-
-실험 과정에서 모델에게 너무 많은 책임을 주면
+초기에는 로컬 SLM으로 자연어 일정 생성과 수정까지 처리하려 했습니다. 하지만 모델에게 날짜 제약, 기존 일정 보존, partial update, DB mutation까지 맡기면
 
 ```text
 잘못된 날짜 생성
@@ -230,9 +240,7 @@ JSON 구조 오류
 기존 일정 훼손
 ```
 
-같은 문제가 발생할 수 있다는 것을 확인했습니다.
-
-그래서 현재 구조에서는 역할을 분리했습니다.
+같은 실패 모드가 커졌습니다. 그래서 기능을 줄인 것이 아니라, AI가 맡을 책임을 다시 설계했습니다.
 
 ```text
 AI
@@ -247,7 +255,7 @@ Application
  └─ 실제 저장
 ```
 
-**AI의 유연성과 Application Logic의 안정성을 분리하는 것**을 핵심 원칙으로 사용하고 있습니다.
+현재 구조의 핵심은 **AI의 유연성과 Application Logic의 안정성을 분리하는 것**입니다.
 
 AI 기능의 현재 책임 경계는 [`docs/ai.md`](docs/ai.md)에서 확인할 수 있습니다.
 
@@ -398,6 +406,8 @@ Build
 ```bash
 npm run build
 ```
+
+CI는 `main`, `ai-draft` 대상 push와 pull request에서 backend test, frontend lint/test/build를 자동 실행합니다.
 
 현재 검증 기준:
 

@@ -167,7 +167,7 @@ Electron 앱 내부에는 사용자 계정 기준이 아니라 현재 PC 환경�
 
 Supabase PostgreSQL에는 RLS를 적용한다.
 
-RLS는 사용자가 본인 데이터만 접근할 수 있도록 제한하는 역할을 한다.
+RLS는 anon/authenticated client 또는 향후 클라이언트 직접 DB 접근 경로에서 사용자가 본인 데이터만 접근하도록 제한하는 보조 방어선이다. 현재 FastAPI repository는 `service_role` client를 사용하므로 RLS를 우회할 수 있다.
 
 ### 기본 정책
 
@@ -177,7 +177,7 @@ auth.uid() = user_id
 
 로그인한 사용자의 ID와 데이터의 user_id가 일치할 때만 CRUD 동작이 가능하도록 설정한다.
 
-FastAPI에서도 JWT를 검증하고 user_id를 기준으로 데이터를 처리하지만, DB 레벨에서도 RLS를 적용하여 이중으로 보호한다.
+현재 runtime의 핵심 방어선은 FastAPI가 JWT를 검증하고, 서버가 추출한 `user_id`를 모든 repository/RPC 작업에 조건으로 전달하는 구조다. RLS는 service role 경로의 주 방어선으로 설명하지 않는다.
 
 ### RLS 적용 대상
 

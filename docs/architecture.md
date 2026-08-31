@@ -43,8 +43,9 @@ Electron main
 
 - 보호 API는 `Authorization: Bearer <access_token>`을 요구한다.
 - Auth 작업은 Supabase Auth client를 사용하고, DB repository는 service role client로 접근한다.
-- backend service는 항상 현재 사용자 ID를 기준으로 조회/수정/삭제 대상을 제한한다.
-- Supabase RLS와 owner check function은 DB 방어선이다.
+- service role은 RLS를 우회할 수 있으므로, 현재 사용자 데이터 분리의 1차 방어선은 backend의 `user_id` 조건이다.
+- backend service는 JWT에서 확인한 현재 사용자 ID를 기준으로 생성 payload를 만들고, 조회/수정/삭제 대상을 제한한다.
+- Supabase RLS, owner check trigger, RPC의 `p_user_id` 조건은 DB 보조 방어선이다.
 - 다른 사용자 데이터 접근은 존재 여부를 숨기기 위해 404 계열로 처리한다.
 
 ## DB 계약
@@ -69,4 +70,4 @@ Electron main
 - API 오류는 공통 error envelope와 `request_id`로 추적한다.
 - 민감 정보는 로그에 남기지 않는다.
 
-관련 상세: [api.md](api.md), [ai.md](ai.md), [archive/reference/db_schema.md](archive/reference/db_schema.md)
+관련 상세: [api.md](api.md), [ai.md](ai.md), [archive/reference/db_schema.md](archive/reference/db_schema.md), [archive/decisions/0023-RLS_service_role_보안_구조_검증.md](archive/decisions/0023-RLS_service_role_보안_구조_검증.md)

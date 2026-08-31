@@ -41,6 +41,25 @@ npm run dev
 
 `pytest.ini`는 기본적으로 `integration` marker를 제외한다. 통합 테스트는 전용 환경 변수와 테스트 계정을 갖춘 뒤 실행한다.
 
+## CI
+
+GitHub Actions는 `main`, `ai-draft` 대상 push와 pull request에서 실행한다.
+
+| Job | 실행 내용 |
+|---|---|
+| Backend test | Python 3.11 설치, `requirements.txt` 설치, `pytest` 실행 |
+| Frontend lint, test, build | Node 22 설치, `npm ci`, `npm run lint`, `npm test`, `npm run build` 실행 |
+
+CI는 빠른 회귀 검증만 담당한다.
+
+| 범위 밖 항목 | 제외 이유 | 처리 기준 |
+|---|---|---|
+| Supabase integration test | 실제 프로젝트, 테스트 계정, DB 상태에 의존해 PR마다 결과가 흔들릴 수 있음 | 수동 실행 또는 전용 workflow |
+| Gemini API 실호출 평가 | API 비용이 발생하고 모델 응답이 완전 deterministic하지 않음 | 평가 필요 시 수동 실행 |
+| Windows installer 생성/배포 | artifact, Release 권한, 서명/승인 정책이 필요한 CD 영역 | release workflow로 분리 |
+
+항상 자동화할 항목은 backend unit test, frontend lint/test/build로 제한한다. 외부 비용, 운영 DB, 배포 산출물에 영향을 주는 작업은 의도적으로 분리한다.
+
 ## 성능 스크립트
 
 - `npm run perf:goal:create`

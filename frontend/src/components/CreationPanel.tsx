@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Flag, ListPlus, Plus } from "lucide-react";
 
 import type { Goal, GoalCreatePayload, MilestoneCreatePayload, RecurrenceType } from "@/api/types";
@@ -40,16 +40,12 @@ export function CreationPanel({
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   const hasGoals = goals.length > 0;
-  const selectedGoalId = useMemo(() => {
+  const selectedGoalId = (() => {
     if (milestoneGoalId) {
       return milestoneGoalId;
     }
     return goals[0]?.id ?? "";
-  }, [goals, milestoneGoalId]);
-  const selectedGoal = useMemo(
-    () => goals.find((goal) => goal.id === selectedGoalId) ?? null,
-    [goals, selectedGoalId],
-  );
+  })();
 
   useEffect(() => {
     setGoalDeadline(selectedDate);

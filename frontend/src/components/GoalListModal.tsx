@@ -62,6 +62,7 @@ export function GoalListModal({
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
   const [isMilestoneToggling, setIsMilestoneToggling] = useState<string | null>(null);
   const [isGoalToggling, setIsGoalToggling] = useState<string | null>(null);
+  const initialGoalsLength = initialGoals.length;
   const initialGoalIdsKey = useMemo(
     () => initialGoals.map((goal) => goal.id).sort().join("|"),
     [initialGoals],
@@ -75,12 +76,12 @@ export function GoalListModal({
 
   useEffect(() => {
     async function loadData() {
-      if (initialGoals.length === 0) {
+      if (initialGoalsLength === 0) {
         setIsLoading(true);
       }
       try {
         const fetchedGoals = await apiClient.listGoalsWithMilestones();
-        const goalsOnly = fetchedGoals.map(({ milestones, ...goal }) => goal);
+        const goalsOnly = fetchedGoals.map(toGoalOnly);
         const milestonesByGoal = buildMilestonesMap(fetchedGoals);
         setGoals(goalsOnly);
         setMilestonesMap(milestonesByGoal);
@@ -91,7 +92,7 @@ export function GoalListModal({
       }
     }
     void loadData();
-  }, [initialGoalIdsKey]);
+  }, [initialGoalIdsKey, initialGoalsLength]);
 
   const goalData = useMemo(() => {
     return goals.map((goal) => {
@@ -350,4 +351,19 @@ function buildMilestonesMap(goals: GoalWithMilestones[]): Record<string, Milesto
     milestonesByGoal[goal.id] = goal.milestones;
     return milestonesByGoal;
   }, {});
+}
+
+function toGoalOnly(goal: GoalWithMilestones): Goal {
+  return {
+    id: goal.id,
+    user_id: goal.user_id,
+    title: goal.title,
+    deadline: goal.deadline,
+    is_completed: goal.is_completed,
+    is_recurring: goal.is_recurring,
+    recurrence_type: goal.recurrence_type,
+    color: goal.color,
+    created_at: goal.created_at,
+    updated_at: goal.updated_at,
+  };
 }

@@ -33,6 +33,7 @@ flowchart LR
 
 - [0006-모델_평가_후보_선정.md](0006-모델_평가_후보_선정.md): 1차 smoke, 공개 benchmark, 3차 정밀 비교를 거쳐 로컬 후보를 좁혔다. 최종 로컬 후보는 `candidate-3`인 `granite4.1:3b`였지만, 제품용 멀티턴 일정 수정에는 추가 안정화가 필요하다고 판단했다.
 - [0011-API_LLM_선정.md](0011-API_LLM_선정.md): API LLM은 비용과 지연을 고려해 `gemini-3.5-flash-lite`를 기본 모델로 선택했다. `gemini-3.6-flash`는 품질이 더 높았지만 비용과 latency 차이가 컸고, 주요 실패는 parser/validator 개선 대상으로 남았다.
+- [0022-최종_AI_초안_모델_재평가.md](0022-최종_AI_초안_모델_재평가.md): 최종 제품 기능인 편집 가능한 일정 초안 기준으로 Local SLM과 Gemini Flash Lite를 다시 비교했다.
 
 모델 평가는 단일 score만 보지 않는다. parser error, failure, latency, TTFT, tokens/sec, deterministic validation, judge score, critical failure를 함께 봐야 제품 적용 가능성을 판단할 수 있다.
 
@@ -74,6 +75,7 @@ flowchart LR
 - [0019-메인_레이아웃_전체_스크롤_및_팝업_수정.md](0019-메인_레이아웃_전체_스크롤_및_팝업_수정.md): 전체 스크롤 구조와 quick menu clipping 문제를 정리했다.
 - [0020-물리_화면_대응_크기_조정_및_중복_정리.md](0020-물리_화면_대응_크기_조정_및_중복_정리.md): 노트북 화면, Windows 배율, 작은 창에 대응하는 크기 정책을 정리했다.
 - [0021-전체_목표_조회_및_완료_처리_최적화.md](0021-전체_목표_조회_및_완료_처리_최적화.md): 전체 목표 통합 조회 API와 완료 처리 RPC로 순차 조회 비용과 완료 동기화 문제를 줄였다.
+- [0023-RLS_service_role_보안_구조_검증.md](0023-RLS_service_role_보안_구조_검증.md): service role 사용 구조에서 사용자 데이터 분리의 핵심 방어선을 backend `user_id` 조건으로 정리했다.
 
 ## ADR 목록
 
@@ -100,3 +102,5 @@ flowchart LR
 | [0019](0019-메인_레이아웃_전체_스크롤_및_팝업_수정.md) | Layout Scroll / Popup | 메인 스크롤과 quick menu 표시 안정화 |
 | [0020](0020-물리_화면_대응_크기_조정_및_중복_정리.md) | Responsive Sizing | 화면 크기 대응과 중복 정의 정리 |
 | [0021](0021-전체_목표_조회_및_완료_처리_최적화.md) | Goal Query Optimization | 통합 조회 API와 완료 처리 RPC로 성능 개선 |
+| [0022](0022-최종_AI_초안_모델_재평가.md) | Final AI Draft Model Evaluation | Measured once. 최종 초안 기능 기준 SLM/API 1차 자동 측정 |
+| [0023](0023-RLS_service_role_보안_구조_검증.md) | RLS / Service Role Security | Accepted. 사용자 데이터 분리 방어선 재정의 |

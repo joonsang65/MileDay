@@ -526,7 +526,6 @@ export function MilestoneEditor({
   onCancel,
   onSave,
   onDelete,
-  onUpdateGoal: _onUpdateGoal,
 }: {
   goal?: Goal;
   milestone: Milestone;
