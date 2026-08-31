@@ -28,7 +28,7 @@ AI는 Supabase에 접근하지 않고 `goal_id`, `milestone_id`, SQL, DB mutatio
 ## 입출력 계약
 
 - `/ai/schedule/draft`는 사용자 설정의 `gemini_data_consent=true`일 때만 동작한다.
-- request: `prompt` 1~2000자, `today`, `timezone` 기본 `Asia/Seoul`, `availability[]` 1~90개 날짜
+- request: `prompt` 1 ~ 2000자, `today`, `timezone` 기본 `Asia/Seoul`, `availability[]` 1 ~ 90개 날짜
 - response: `goal`, `milestones[]`, `planning_preference`, `validation`, `create_goal_payload`
 - `create_goal_payload.write_policy`는 항상 `user_confirmation_required`다.
 
