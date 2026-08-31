@@ -4,9 +4,10 @@ from dataclasses import dataclass
 import time
 from typing import Any, Callable
 
-from core.supabase import get_supabase_client, reset_supabase_client
+from core.supabase import get_supabase_admin_client, get_supabase_client, reset_supabase_client
 from exceptions.auth import (
     AuthEmailNotConfirmedError,
+    AuthAccountDeleteFailedError,
     AuthInvalidCredentialsError,
     AuthInvalidTokenError,
     AuthLogoutFailedError,
@@ -128,10 +129,21 @@ def _map_logout_error(exc: Exception) -> Exception:
     return AuthLogoutFailedError(detail=_safe_detail(exc))
 
 
+def _map_delete_account_error(exc: Exception) -> Exception:
+    if _is_retryable_auth_error(exc):
+        return SupabaseUnavailableError(
+            message="Supabase Auth account deletion request failed.",
+            detail=_safe_detail(exc),
+        )
+    return AuthAccountDeleteFailedError(detail=_safe_detail(exc))
+
+
 class AuthService:
-    def __init__(self, supabase_client: Any | None = None) -> None:
+    def __init__(self, supabase_client: Any | None = None, supabase_admin_client: Any | None = None) -> None:
         self._uses_default_client = supabase_client is None
+        self._uses_default_admin_client = supabase_admin_client is None
         self.client = supabase_client or get_supabase_client()
+        self.admin_client = supabase_admin_client
 
     def signup(self, *, email: str, password: str) -> AuthUser:
         try:
@@ -205,10 +217,28 @@ class AuthService:
         except Exception as exc:
             raise _map_logout_error(exc) from exc
 
+    def delete_account(self, access_token: str) -> AuthUser:
+        if not access_token.strip():
+            raise AuthInvalidTokenError()
+
+        user = self.get_user(access_token)
+        try:
+            self._run_auth_operation(
+                lambda: self._get_admin_client().auth.admin.delete_user(user.id),
+            )
+        except Exception as exc:
+            raise _map_delete_account_error(exc) from exc
+        return user
+
     def _get_client(self) -> Any:
         if self._uses_default_client:
             self.client = get_supabase_client()
         return self.client
+
+    def _get_admin_client(self) -> Any:
+        if self._uses_default_admin_client:
+            self.admin_client = get_supabase_admin_client()
+        return self.admin_client
 
     def _run_auth_operation(self, operation: Callable[[], Any]) -> Any:
         last_error: Exception | None = None

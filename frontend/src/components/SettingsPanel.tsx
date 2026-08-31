@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { ExternalLink, LogOut, Monitor, Save, Settings2, SlidersHorizontal } from "lucide-react";
+import { ExternalLink, LogOut, Monitor, Save, Settings2, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import type { CalendarView, HolidayDisplay, Language, UserSettings, UserSettingsUpdatePayload } from "@/api/types";
 import type { LocalUiSettings, LocalUiSettingsPatch } from "@/types/localUiSettings";
@@ -16,6 +16,7 @@ type SettingsPanelProps = {
   onLocalUiSettingsChange?: (payload: LocalUiSettingsPatch) => Promise<void>;
   onClose: () => void;
   onLogout: () => void;
+  onDeleteAccount: () => void;
 };
 
 const labels = {
@@ -36,6 +37,9 @@ const labels = {
     english: "English",
     baseFontSize: "기본 글자 크기(px)",
     goalFontSize: "목표 글자 크기(px)",
+    settingsPanelSize: "시스템 글자",
+    settingsPanelSmall: "작게",
+    settingsPanelLarge: "크게",
     opacity: "투명도",
     resizeEnabled: "창 크기 조정",
     resizeHint: "켜져 있을 때만 창 모서리를 마우스로 잡아 크기를 조정할 수 있습니다.",
@@ -48,6 +52,8 @@ const labels = {
     survey: "POC 설문 참여",
     close: "닫기",
     logout: "로그아웃",
+    deleteAccount: "계정 삭제",
+    deleteAccountConfirm: "계정을 삭제하면 목표, 마일스톤, 설정이 모두 삭제됩니다. 계속할까요?",
     basicSection: "기본 설정",
     fontSection: "글자 및 화면",
     advancedSection: "앱 고급 설정",
@@ -69,6 +75,9 @@ const labels = {
     english: "English",
     baseFontSize: "Base font size (px)",
     goalFontSize: "Goal font size (px)",
+    settingsPanelSize: "System text size",
+    settingsPanelSmall: "Small",
+    settingsPanelLarge: "Large",
     opacity: "Opacity",
     resizeEnabled: "Window resizing",
     resizeHint: "When enabled, drag a window edge or corner to resize the widget.",
@@ -81,6 +90,8 @@ const labels = {
     survey: "Open MVP survey",
     close: "Close",
     logout: "Log out",
+    deleteAccount: "Delete account",
+    deleteAccountConfirm: "Deleting your account removes goals, milestones, and settings. Continue?",
     basicSection: "Basic settings",
     fontSection: "Text and display",
     advancedSection: "Advanced app settings",
@@ -97,6 +108,7 @@ export function SettingsPanel({
   onSave,
   onLocalUiSettingsChange,
   onLogout,
+  onDeleteAccount,
 }: SettingsPanelProps) {
   const [calendarView, setCalendarView] = useState<CalendarView>(settings.calendar_view);
   const [holidayDisplay, setHolidayDisplay] = useState<HolidayDisplay>(settings.holiday_display);
@@ -104,6 +116,7 @@ export function SettingsPanel({
   const [language, setLanguage] = useState<Language>(settings.language);
   const [baseFontSize, setBaseFontSize] = useState(localUiSettings.baseFontSize);
   const [goalFontSize, setGoalFontSize] = useState(localUiSettings.goalFontSize);
+  const [settingsPanelSize, setSettingsPanelSize] = useState(localUiSettings.settingsPanelSize);
   const [opacity, setOpacity] = useState(localUiSettings.opacity);
   const [resizeEnabled, setResizeEnabled] = useState(localUiSettings.resizeEnabled);
   const [openAtLogin, setOpenAtLogin] = useState(false);
@@ -127,6 +140,7 @@ export function SettingsPanel({
   useEffect(() => {
     setBaseFontSize(localUiSettings.baseFontSize);
     setGoalFontSize(localUiSettings.goalFontSize);
+    setSettingsPanelSize(localUiSettings.settingsPanelSize);
     setOpacity(localUiSettings.opacity);
     setResizeEnabled(localUiSettings.resizeEnabled);
   }, [localUiSettings]);
@@ -215,9 +229,20 @@ export function SettingsPanel({
     }
   }
 
+  async function handleSettingsPanelSizeChange(nextValue: LocalUiSettings["settingsPanelSize"]) {
+    setSettingsPanelSize(nextValue);
+    await onLocalUiSettingsChange?.({ settingsPanelSize: nextValue });
+  }
+
   async function handleResizeEnabledChange(nextValue: boolean) {
     setResizeEnabled(nextValue);
     await onLocalUiSettingsChange?.({ resizeEnabled: nextValue });
+  }
+
+  function handleDeleteAccount() {
+    if (window.confirm(text.deleteAccountConfirm)) {
+      onDeleteAccount();
+    }
   }
 
   return (
@@ -337,6 +362,19 @@ export function SettingsPanel({
               </span>
             </div>
           </label>
+          <label className="settings-field">
+            <span>{text.settingsPanelSize}</span>
+            <select
+              value={settingsPanelSize}
+              onChange={(event) =>
+                void handleSettingsPanelSizeChange(event.target.value as LocalUiSettings["settingsPanelSize"])
+              }
+              disabled={isLoading || !onLocalUiSettingsChange}
+            >
+              <option value="small">{text.settingsPanelSmall}</option>
+              <option value="large">{text.settingsPanelLarge}</option>
+            </select>
+          </label>
         </div>
 
         <div className="settings-section settings-section-advanced">
@@ -385,6 +423,10 @@ export function SettingsPanel({
       <button type="button" className="danger-button settings-logout" onClick={onLogout} disabled={isLoading}>
         <LogOut size={15} aria-hidden="true" />
         {text.logout}
+      </button>
+      <button type="button" className="danger-button settings-delete-account" onClick={handleDeleteAccount} disabled={isLoading}>
+        <Trash2 size={15} aria-hidden="true" />
+        {text.deleteAccount}
       </button>
     </section>
   );

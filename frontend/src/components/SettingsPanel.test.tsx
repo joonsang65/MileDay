@@ -12,6 +12,7 @@ const settings: UserSettings = {
   week_starts_on: 1,
   language: "ko",
   timezone: "Asia/Seoul",
+  gemini_data_consent: false,
 };
 
 describe("SettingsPanel", () => {
@@ -20,6 +21,7 @@ describe("SettingsPanel", () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     const onLocalUiSettingsChange = vi.fn().mockResolvedValue(undefined);
     const onLogout = vi.fn();
+    const onDeleteAccount = vi.fn();
     const autoLaunch = {
       get: vi.fn().mockResolvedValue({ openAtLogin: false }),
       set: vi.fn().mockResolvedValue({ openAtLogin: true }),
@@ -31,6 +33,7 @@ describe("SettingsPanel", () => {
         localUiSettings={{
           baseFontSize: 14,
           goalFontSize: 13,
+          settingsPanelSize: "small",
           resizeEnabled: false,
           theme: "system",
           fontFamily: "system",
@@ -42,6 +45,7 @@ describe("SettingsPanel", () => {
         onLocalUiSettingsChange={onLocalUiSettingsChange}
         onClose={vi.fn()}
         onLogout={onLogout}
+        onDeleteAccount={onDeleteAccount}
       />,
     );
 
@@ -52,6 +56,7 @@ describe("SettingsPanel", () => {
     fireEvent.change(screen.getByLabelText("Base font size (px)"), { target: { value: "16" } });
     fireEvent.change(screen.getByLabelText("Goal font size (px)"), { target: { value: "18" } });
     fireEvent.change(screen.getByLabelText("Opacity"), { target: { value: "0.75" } });
+    await user.selectOptions(screen.getByLabelText("System text size"), "large");
     await user.click(screen.getByLabelText("Window resizing"));
     await user.click(screen.getByLabelText("Open at Windows login"));
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -67,6 +72,7 @@ describe("SettingsPanel", () => {
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ baseFontSize: 16 });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ goalFontSize: 18 });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ opacity: 0.75 });
+    expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ settingsPanelSize: "large" });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ resizeEnabled: true });
 
     const panel = screen.getByRole("region", { name: "Settings" });

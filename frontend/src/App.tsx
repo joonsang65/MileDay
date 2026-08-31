@@ -524,7 +524,8 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.setProperty("--app-font-size", `${localUiSettings.baseFontSize}px`);
     document.documentElement.style.setProperty("--goal-font-size", `${localUiSettings.goalFontSize}px`);
-  }, [localUiSettings.baseFontSize, localUiSettings.goalFontSize]);
+    document.documentElement.dataset.settingsPanelSize = localUiSettings.settingsPanelSize;
+  }, [localUiSettings.baseFontSize, localUiSettings.goalFontSize, localUiSettings.settingsPanelSize]);
 
   useEffect(() => {
     const keyboardFocusRequired = !isAuthenticated || overlayMode !== "none" || isDateDetailEditing;
@@ -879,6 +880,28 @@ export default function App() {
     openDayView();
   }
 
+  async function handleDeleteAccount() {
+    setRequestState({ isLoading: true, message: null, notice: null });
+    try {
+      await apiClient.deleteAccount();
+      setIsAuthenticated(false);
+      setCalendarData(null);
+      setDateDetail(null);
+      setAllGoals([]);
+      setUserSettings(DEFAULT_USER_SETTINGS);
+      prefetchRunRef.current += 1;
+      hasStartedLoginPrefetchRef.current = false;
+      calendarCacheRef.current.clear();
+      dateDetailCacheRef.current.clear();
+      settingsCacheRef.current = null;
+      closeOverlay();
+      setHasAppliedInitialSettings(false);
+      setRequestState({ isLoading: false, message: null, notice: null });
+    } catch (error) {
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, userSettings.language), notice: null });
+    }
+  }
+
   function toggleDayViewQuickMenu() {
     setIsDayViewQuickMenuOpen((current) => !current);
   }
@@ -1094,7 +1117,30 @@ export default function App() {
   }
 
   async function handleCreateAiDraft(payload: AiScheduleDraftRequest): Promise<AiScheduleDraft> {
+    if (!userSettings.gemini_data_consent) {
+      throw new Error(userSettings.language === "en" ? "Gemini transfer consent is required." : "Gemini 전송 동의가 필요합니다.");
+    }
     return apiClient.createScheduleDraft(payload);
+  }
+
+  async function handleGeminiDataConsentChange(geminiDataConsent: boolean) {
+    const previousSettings = userSettings;
+    const nextSettings = {
+      ...userSettings,
+      gemini_data_consent: geminiDataConsent,
+    };
+    setUserSettings(nextSettings);
+    settingsCacheRef.current = nextSettings;
+    try {
+      const savedSettings = await apiClient.updateSettings({ gemini_data_consent: geminiDataConsent });
+      setUserSettings(savedSettings);
+      settingsCacheRef.current = savedSettings;
+    } catch (error) {
+      setUserSettings(previousSettings);
+      settingsCacheRef.current = previousSettings;
+      setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, userSettings.language), notice: null });
+      throw error;
+    }
   }
 
   async function handleSaveAiDraft(goalPayload: GoalCreatePayload, milestonePayloads: MilestoneCreatePayload[]) {
@@ -1228,6 +1274,13 @@ export default function App() {
         setLocalUiSettings(saved);
       }
     }
+
+    if (payload.settingsPanelSize !== undefined) {
+      const saved = await window.mileday?.uiSettings?.setSettingsPanelSize(payload.settingsPanelSize);
+      if (saved) {
+        setLocalUiSettings(saved);
+      }
+    }
   }
 
   function handleAuthLanguageChange(nextLanguage: AuthLanguage) {
@@ -1305,6 +1358,7 @@ export default function App() {
           title={appLabels[userSettings.language].settings}
           onClose={closeOverlay}
           closeLabel={appLabels[userSettings.language].close}
+          className="settings-floating-panel"
         >
           <SettingsPanel
             settings={userSettings}
@@ -1314,6 +1368,7 @@ export default function App() {
             onLocalUiSettingsChange={handleUpdateLocalUiSettings}
             onClose={closeOverlay}
             onLogout={handleLogout}
+            onDeleteAccount={handleDeleteAccount}
           />
         </FloatingPanel>
       ) : null}
@@ -1333,9 +1388,11 @@ export default function App() {
           today={todayKey}
           timezone={userSettings.timezone}
           availability={draftAvailability}
+          geminiDataConsent={userSettings.gemini_data_consent}
           isSaving={requestState.isLoading}
           onCreateDraft={handleCreateAiDraft}
           onSaveDraft={handleSaveAiDraft}
+          onGeminiDataConsentChange={handleGeminiDataConsentChange}
           onClose={closeOverlay}
           language={userSettings.language}
         />

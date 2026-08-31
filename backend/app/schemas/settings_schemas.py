@@ -15,6 +15,7 @@ class UserSettings(BaseModel):
     week_starts_on: int = Field(ge=0, le=1)
     language: Language
     timezone: str
+    gemini_data_consent: bool = False
 
 
 # 부분 수정 요청 DTO, 전달된 필드만 갱신 대상
@@ -26,6 +27,7 @@ class SettingsUpdateRequest(BaseModel):
     week_starts_on: Optional[int] = Field(default=None, ge=0, le=1)
     language: Optional[Language] = None
     timezone: Optional[str] = None
+    gemini_data_consent: Optional[bool] = None
 
 
 # 사용자 설정 조회/수정 응답 DTO

@@ -11,9 +11,10 @@ from schemas.settings_schemas import SettingsUpdateRequest
 DEFAULT_SETTINGS: dict[str, Any] = {
     "calendar_view": "month",
     "holiday_display": "normal",
-    "week_starts_on": 1,
+    "week_starts_on": 0,
     "language": "ko",
     "timezone": "Asia/Seoul",
+    "gemini_data_consent": False,
 }
 SETTINGS_CACHE_TTL_SECONDS = 60
 _settings_cache: dict[str, tuple[float, dict[str, Any]]] = {}
