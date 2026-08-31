@@ -40,7 +40,7 @@ app/api/routers
 | Settings | `app/api/routers/settings.py` | 사용자 설정 조회/수정 |
 | AI | `app/api/routers/schedule_assistant.py` | AI 일정 초안 생성 |
 
-상세 API 계약은 [docs/api_spec.md](../docs/api_spec.md)를 함께 본다. 현재 구현 기준의 대표 endpoint는 `/goals`, `/goals/with-milestones`, `/calendar/month`, `/calendar/week`, `/calendar/date/{target_date}`, `/settings`, `/ai/schedule/draft`다.
+상세 API 계약은 [docs/api.md](../docs/api.md)를 함께 본다. 현재 구현 기준의 대표 endpoint는 `/goals`, `/goals/with-milestones`, `/calendar/month`, `/calendar/week`, `/calendar/date/{target_date}`, `/settings`, `/ai/schedule/draft`다.
 
 ## AI 일정 초안 생성
 
@@ -81,7 +81,7 @@ AI 일정 생성은 `POST /ai/schedule/draft`에서 시작한다.
 
 ## 안정성 보강
 
-[docs/performance_report._v3.md](../docs/performance_report._v3.md) 기준으로 현재 코드에서 확인되는 보강은 다음과 같다.
+[docs/changelog.md](../docs/changelog.md)와 [성능 리포트 원문](../docs/archive/performance/performance_report._v3.md) 기준으로 현재 코드에서 확인되는 보강은 다음과 같다.
 
 - Supabase Auth 호출은 retryable 오류에 한해 최대 3회 재시도하고, 100ms/300ms backoff를 적용한다.
 - Auth 재시도 전 기본 Supabase client cache를 reset해 깨진 연결 재사용 가능성을 줄인다.

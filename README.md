@@ -249,7 +249,7 @@ Application
 
 **AI의 유연성과 Application Logic의 안정성을 분리하는 것**을 핵심 원칙으로 사용하고 있습니다.
 
-AI 실험 및 설계 과정은 [`docs/decisions`](docs/decisions)에서 확인할 수 있습니다.
+AI 기능의 현재 책임 경계는 [`docs/ai.md`](docs/ai.md)에서 확인할 수 있습니다.
 
 ---
 
@@ -270,8 +270,7 @@ AI 실험 및 설계 과정은 [`docs/decisions`](docs/decisions)에서 확인�
 
 `Optimistic UI` · `Client Cache` · `API 호출 최적화` · `Auth Retry` · `Fallback`
 
-자세한 내용은
-[`docs/performance_report._v3.md`](docs/performance_report._v3.md)에서 확인할 수 있습니다.
+자세한 내용은 [`docs/changelog.md`](docs/changelog.md)에서 확인할 수 있습니다.
 
 ---
 
@@ -328,16 +327,14 @@ MileDay
 
 개발 과정에서 발생한 결정과 실험 결과를 문서로 기록하고 있습니다.
 
-| Document                                             | Description |
-| ---------------------------------------------------- | ----------- |
-| [Requirements](docs/requirements.md)                 | 기능 요구사항     |
-| [Data Flow](docs/data_flow.md)                       | 시스템 데이터 흐름  |
-| [Database Schema](docs/db_schema.md)                 | DB 설계       |
-| [API Specification](docs/api_spec.md)                | REST API 명세 |
-| [Architecture Decisions](docs/decisions/README.md)   | 주요 기술 의사결정  |
-| [Performance Report](docs/performance_report._v3.md) | 성능 개선       |
-| [User Feedback](docs/user_feedback_changes.md)       | 사용자 피드백 반영  |
-| [Troubleshooting](docs/troubleshooting.md)           | 문제 해결 기록    |
+| Document | Description |
+| --- | --- |
+| [Product](docs/product.md) | 제품 목표와 범위 |
+| [Architecture](docs/architecture.md) | 시스템 구조와 저장소 |
+| [API](docs/api.md) | REST API endpoint |
+| [AI](docs/ai.md) | AI 일정 초안 책임 경계 |
+| [Operations](docs/operations.md) | 실행, 테스트, 문제 해결 |
+| [Changelog](docs/changelog.md) | 변경 이력과 성능 개선 |
 
 ---
 

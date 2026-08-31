@@ -65,7 +65,7 @@ React Renderer
 
 ## UX 개선 흐름
 
-[docs/performance_report._v3.md](../docs/performance_report._v3.md)와 [docs/user_feedback_changes.md](../docs/user_feedback_changes.md)에 기록된 사용자 피드백 기반 개선 중 프론트엔드와 직접 연결되는 내용은 다음과 같다.
+[docs/changelog.md](../docs/changelog.md)와 [피드백 원문](../docs/archive/reference/user_feedback_changes.md)에 기록된 사용자 피드백 기반 개선 중 프론트엔드와 직접 연결되는 내용은 다음과 같다.
 
 - 날짜 선택은 Zustand 상태를 즉시 바꿔 사용자가 선택한 날짜 반응을 빠르게 보게 한다.
 - GET 요청은 API client에서 502/503/504 또는 네트워크 오류에 한해 최대 3회 재시도한다.
