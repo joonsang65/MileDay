@@ -76,17 +76,21 @@ dev.cmd
 ## 3. 해결 방향 및 아키텍처 결정 (Architecture Decisions)
 
 ```mermaid
+---
+config:
+  theme: neo
+---
 flowchart LR
-    A[npm run dev] --> B[frontend/scripts/dev.mjs]
+    A["npm run dev"] --> B["frontend/scripts/dev.mjs"]
     B --> C["electron-vite dev -w -- --disable-gpu-sandbox"]
-    C --> D[Vite Dev Server 기동 & Main/Preload 컴파일]
-    D --> E[ELECTRON_CLI_ARGS = '[\"--disable-gpu-sandbox\"]' 설정]
-    E --> F["startElectron(electron . --disable-gpu-sandbox)"]
-    F --> G[GPU Crash 없이 위젯 정상 실행]
-    
-    H[Main/Preload 소스 코드 수정] --> I[watchHook 감지]
-    I --> J[기존 Electron 프로세스 kill]
-    J --> K[신규 번들 컴파일 후 Electron 자동 재시작]
+    C --> D["Vite Dev Server 기동 & Main/Preload 컴파일"]
+    D --> E["ELECTRON_CLI_ARGS = --disable-gpu-sandbox"]
+    E --> F["startElectron: electron . --disable-gpu-sandbox"]
+    F --> G["GPU Crash 없이 위젯 정상 실행"]
+
+    H["Main/Preload 소스 코드 수정"] --> I["watchHook 감지"]
+    I --> J["기존 Electron 프로세스 kill"]
+    J --> K["신규 번들 컴파일 후 Electron 자동 재시작"]
 ```
 
 ### 결정 원칙: 최소 침습적 변경 (Minimal Invasive Change)
