@@ -6,7 +6,7 @@ import {
 const DEFAULT_SETTINGS = {
   calendar_view: "month",
   holiday_display: "normal",
-  week_starts_on: 1,
+  week_starts_on: 0,
   language: "ko",
   timezone: "Asia/Seoul",
 };
