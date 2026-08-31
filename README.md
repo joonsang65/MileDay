@@ -6,6 +6,25 @@
 
 ### 매일의 일정으로 이어주는 Windows 데스크톱 플래너
 
+<p align="center">
+  <img src="docs/images/main-calendar.png" width="85%" />
+</p>
+
+---
+
+## ✨ Preview
+
+<p align="center">
+  <img src="docs/images/day-view.png" width="48%" />
+  <img src="docs/images/quick-add.png" width="48%" />
+</p>
+
+<p align="center">
+  <sub>
+    하루 보기 · 빠른 추가 및 AI 일정 추천
+  </sub>
+</p>
+
 <br/>
 
 **Goal → Milestone → Calendar → Today**
@@ -120,23 +139,19 @@ AI 일정 초안 생성
 
 ## 🖥️ Desktop Widget
 
-MileDay는 웹사이트가 아니라
-**Windows 데스크톱에서 실행되는 Electron 애플리케이션**입니다.
+MileDay는 브라우저 서비스가 아니라
+Windows에서 실행되는 데스크톱 위젯 애플리케이션입니다.
 
-일반 캘린더 프로그램처럼 매번 브라우저를 열지 않고
-바탕화면 한쪽에 두고 사용할 수 있도록 만들었습니다.
+<p align="center">
+  <img src="docs/images/settings.png" width="75%" />
+</p>
 
-지원하는 데스크톱 기능:
-
-* Windows 시작 시 자동 실행
-* 창 위치 기억
-* 창 크기 기억
-* 투명도 설정
-* 글자 크기 설정
-* System Tray
-* 로그인 상태 유지
-* Windows 설치 프로그램 제공
-
+- 창 크기 및 위치 조정
+- 글자 크기 설정
+- 투명도 설정
+- Windows 시작 시 자동 실행
+- 로그인 상태 유지
+- 
 ---
 
 ## 🚀 Download
@@ -145,43 +160,69 @@ MileDay는 웹사이트가 아니라
 
 MileDay는 Windows용 애플리케이션으로 배포됩니다.
 
-GitHub의 **Releases** 페이지에서 최신 버전을 다운로드할 수 있습니다.
+GitHub의 Releases 페이지에서 최신 버전을 다운로드할 수 있습니다.
 
-```text
-MileDay-Setup-x.x.x.exe
-```
+mileday-vx.x.x.exe
 
 설치 파일을 실행한 뒤 안내에 따라 설치하면 됩니다.
 
-> 현재 MileDay는 Windows 환경을 우선 지원합니다.
+현재 MileDay는 Windows 환경을 우선 지원합니다.
+
+---
+
+## 🌱 Getting Started
+
+처음 사용하는 사용자도 주요 기능을 바로 이해할 수 있도록
+간단한 온보딩 가이드를 제공합니다.
+
+<p align="center">
+  <img src="docs/images/onboarding.png" width="75%" />
+</p>
 
 ---
 
 ## 🏗️ Architecture
 
-```text
-┌──────────────────────────────┐
-│       Windows Desktop        │
-│                              │
-│    Electron + React          │
-│    TypeScript + Zustand      │
-└──────────────┬───────────────┘
-               │ HTTP
-               ▼
-┌──────────────────────────────┐
-│           FastAPI            │
-│                              │
-│  Auth / Goal / Milestone     │
-│  Calendar / AI Schedule      │
-└───────┬──────────────┬───────┘
-        │              │
-        ▼              ▼
-   Supabase         Gemini
- PostgreSQL/Auth      API
+```mermaid
+flowchart TB
+    U[User] --> D[Windows Desktop App]
+
+    subgraph Client["Electron + React"]
+        D --> UI[Calendar / Goal / Milestone UI]
+        UI --> ST[Local State & Settings]
+    end
+
+    UI -->|REST API| API[FastAPI]
+
+    subgraph Server["Backend"]
+        API --> AUTH[Authentication]
+        API --> LOGIC[Business Logic]
+        LOGIC --> AI[AI Schedule]
+    end
+
+    AUTH --> SB[(Supabase Auth)]
+    LOGIC --> DB[(Supabase PostgreSQL)]
+    AI --> GM[Gemini API]
+
 ```
 
-Frontend가 DB에 직접 접근하지 않고
-FastAPI를 통해 데이터와 인증을 처리하도록 구성했습니다.
+MileDay는 프론트엔드가 Supabase에 직접 접근하지 않고,
+FastAPI를 통해 인증·권한 검증·비즈니스 로직을 처리하도록 구성했습니다.
+
+AI 기능 역시 Gemini 응답을 바로 DB에 저장하지 않습니다.
+
+```mermaid
+flowchart LR
+    U[사용자 자연어 요청] --> A[AI 일정 생성]
+    A --> G[Gemini API]
+    G --> D[Goal / Milestone Draft]
+    D --> V[일정 검증]
+    V --> C[사용자 확인 및 수정]
+    C --> S[일정 저장]
+
+```
+
+즉, AI는 일정 초안을 만들고, 애플리케이션 코드는 검증과 실제 저장을 책임지는 구조​입니다.
 
 ---
 
