@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { CalendarPlus, CheckSquare, ChevronLeft, ChevronRight, ListTodo, LogIn, Plus, Sparkles, UserPlus } from "lucide-react";
 
-import { AUTH_LANGUAGE_KEY, ONBOARDING_DISMISSED_KEY } from "@/config/storageKeys";
+import { AUTH_LANGUAGE_KEY, LAST_LOGIN_EMAIL_KEY, ONBOARDING_DISMISSED_KEY } from "@/config/storageKeys";
 import type { AuthLanguage } from "@/types/auth";
 import { getInitialAuthLanguage } from "@/utils/authLanguage";
 
@@ -222,7 +222,7 @@ export function AuthPanel({
 }: AuthPanelProps) {
   const [localLanguage, setLocalLanguage] = useState<AuthLanguage>(() => getInitialAuthLanguage());
   const [mode, setMode] = useState<AuthMode>("login");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem(LAST_LOGIN_EMAIL_KEY) ?? "");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [rememberLogin, setRememberLogin] = useState(true);
@@ -351,6 +351,8 @@ export function AuthPanel({
           <label>
             {text.email}
             <input
+              id="auth-email"
+              name="email"
               type="email"
               autoComplete="email"
               value={email}
@@ -363,7 +365,6 @@ export function AuthPanel({
             {text.password}
             <input
               type="password"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={isLoading}
@@ -375,7 +376,6 @@ export function AuthPanel({
               {text.passwordConfirm}
               <input
                 type="password"
-                autoComplete="new-password"
                 value={passwordConfirm}
                 onChange={(event) => setPasswordConfirm(event.target.value)}
                 disabled={isLoading}

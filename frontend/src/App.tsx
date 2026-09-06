@@ -26,6 +26,7 @@ import { QuickActionPopover } from "@/components/QuickActionPopover";
 import { GoalListModal } from "@/components/GoalListModal";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { DEFAULT_USER_SETTINGS } from "@/config/defaultUserSettings";
+import { LAST_LOGIN_EMAIL_KEY } from "@/config/storageKeys";
 import { useCalendarStore, type CalendarMode } from "@/store/calendarStore";
 import { useUiStore } from "@/store/uiStore";
 import type { AuthLanguage } from "@/types/auth";
@@ -813,6 +814,7 @@ export default function App() {
     setRequestState({ isLoading: true, message: null, notice: null });
     try {
       await apiClient.login(email, password, rememberLogin);
+      localStorage.setItem(LAST_LOGIN_EMAIL_KEY, email);
       setIsAuthenticated(true);
       setHasAppliedInitialSettings(false);
       prefetchRunRef.current += 1;
