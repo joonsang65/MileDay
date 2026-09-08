@@ -21,6 +21,7 @@ jobs:
     runs-on: windows-latest
 
     env:
+      VITE_API_BASE_URL: https://mileday.onrender.com
       MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
       MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
       MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
