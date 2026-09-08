@@ -1,0 +1,114 @@
+name: Windows Store Package Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/electron-builder.store.cjs"
+      - "frontend/scripts/verify-store-env.mjs"
+      - "frontend/scripts/find-store-artifacts.ps1"
+      - ".github/workflows/release-store-msix.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  store-package:
+    name: Build Store package
+    runs-on: windows-latest
+
+    env:
+      MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+      MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+      MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+      MSIX_APPLICATION_ID: ${{ vars.MSIX_APPLICATION_ID }}
+      MSIX_BACKGROUND_COLOR: ${{ vars.MSIX_BACKGROUND_COLOR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $packageJson = Get-Content -Raw -LiteralPath "frontend/package.json" | ConvertFrom-Json
+          $version = $packageJson.version
+
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
+            throw "frontend/package.json version must look like X.Y.Z. Received: $version"
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Run build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Verify package API
+        working-directory: frontend
+        run: npm run verify:package-api
+
+      - name: Build Store package
+        working-directory: frontend
+        run: npm run dist:store
+
+      - name: Locate Store package
+        id: artifacts
+        shell: pwsh
+        working-directory: frontend
+        run: .\scripts\find-store-artifacts.ps1 -Version "${{ steps.version.outputs.version }}"
+
+      - name: Write SHA256
+        id: sha256
+        shell: pwsh
+        working-directory: frontend
+        run: .\scripts\write-sha256.ps1 -InstallerPath "${{ steps.artifacts.outputs.store_package_path }}"
+
+      - name: Upload Store package artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: mileday-store-package-${{ steps.version.outputs.version }}
+          path: |
+            ${{ steps.artifacts.outputs.store_package_path }}
+            ${{ steps.sha256.outputs.sha256_path }}
+          retention-days: 14
+
+      - name: Write Store package summary
+        shell: pwsh
+        run: |
+          @"
+          # MileDay Windows Store Package
+
+          Version: ${{ steps.version.outputs.version }}
+
+          Artifact: ${{ steps.artifacts.outputs.store_package_name }}
+
+          SHA256: ${{ steps.sha256.outputs.sha256 }}
+
+          Actions artifact: mileday-store-package-${{ steps.version.outputs.version }}
+
+          Partner Center: Download the Actions artifact, upload the Store package manually, and let Microsoft Store sign it during certification.
+          "@ >> $env:GITHUB_STEP_SUMMARY

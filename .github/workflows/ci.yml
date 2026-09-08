@@ -1,14 +1,9 @@
 name: CI
 
 on:
-  pull_request:
-    branches:
-      - main
-      - ai-draft
   push:
     branches:
       - main
-      - ai-draft
 
 jobs:
   backend:

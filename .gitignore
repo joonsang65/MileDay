@@ -53,6 +53,7 @@ pnpm-debug.log*
 
 # Electron build outputs
 release/
+release-store/
 releases/
 *.asar
 *.exe
