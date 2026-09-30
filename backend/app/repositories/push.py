@@ -43,10 +43,9 @@ class PushRepository:
                 on_conflict="user_id,endpoint",
             )
             .select(PUSH_SUBSCRIPTION_COLUMNS)
-            .single()
             .execute()
         )
-        return dict(response.data or {})
+        return _first_row(response.data)
 
     def delete_subscription(self, *, user_id: str, endpoint: str) -> None:
         (
@@ -123,10 +122,9 @@ class PushRepository:
                 on_conflict="user_id",
             )
             .select(NOTIFICATION_SETTINGS_COLUMNS)
-            .single()
             .execute()
         )
-        return dict(response.data or {})
+        return _first_row(response.data)
 
     def list_enabled_notification_settings(self) -> list[dict[str, Any]]:
         response = execute_supabase_read(
@@ -169,3 +167,9 @@ class PushRepository:
 
 def get_push_repository() -> PushRepository:
     return PushRepository()
+
+
+def _first_row(data: Any) -> dict[str, Any]:
+    if isinstance(data, list):
+        return dict(data[0]) if data else {}
+    return dict(data or {})

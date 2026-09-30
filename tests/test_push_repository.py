@@ -28,10 +28,6 @@ class FakeQuery:
         self.calls.append(("limit", value))
         return self
 
-    def single(self):
-        self.calls.append(("single",))
-        return self
-
     def upsert(self, payload, on_conflict=None):
         self.calls.append(("upsert", payload, on_conflict))
         return self
@@ -51,8 +47,6 @@ class FakeQuery:
     def execute(self):
         if self.fail:
             raise self.fail
-        if ("single",) in self.calls:
-            return FakeResponse(self.rows[0] if self.rows else {})
         return FakeResponse(self.rows)
 
 
