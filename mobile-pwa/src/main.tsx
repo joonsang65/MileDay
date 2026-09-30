@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import ReactDOM from "react-dom/client";
 import { Bell, CalendarDays, ChevronLeft, ChevronRight, LogOut, Settings, Sun } from "lucide-react";
 
@@ -215,17 +215,21 @@ function Login({ onLogin }: { onLogin: () => void }) {
 
 function Today() {
   const [today, setToday] = React.useState<CalendarDateData | null>(null);
-  const [tomorrow, setTomorrow] = React.useState<CalendarDateData | null>(null);
+  const [week, setWeek] = React.useState<CalendarDateData[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const now = new Date();
-    const next = new Date(now);
-    next.setDate(now.getDate() + 1);
-    Promise.all([getDateWithCache(toDateKey(now)), getDateWithCache(toDateKey(next))])
-      .then(([todayData, tomorrowData]) => {
+    const weekDates = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(now);
+      date.setDate(now.getDate() + index);
+      return toDateKey(date);
+    });
+    Promise.all(weekDates.map((date) => getDateWithCache(date)))
+      .then((weekData) => {
+        const [todayData] = weekData;
         setToday(todayData);
-        setTomorrow(tomorrowData);
+        setWeek(weekData);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -238,7 +242,7 @@ function Today() {
       </header>
       {loading ? <p className="status-text">불러오는 중입니다.</p> : null}
       <ScheduleSection title="오늘 일정" data={today} />
-      <ScheduleSection title="내일 일정" data={tomorrow} compact />
+      <WeekScheduleSection days={week.slice(1)} />
     </section>
   );
 }
@@ -378,6 +382,41 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
         <LogOut size={18} />
         로그아웃
       </button>
+    </section>
+  );
+}
+
+function WeekScheduleSection({ days }: { days: CalendarDateData[] }) {
+  return (
+    <section className="schedule-section compact">
+      <h2>이번 7일 일정</h2>
+      <div className="week-list">
+        {days.map((day) => {
+          const items = buildScheduleItems(day.goals, day.milestones);
+          return (
+            <article className="week-day" key={day.date}>
+              <div className="week-day-header">
+                <strong>{displayDate(day.date)}</strong>
+                <span>{items.length}개</span>
+              </div>
+              {items.length === 0 ? <p className="empty-state">일정이 없습니다.</p> : null}
+              {items.length > 0 ? (
+                <div className="schedule-list">
+                  {items.map((item) => (
+                    <div className="schedule-item" key={item.id}>
+                      <span className="color-dot" style={{ background: item.color }} />
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p>{item.meta}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

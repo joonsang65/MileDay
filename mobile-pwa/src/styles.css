@@ -230,6 +230,46 @@ input {
   gap: 8px;
 }
 
+.week-list {
+  display: grid;
+  gap: 12px;
+}
+
+.week-day {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(213, 209, 195, 0.7);
+}
+
+.week-day:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.week-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.week-day-header strong {
+  font-size: 14px;
+}
+
+.week-day-header span {
+  flex: 0 0 auto;
+  min-width: 34px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--primary);
+  background: var(--selected-date-bg);
+  font-size: 12px;
+  font-weight: 850;
+  text-align: center;
+}
+
 .schedule-item {
   min-height: 50px;
   display: grid;
