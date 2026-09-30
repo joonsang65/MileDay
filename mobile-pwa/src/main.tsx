@@ -10,12 +10,31 @@ import "./styles.css";
 
 type Tab = "today" | "calendar" | "settings";
 
+function tabFromLocation(): Tab {
+  const route = location.hash || location.pathname;
+  if (route.includes("calendar")) {
+    return "calendar";
+  }
+  if (route.includes("settings")) {
+    return "settings";
+  }
+  return "today";
+}
+
 function App() {
   const [isAuthed, setIsAuthed] = React.useState(api.hasSession());
-  const [tab, setTab] = React.useState<Tab>(location.pathname.includes("calendar") ? "calendar" : location.pathname.includes("settings") ? "settings" : "today");
+  const [tab, setTab] = React.useState<Tab>(tabFromLocation);
 
   React.useEffect(() => {
     void registerServiceWorker();
+  }, []);
+
+  React.useEffect(() => {
+    function handleHashChange() {
+      setTab(tabFromLocation());
+    }
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   React.useEffect(() => {
@@ -28,7 +47,7 @@ function App() {
 
   function navigate(next: Tab) {
     setTab(next);
-    history.replaceState(null, "", next === "today" ? "/today" : `/${next}`);
+    history.replaceState(null, "", `/#/${next}`);
   }
 
   if (!isAuthed) {

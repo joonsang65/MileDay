@@ -1,4 +1,4 @@
-const CACHE_NAME = "mileday-mobile-shell-v1";
+const CACHE_NAME = "mileday-mobile-shell-v2";
 const SHELL_ASSETS = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -31,7 +31,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let payload = { title: "MileDay", body: "You have schedules today.", url: "/today" };
+  let payload = { title: "MileDay", body: "You have schedules today.", url: "/#/today" };
   if (event.data) {
     try {
       payload = { ...payload, ...event.data.json() };
@@ -45,14 +45,14 @@ self.addEventListener("push", (event) => {
       body: payload.body,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      data: { url: payload.url || "/today" },
+      data: { url: normalizeAppUrl(payload.url || "/#/today") },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || "/today", self.location.origin).href;
+  const targetUrl = new URL(normalizeAppUrl(event.notification.data?.url || "/#/today"), self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
@@ -65,3 +65,16 @@ self.addEventListener("notificationclick", (event) => {
     }),
   );
 });
+
+function normalizeAppUrl(url) {
+  if (url === "/today") {
+    return "/#/today";
+  }
+  if (url === "/calendar") {
+    return "/#/calendar";
+  }
+  if (url === "/settings") {
+    return "/#/settings";
+  }
+  return url;
+}

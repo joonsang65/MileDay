@@ -87,7 +87,7 @@ class NotificationScheduler:
                 user_id=user_id,
                 title="MileDay",
                 body=f"오늘 일정이 {schedule_count}개 있습니다.",
-                url="/today",
+                url="/#/today",
             )
             sent_users += 1
         return {"checked": checked, "sent_users": sent_users, "skipped": skipped}

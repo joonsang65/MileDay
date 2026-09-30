@@ -81,7 +81,7 @@ class PushService:
             user_id=user_id,
             title="MileDay",
             body="Test notification from MileDay.",
-            url="/today",
+            url="/#/today",
         )
 
     def send_user_push(self, *, user_id: str, title: str, body: str, url: str) -> dict[str, Any]:
