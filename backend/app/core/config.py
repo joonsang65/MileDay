@@ -57,6 +57,17 @@ class Settings(BaseModel):
         default_factory=lambda: getenv("GEMINI_SCHEDULE_MODEL", "gemini-3.5-flash-lite")
     )
 
+    # Web Push. Private VAPID material must live only in backend/Render env.
+    vapid_public_key: str | None = Field(default_factory=lambda: getenv("VAPID_PUBLIC_KEY"))
+    vapid_private_key: str | None = Field(default_factory=lambda: getenv("VAPID_PRIVATE_KEY"))
+    vapid_claims_email: str | None = Field(default_factory=lambda: getenv("VAPID_CLAIMS_EMAIL"))
+    notification_scheduler_enabled: bool = Field(
+        default_factory=lambda: env_bool("NOTIFICATION_SCHEDULER_ENABLED")
+    )
+    notification_scheduler_interval_seconds: int = Field(
+        default_factory=lambda: int(getenv("NOTIFICATION_SCHEDULER_INTERVAL_SECONDS", "60"))
+    )
+
     # 같은 Supabase 프로젝트를 쓰는 통합 테스트 안전장치
     integration_tests_enabled: bool = Field(
         default_factory=lambda: env_bool("ENABLE_INTEGRATION_TESTS")
@@ -87,7 +98,7 @@ class Settings(BaseModel):
         # 쉼표 구분 origin 문자열을 FastAPI CORS 목록으로 정규화
         raw_origins = getenv(
             "CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,http://localhost:3000",
         )
         self.cors_origins = [
             origin.strip() for origin in raw_origins.split(",") if origin.strip()

@@ -1,4 +1,5 @@
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -17,6 +18,7 @@ from api.routers.calender import router as calender_router
 from api.routers.external_calender import router as external_calender_router
 from api.routers.goals import router as goals_router
 from api.routers.milestones import router as milestones_router
+from api.routers.push import router as push_router
 from api.routers.schedule_assistant import router as schedule_assistant_router
 from api.routers.settings import router as settings_router
 from core.config import get_settings
@@ -31,11 +33,23 @@ from exceptions.handlers import (
     unhandled_exception_handler,
     validation_exception_handler,
 )
+from services.notification_scheduler import get_notification_scheduler
 
 settings = get_settings()
 configure_logging()
 
-app = FastAPI(title=settings.app_name)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = get_notification_scheduler()
+    scheduler.start()
+    try:
+        yield
+    finally:
+        await scheduler.stop()
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 # 요청 문맥 미들웨어가 CORS보다 먼저 request_id를 기록한다.
 app.add_middleware(RequestContextMiddleware)
@@ -87,6 +101,7 @@ app.include_router(calender_router)
 app.include_router(settings_router)
 app.include_router(external_calender_router)
 app.include_router(schedule_assistant_router)
+app.include_router(push_router)
 
 if __name__ == "__main__":
     uvicorn.run(
