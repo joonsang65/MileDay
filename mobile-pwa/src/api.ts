@@ -98,16 +98,27 @@ export class ApiClient {
     path: string,
     options: { method?: string; auth?: boolean; body?: unknown } = {},
   ): Promise<T> {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {};
+    if (options.body) {
+      headers["Content-Type"] = "application/json";
+    }
     if (options.auth !== false && this.accessToken) {
       headers.Authorization = `Bearer ${this.accessToken}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: options.method || "GET",
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        method: options.method || "GET",
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+    } catch (error) {
+      throw new ApiError(
+        `서버에 연결할 수 없습니다. API 주소와 CORS 설정을 확인하세요. (${path})`,
+        0,
+      );
+    }
     const payload = await response.json().catch(() => null);
     if (!response.ok || payload?.success === false) {
       if (response.status === 401 || response.status === 403) {

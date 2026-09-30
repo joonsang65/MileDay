@@ -13,25 +13,30 @@ export async function registerServiceWorker() {
 
 export async function enablePush() {
   if (!isPushSupported()) {
-    throw new Error("Push is not supported on this device.");
+    throw new Error("이 디바이스에서는 Web Push가 지원되지 않습니다.");
   }
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
-    throw new Error("Notification permission was not granted.");
+    throw new Error("알림 권한이 허용되지 않았습니다.");
   }
   const config = await api.getPushConfig();
   const publicKey = config.vapid_public_key || import.meta.env.VITE_VAPID_PUBLIC_KEY;
   if (!publicKey) {
-    throw new Error("VAPID public key is not configured.");
+    throw new Error("VAPID public key가 설정되지 않았습니다.");
   }
   const registration = await registerServiceWorker();
   if (!registration) {
-    throw new Error("Service worker registration failed.");
+    throw new Error("서비스 워커를 등록할 수 없습니다.");
   }
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey),
-  });
+  let subscription: PushSubscription;
+  try {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  } catch (error) {
+    throw new Error("Push 구독을 생성할 수 없습니다. VAPID public key와 브라우저 알림 설정을 확인하세요.");
+  }
   await api.subscribe(subscription.toJSON());
   return subscription;
 }
