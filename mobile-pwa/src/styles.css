@@ -162,7 +162,8 @@ input {
 
 .primary-button,
 .secondary-button,
-.logout-button {
+.logout-button,
+.small-secondary-button {
   min-height: 48px;
   display: inline-flex;
   align-items: center;
@@ -191,6 +192,15 @@ input {
   background: var(--surface-raised);
 }
 
+.small-secondary-button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  font-size: 12px;
+}
+
 .logout-button {
   color: var(--danger);
 }
@@ -204,6 +214,21 @@ input {
 
 .screen-header {
   padding: 4px 2px 2px;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 4px 2px 2px;
+}
+
+.settings-header h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .schedule-section {

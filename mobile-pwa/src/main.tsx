@@ -12,7 +12,7 @@ import {
   preloadRequiredMonths,
   readCachedMonth,
 } from "./month-cache";
-import { disablePush, enablePush, isPushSupported, permissionLabel, registerServiceWorker } from "./push";
+import { disablePush, enablePush, isPushSupported, registerServiceWorker } from "./push";
 import type { CalendarDateData, CalendarMonthData, Goal, Milestone, NotificationSettings } from "./types";
 import "./styles.css";
 
@@ -307,8 +307,8 @@ function Calendar() {
 
 function SettingsView({ onLogout }: { onLogout: () => void }) {
   const [settings, setSettings] = React.useState<NotificationSettings | null>(null);
-  const [permission, setPermission] = React.useState(permissionLabel());
   const [message, setMessage] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
     api.getNotificationSettings().then((data) => setSettings(normalizeNotificationSettings(data)));
@@ -321,13 +321,39 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
 
   async function handleEnablePush() {
     setMessage("");
+    setSaving(true);
     try {
       await enablePush();
-      setPermission(permissionLabel());
       await update({ enabled: true });
       setMessage("알림이 설정되었습니다.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "알림을 설정할 수 없습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDisablePush() {
+    setMessage("");
+    setSaving(true);
+    try {
+      await disablePush();
+      await update({ enabled: false });
+      setMessage("알림이 해제되었습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "알림을 해제할 수 없습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function sendTestNotification() {
+    setMessage("");
+    try {
+      await api.sendTestPush();
+      setMessage("테스트 알림을 보냈습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "테스트 알림을 보낼 수 없습니다.");
     }
   }
 
@@ -339,22 +365,29 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
 
   return (
     <section className="screen">
-      <header className="screen-header">
-        <p className="eyebrow">Settings</p>
-        <h1>알림</h1>
+      <header className="settings-header">
+        <div>
+          <p className="eyebrow">Settings</p>
+          <h1>알림</h1>
+        </div>
+        <button className="small-secondary-button" onClick={sendTestNotification}>
+          <Bell size={16} />
+          테스트
+        </button>
       </header>
       <div className="settings-list">
         <label className="setting-row">
-          <span>매일 일정 알림</span>
+          <span>오늘 일정 알림</span>
           <input
             type="checkbox"
             checked={settings?.enabled || false}
+            disabled={!settings || saving || !isPushSupported()}
             onChange={(event) => {
               if (event.target.checked) {
                 void handleEnablePush();
                 return;
               }
-              void disablePush().then(() => update({ enabled: false }));
+              void handleDisablePush();
             }}
           />
         </label>
@@ -363,20 +396,12 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
           <input
             type="time"
             value={settings?.notification_time?.slice(0, 5) || "08:00"}
+            disabled={!settings || saving}
             onChange={(event) => update({ notification_time: event.target.value })}
           />
         </label>
-        <div className="setting-row">
-          <span>권한 상태</span>
-          <strong>{permission}</strong>
-        </div>
       </div>
-      <button className="primary-button" disabled={!isPushSupported()} onClick={handleEnablePush}>
-        <Bell size={18} />
-        알림 허용하기
-      </button>
-      <button className="secondary-button" onClick={() => disablePush().then(() => update({ enabled: false }))}>알림 해제</button>
-      <button className="secondary-button" onClick={() => api.sendTestPush().then(() => setMessage("테스트 알림을 보냈습니다."))}>테스트 알림</button>
+      {!isPushSupported() ? <p className="status-text">이 디바이스에서는 Web Push 알림을 사용할 수 없습니다.</p> : null}
       {message ? <p className="status-text">{message}</p> : null}
       <button className="logout-button" onClick={logout}>
         <LogOut size={18} />
