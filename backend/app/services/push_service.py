@@ -69,12 +69,27 @@ class PushService:
         current = self.get_notification_settings(user_id=user_id)
         next_timezone = timezone or current["timezone"] or DEFAULT_TIMEZONE
         self._validate_timezone(next_timezone)
-        return self.repository.upsert_notification_settings(
+        next_notification_time = notification_time or current["notification_time"] or DEFAULT_NOTIFICATION_TIME
+        should_reset_daily_log = (
+            notification_time is not None
+            and notification_time != str(current.get("notification_time") or DEFAULT_NOTIFICATION_TIME)[:5]
+        ) or (
+            timezone is not None
+            and timezone != (current.get("timezone") or DEFAULT_TIMEZONE)
+        )
+        updated = self.repository.upsert_notification_settings(
             user_id=user_id,
             enabled=current["enabled"] if enabled is None else enabled,
-            notification_time=notification_time or current["notification_time"] or DEFAULT_NOTIFICATION_TIME,
+            notification_time=next_notification_time,
             timezone=next_timezone,
         )
+        if should_reset_daily_log:
+            self._reset_today_delivery_log(
+                user_id=user_id,
+                old_timezone=current.get("timezone") or DEFAULT_TIMEZONE,
+                new_timezone=next_timezone,
+            )
+        return updated
 
     def send_test_push(self, *, user_id: str) -> dict[str, Any]:
         return self.send_user_push(
@@ -141,6 +156,19 @@ class PushService:
             ZoneInfo(timezone)
         except ZoneInfoNotFoundError as exc:
             raise ValueError(f"Unsupported timezone: {timezone}") from exc
+
+    def _reset_today_delivery_log(self, *, user_id: str, old_timezone: str, new_timezone: str) -> None:
+        now = datetime.now(UTC)
+        today_dates = {
+            now.astimezone(ZoneInfo(old_timezone)).date(),
+            now.astimezone(ZoneInfo(new_timezone)).date(),
+        }
+        for delivery_date in today_dates:
+            self.repository.delete_delivery_log(
+                user_id=user_id,
+                delivery_date=delivery_date,
+                notification_type="daily_schedule",
+            )
 
 
 def get_push_service() -> PushService:

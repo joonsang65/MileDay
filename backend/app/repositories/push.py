@@ -164,6 +164,23 @@ class PushRepository:
                 return False
             raise
 
+    def delete_delivery_log(
+        self,
+        *,
+        user_id: str,
+        delivery_date: date,
+        notification_type: str,
+    ) -> None:
+        (
+            self._get_client()
+            .table("notification_delivery_log")
+            .delete()
+            .eq("user_id", user_id)
+            .eq("delivery_date", delivery_date.isoformat())
+            .eq("notification_type", notification_type)
+            .execute()
+        )
+
 
 def get_push_repository() -> PushRepository:
     return PushRepository()

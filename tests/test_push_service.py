@@ -10,6 +10,7 @@ class FakeRepository:
         self.settings = None
         self.subscriptions = []
         self.deleted = []
+        self.deleted_delivery_logs = []
         self.touched = []
 
     def get_notification_settings(self, *, user_id):
@@ -33,6 +34,9 @@ class FakeRepository:
 
     def delete_subscription_by_id(self, *, subscription_id):
         self.deleted.append({"subscription_id": subscription_id})
+
+    def delete_delivery_log(self, **payload):
+        self.deleted_delivery_logs.append(payload)
 
 
 def test_push_service_defaults_and_updates_settings() -> None:
@@ -64,6 +68,48 @@ def test_push_service_rejects_unknown_timezone() -> None:
             notification_time="08:00",
             timezone="No/Such_Zone",
         )
+
+
+def test_push_service_resets_today_log_when_time_changes() -> None:
+    repo = FakeRepository()
+    repo.settings = {
+        "user_id": "user-1",
+        "enabled": True,
+        "notification_time": "08:00",
+        "timezone": "Asia/Seoul",
+    }
+    service = PushService(repository=repo)
+
+    service.update_notification_settings(
+        user_id="user-1",
+        enabled=True,
+        notification_time="09:30",
+        timezone="Asia/Seoul",
+    )
+
+    assert repo.deleted_delivery_logs
+    assert repo.deleted_delivery_logs[0]["user_id"] == "user-1"
+    assert repo.deleted_delivery_logs[0]["notification_type"] == "daily_schedule"
+
+
+def test_push_service_keeps_today_log_when_only_enabled_changes() -> None:
+    repo = FakeRepository()
+    repo.settings = {
+        "user_id": "user-1",
+        "enabled": False,
+        "notification_time": "08:00",
+        "timezone": "Asia/Seoul",
+    }
+    service = PushService(repository=repo)
+
+    service.update_notification_settings(
+        user_id="user-1",
+        enabled=True,
+        notification_time=None,
+        timezone=None,
+    )
+
+    assert repo.deleted_delivery_logs == []
 
 
 def test_push_service_sends_to_all_subscriptions(monkeypatch) -> None:

@@ -120,3 +120,23 @@ def test_push_repository_delivery_log_duplicate_returns_false() -> None:
         delivery_date=date(2026, 9, 30),
         notification_type="daily_schedule",
     )
+
+
+def test_push_repository_deletes_delivery_log() -> None:
+    client = FakeClient()
+    repo = PushRepository(supabase_client=client)
+
+    repo.delete_delivery_log(
+        user_id="user-1",
+        delivery_date=date(2026, 9, 30),
+        notification_type="daily_schedule",
+    )
+
+    table, query = latest(client)
+    assert table == "notification_delivery_log"
+    assert query.calls == [
+        ("delete",),
+        ("eq", "user_id", "user-1"),
+        ("eq", "delivery_date", "2026-09-30"),
+        ("eq", "notification_type", "daily_schedule"),
+    ]
