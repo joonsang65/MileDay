@@ -15,7 +15,7 @@ if (-not (Test-Path -LiteralPath $releaseDir -PathType Container)) {
 
 if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
   $found = Get-ChildItem -LiteralPath $releaseDir -File |
-    Where-Object { $_.Extension -in @(".appx", ".msix", ".msixupload") } |
+    Where-Object { $_.Extension -eq ".msixupload" } |
     Select-Object -ExpandProperty Name
   throw "Expected Store package was not found: $expectedPath. Found: $($found -join ', ')"
 }

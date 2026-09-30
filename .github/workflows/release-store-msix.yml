@@ -9,7 +9,9 @@ on:
       - "frontend/package-lock.json"
       - "frontend/electron-builder.store.cjs"
       - "frontend/scripts/verify-store-env.mjs"
+      - "frontend/scripts/verify-package-api.mjs"
       - "frontend/scripts/find-store-artifacts.ps1"
+      - "frontend/scripts/write-sha256.ps1"
       - ".github/workflows/release-store-msix.yml"
 
 permissions:
@@ -72,11 +74,11 @@ jobs:
         working-directory: frontend
         run: npm run verify:package-api
 
-      - name: Build Store package
+      - name: Build MSIX upload package
         working-directory: frontend
         run: npm run dist:store
 
-      - name: Locate Store package
+      - name: Locate MSIX upload package
         id: artifacts
         shell: pwsh
         working-directory: frontend
@@ -88,7 +90,7 @@ jobs:
         working-directory: frontend
         run: .\scripts\write-sha256.ps1 -InstallerPath "${{ steps.artifacts.outputs.store_package_path }}"
 
-      - name: Upload Store package artifact
+      - name: Upload MSIX artifact
         uses: actions/upload-artifact@v6
         with:
           name: mileday-store-package-${{ steps.version.outputs.version }}
@@ -97,11 +99,11 @@ jobs:
             ${{ steps.sha256.outputs.sha256_path }}
           retention-days: 14
 
-      - name: Write Store package summary
+      - name: Write MSIX package summary
         shell: pwsh
         run: |
           @"
-          # MileDay Windows Store Package
+          # MileDay Windows MSIX Package
 
           Version: ${{ steps.version.outputs.version }}
 
@@ -111,5 +113,5 @@ jobs:
 
           Actions artifact: mileday-store-package-${{ steps.version.outputs.version }}
 
-          Partner Center: Download the Actions artifact, upload the Store package manually, and let Microsoft Store sign it during certification.
+          Partner Center: Open the MSIX product, import the preserved Store listing if needed, and upload the `.msixupload` file on the Packages page.
           "@ >> $env:GITHUB_STEP_SUMMARY

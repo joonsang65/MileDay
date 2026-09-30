@@ -1,46 +1,35 @@
-# MileDay Windows Store package release
+# MileDay MSIX Store migration
 
-MileDay uses the Microsoft Store package path as the default Store submission
-path. This avoids the paid Azure Trusted Signing dependency for Store
-submissions because the Microsoft Store signs MSIX/AppX packages after
-certification.
+This guide covers moving the current Microsoft Store listing content from the
+existing EXE/MSI product to an MSIX submission without rewriting the store
+description, screenshots, or logo assets by hand.
 
-Current tooling note: MSIX support currently requires the `electron-builder`
-`next` prerelease line because the stable npm `latest` tag is still v26. The
-project pins `electron-builder` to the v27 prerelease so the Store workflow can
-emit `.msixupload` packages.
+The important constraint is simple: Partner Center does not expose a one-click
+switch from EXE/MSI to MSIX in the same submission. Plan on either a new MSIX
+product or a support-assisted package-type change if Microsoft enables that for
+your account. In either case, keep the listing content by exporting and
+re-importing it.
 
-The existing NSIS EXE build remains available during the transition as a
-fallback/debug artifact. It is not the default Store submission artifact.
+MSIX upload is the correct Store path for this repo because Microsoft Store can
+sign the package during certification. Azure Trusted Signing is not part of the
+Store path described here.
 
-## Why MSIX
+## What to preserve
 
-Microsoft Store handles final signing for MSIX/AppX packages submitted through
-Partner Center. That means Store submission does not require Azure Trusted
-Signing, a PFX certificate, or a hardware token.
+Keep the existing Store listing content by exporting it first:
 
-EXE/MSI submissions are different. The submitter must Authenticode-sign the
-installer and every PE file with a certificate that chains to the Microsoft
-Trusted Root Program. Unsigned NSIS installers are rejected as unsigned
-packages.
-
-## Transition plan
-
-Current transition state:
-
-| Path | Purpose | Status |
-| --- | --- | --- |
-| MSIX upload | Microsoft Store submission | Default automated Store artifact |
-| NSIS EXE | Local direct install, fallback, debug | Kept during transition |
-| Azure Trusted Signing EXE | Direct-distribution signed EXE | Manual fallback only |
-
-After the Store package is accepted by Partner Center and runtime behavior is
-verified, the NSIS/Azure EXE release path can be removed or left as a manual
-debug-only path.
+| Item | Keep by |
+| --- | --- |
+| Description | Store listing export/import |
+| Screenshots | Store listing export/import |
+| Store logo | Store listing export/import |
+| Short description | Store listing export/import |
+| Product features | Store listing export/import |
+| Supported languages | Store listing export/import |
 
 ## Local Store build
 
-Set the Store package identity values in your shell, then run the Store build.
+Set the package identity values in your shell, then run the Store build.
 
 ```powershell
 $env:MSIX_IDENTITY_NAME="your-partner-center-package-identity"
@@ -54,7 +43,8 @@ npm ci
 npm run dist:store
 ```
 
-The Store package file is written to `frontend/release-store`.
+The Store package file is written to `frontend/release-store` as a
+`.msixupload` file.
 
 ## GitHub Actions Store build
 
@@ -86,9 +76,9 @@ upload GitHub Actions artifact
 write Actions summary
 ```
 
-The first Store workflow intentionally uploads only a GitHub Actions artifact.
-It does not create a GitHub Release, so it cannot collide with the existing EXE
-release process.
+The workflow intentionally uploads only a GitHub Actions artifact. It does not
+create a GitHub Release, so the Store submission remains a manual Partner
+Center step.
 
 ## Required GitHub variables
 
@@ -107,13 +97,22 @@ No Azure Trusted Signing secrets are required for the MSIX Store workflow.
 
 ## Partner Center manual upload
 
-1. Push a version change to `main`.
-2. Open the `Windows Store Package Release` workflow run.
-3. Download the `mileday-store-package-X.Y.Z` artifact.
-4. Confirm the Actions summary SHA256 matches the downloaded Store package.
-5. Upload the `.msixupload` package in Partner Center.
-6. Submit for certification.
-7. After certification, Microsoft Store signs and publishes the package.
+1. Export the current Store listing from the existing product.
+2. Save the CSV and its asset folder as UTF-8.
+3. Create or open the MSIX product in Partner Center. If the existing product still
+   shows EXE/MSI, create the MSIX product first or use a support-assisted
+   package-type change.
+4. Import the exported Store listing CSV and assets.
+5. Open the `Windows Store Package Release` workflow run on `main`.
+6. Download the `mileday-store-package-X.Y.Z` artifact.
+7. Confirm the Actions summary SHA256 matches the downloaded `.msixupload`.
+8. Upload the `.msixupload` package in the Partner Center `Packages` page.
+9. Submit for certification.
+10. After certification, Microsoft Store signs and publishes the package.
+
+If you are still on the EXE/MSI product screen, do not use the `Package URL`
+field. That screen is for MSI/EXE submissions only. MSIX uses the file upload
+path in the Packages page.
 
 ## Store review notes
 
@@ -127,19 +126,6 @@ Validate these before submission:
 | App data | Settings, auth token storage, and window bounds persist correctly. |
 | Auto launch | Confirm behavior in packaged MSIX; keep disabled if Store policy rejects it. |
 | Tray/menu | Confirm tray and window menu behavior after install. |
-
-## EXE fallback
-
-Local EXE packaging remains:
-
-```powershell
-cd frontend
-npm run dist
-```
-
-The Azure Trusted Signing EXE workflow is manual fallback only. It should not
-run on `main` push and should not be used for Microsoft Store submission unless
-you choose to pay for trusted EXE signing later.
 
 ## Troubleshooting
 

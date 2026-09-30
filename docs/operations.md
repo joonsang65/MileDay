@@ -41,6 +41,8 @@ npm run dev
 
 `pytest.ini`는 기본적으로 `integration` marker를 제외한다. 통합 테스트는 전용 환경 변수와 테스트 계정을 갖춘 뒤 실행한다.
 
+MSIX Store 업로드 절차는 [docs/deployment/windows-store-msix.md](deployment/windows-store-msix.md)를 먼저 본다.
+
 ## CI
 
 GitHub Actions는 `main`, `ai-draft` 대상 push와 pull request에서 실행한다.
