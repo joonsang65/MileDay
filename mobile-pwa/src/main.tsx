@@ -308,42 +308,79 @@ function Calendar() {
 function SettingsView({ onLogout }: { onLogout: () => void }) {
   const [settings, setSettings] = React.useState<NotificationSettings | null>(null);
   const [message, setMessage] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
+  const mutationId = React.useRef(0);
 
   React.useEffect(() => {
     api.getNotificationSettings().then((data) => setSettings(normalizeNotificationSettings(data)));
   }, []);
 
-  async function update(patch: Partial<NotificationSettings>) {
-    const next = await api.updateNotificationSettings(patch);
-    setSettings(normalizeNotificationSettings(next));
+  async function updateOptimistically(patch: Partial<NotificationSettings>, fallbackMessage: string) {
+    if (!settings) {
+      return;
+    }
+    const currentMutation = mutationId.current + 1;
+    mutationId.current = currentMutation;
+    const previous = settings;
+    setMessage("");
+    setSettings(normalizeNotificationSettings({ ...settings, ...patch }));
+    try {
+      const next = await api.updateNotificationSettings(patch);
+      if (mutationId.current === currentMutation) {
+        setSettings(normalizeNotificationSettings(next));
+      }
+    } catch (error) {
+      if (mutationId.current === currentMutation) {
+        setSettings(previous);
+        setMessage(error instanceof Error ? error.message : fallbackMessage);
+      }
+    }
   }
 
   async function handleEnablePush() {
+    if (!settings) {
+      return;
+    }
+    const currentMutation = mutationId.current + 1;
+    mutationId.current = currentMutation;
+    const previous = settings;
     setMessage("");
-    setSaving(true);
+    setSettings(normalizeNotificationSettings({ ...settings, enabled: true }));
     try {
       await enablePush();
-      await update({ enabled: true });
-      setMessage("알림이 설정되었습니다.");
+      const next = await api.updateNotificationSettings({ enabled: true });
+      if (mutationId.current === currentMutation) {
+        setSettings(normalizeNotificationSettings(next));
+        setMessage("알림이 설정되었습니다.");
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "알림을 설정할 수 없습니다.");
-    } finally {
-      setSaving(false);
+      if (mutationId.current === currentMutation) {
+        setSettings(previous);
+        setMessage(error instanceof Error ? error.message : "알림을 설정할 수 없습니다.");
+      }
     }
   }
 
   async function handleDisablePush() {
+    if (!settings) {
+      return;
+    }
+    const currentMutation = mutationId.current + 1;
+    mutationId.current = currentMutation;
+    const previous = settings;
     setMessage("");
-    setSaving(true);
+    setSettings(normalizeNotificationSettings({ ...settings, enabled: false }));
     try {
       await disablePush();
-      await update({ enabled: false });
-      setMessage("알림이 해제되었습니다.");
+      const next = await api.updateNotificationSettings({ enabled: false });
+      if (mutationId.current === currentMutation) {
+        setSettings(normalizeNotificationSettings(next));
+        setMessage("알림이 해제되었습니다.");
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "알림을 해제할 수 없습니다.");
-    } finally {
-      setSaving(false);
+      if (mutationId.current === currentMutation) {
+        setSettings(previous);
+        setMessage(error instanceof Error ? error.message : "알림을 해제할 수 없습니다.");
+      }
     }
   }
 
@@ -381,7 +418,7 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
           <input
             type="checkbox"
             checked={settings?.enabled || false}
-            disabled={!settings || saving || !isPushSupported()}
+            disabled={!settings || !isPushSupported()}
             onChange={(event) => {
               if (event.target.checked) {
                 void handleEnablePush();
@@ -396,8 +433,13 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
           <input
             type="time"
             value={settings?.notification_time?.slice(0, 5) || "08:00"}
-            disabled={!settings || saving}
-            onChange={(event) => update({ notification_time: event.target.value })}
+            disabled={!settings}
+            onChange={(event) => {
+              void updateOptimistically(
+                { notification_time: event.target.value },
+                "알림 시간을 저장할 수 없습니다.",
+              );
+            }}
           />
         </label>
       </div>
