@@ -4,11 +4,20 @@ import { Bell, CalendarDays, ChevronLeft, ChevronRight, LogOut, Settings, Sun } 
 
 import { api } from "./api";
 import { displayDate, isInMonth, monthGrid, monthLabel, moveMonth, parseDateKey, todayKey, toDateKey } from "./date";
+import {
+  clearMonthCache,
+  getDateWithCache,
+  getMonthWithCache,
+  preloadExtraMonths,
+  preloadRequiredMonths,
+  readCachedMonth,
+} from "./month-cache";
 import { disablePush, enablePush, isPushSupported, permissionLabel, registerServiceWorker } from "./push";
 import type { CalendarDateData, CalendarMonthData, Goal, Milestone, NotificationSettings } from "./types";
 import "./styles.css";
 
 type Tab = "today" | "calendar" | "settings";
+type PreloadStatus = "idle" | "loading" | "ready" | "error";
 
 function tabFromLocation(): Tab {
   const route = location.hash || location.pathname;
@@ -24,6 +33,9 @@ function tabFromLocation(): Tab {
 function App() {
   const [isAuthed, setIsAuthed] = React.useState(api.hasSession());
   const [tab, setTab] = React.useState<Tab>(tabFromLocation);
+  const [preloadStatus, setPreloadStatus] = React.useState<PreloadStatus>(api.hasSession() ? "loading" : "idle");
+  const [preloadError, setPreloadError] = React.useState("");
+  const [preloadAttempt, setPreloadAttempt] = React.useState(0);
 
   React.useEffect(() => {
     void registerServiceWorker();
@@ -40,10 +52,63 @@ function App() {
   React.useEffect(() => {
     function handleSessionCleared() {
       setIsAuthed(false);
+      setPreloadStatus("idle");
     }
     window.addEventListener("mileday-mobile-session-cleared", handleSessionCleared);
     return () => window.removeEventListener("mileday-mobile-session-cleared", handleSessionCleared);
   }, []);
+
+  React.useEffect(() => {
+    if (!isAuthed) {
+      return;
+    }
+    let alive = true;
+    setPreloadStatus("loading");
+    setPreloadError("");
+    preloadRequiredMonths()
+      .then((result) => {
+        if (!alive) {
+          return;
+        }
+        if (!result.ok) {
+          setPreloadError("이번 달 정보를 가져오지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.");
+          setPreloadStatus("error");
+          return;
+        }
+        setPreloadStatus("ready");
+        preloadExtraMonths();
+      })
+      .catch(() => {
+        if (!alive) {
+          return;
+        }
+        setPreloadError("정보를 가져오지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.");
+        setPreloadStatus("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isAuthed, preloadAttempt]);
+
+  React.useEffect(() => {
+    if (!isAuthed || preloadStatus !== "ready") {
+      return;
+    }
+    function refreshInBackground() {
+      preloadExtraMonths();
+    }
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        refreshInBackground();
+      }
+    }
+    window.addEventListener("online", refreshInBackground);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("online", refreshInBackground);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isAuthed, preloadStatus]);
 
   function navigate(next: Tab) {
     setTab(next);
@@ -52,6 +117,22 @@ function App() {
 
   if (!isAuthed) {
     return <Login onLogin={() => setIsAuthed(true)} />;
+  }
+
+  if (preloadStatus === "loading") {
+    return <PreloadScreen />;
+  }
+
+  if (preloadStatus === "error") {
+    return (
+      <PreloadScreen
+        error={preloadError}
+        onRetry={() => {
+          setPreloadStatus("loading");
+          setPreloadAttempt((current) => current + 1);
+        }}
+      />
+    );
   }
 
   return (
@@ -73,6 +154,19 @@ function App() {
           <span>설정</span>
         </button>
       </nav>
+    </main>
+  );
+}
+
+function PreloadScreen({ error, onRetry }: { error?: string; onRetry?: () => void }) {
+  return (
+    <main className="loading-shell">
+      <section className="loading-panel" aria-live="polite">
+        <p className="eyebrow">MileDay</p>
+        <h1>정보를 가져오고 있습니다</h1>
+        <p>{error || "오늘 일정과 캘린더를 준비하는 중입니다."}</p>
+        {error && onRetry ? <button className="primary-button" onClick={onRetry}>다시 시도</button> : <span className="loading-bar" />}
+      </section>
     </main>
   );
 }
@@ -128,7 +222,7 @@ function Today() {
     const now = new Date();
     const next = new Date(now);
     next.setDate(now.getDate() + 1);
-    Promise.all([api.getToday(toDateKey(now)), api.getToday(toDateKey(next))])
+    Promise.all([getDateWithCache(toDateKey(now)), getDateWithCache(toDateKey(next))])
       .then(([todayData, tomorrowData]) => {
         setToday(todayData);
         setTomorrow(tomorrowData);
@@ -156,7 +250,15 @@ function Calendar() {
   const selected = month?.days.find((day) => day.date === selectedDate) || null;
 
   React.useEffect(() => {
-    api.getMonth(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1).then(setMonth);
+    const year = visibleMonth.getFullYear();
+    const monthNumber = visibleMonth.getMonth() + 1;
+    const cached = readCachedMonth(year, monthNumber);
+    if (cached) {
+      setMonth(cached);
+    } else {
+      setMonth(null);
+    }
+    getMonthWithCache(year, monthNumber).then(setMonth).catch(() => undefined);
   }, [visibleMonth]);
 
   return (
@@ -227,6 +329,7 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
 
   async function logout() {
     await api.logout();
+    clearMonthCache();
     onLogout();
   }
 

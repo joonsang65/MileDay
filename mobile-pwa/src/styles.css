@@ -55,6 +55,57 @@ button {
   padding: 20px;
 }
 
+.loading-shell {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--bg-app);
+}
+
+.loading-panel {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 16px 34px rgba(63, 69, 59, 0.14);
+}
+
+.loading-panel h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.loading-panel p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.loading-bar {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-surface);
+}
+
+.loading-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
 .login-panel {
   width: min(100%, 420px);
   display: grid;
@@ -64,6 +115,15 @@ button {
   border-radius: 8px;
   background: var(--surface-raised);
   box-shadow: 0 16px 34px rgba(63, 69, 59, 0.14);
+}
+
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-105%);
+  }
+  100% {
+    transform: translateX(245%);
+  }
 }
 
 .login-panel h1,
