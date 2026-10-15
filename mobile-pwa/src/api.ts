@@ -101,7 +101,7 @@ export class ApiClient {
   }
 
   sendTestPush() {
-    return this.request("/push/test", { method: "POST" });
+    return this.request<{ sent: number; removed: number; reason?: "no_incomplete_milestones" }>("/push/test", { method: "POST" });
   }
 
   private async request<T = unknown>(

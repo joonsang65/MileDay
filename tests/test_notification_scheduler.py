@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from services.notification_scheduler import NotificationScheduler, milestone_notification_body
+from services.notification_content import milestone_notification_body
+from services.notification_scheduler import NotificationScheduler
 
 
 class FakeRepository:

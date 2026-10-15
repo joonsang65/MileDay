@@ -8,18 +8,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from core.config import get_settings
 from repositories.push import PushRepository, get_push_repository
 from services.calendar_service import CalendarService, get_calendar_service
+from services.notification_content import build_daily_notification
 from services.push_service import PushService, get_push_service, utc_now
-
-
-def milestone_notification_body(milestones: list[dict[str, Any]]) -> str:
-    # Stable ordering also handles equal titles and input rows returned in any order.
-    ordered = sorted(milestones, key=lambda m: (str(m.get("created_at") or ""), str(m.get("id") or ""), str(m.get("title") or "")))
-    titles = []
-    for milestone in ordered[:2]:
-        title = " ".join(str(milestone.get("title") or "").split()) or "마일스톤"
-        titles.append(title if len(title) <= 35 else title[:34] + "…")
-    remaining = len(ordered) - len(titles)
-    return ", ".join(titles) + (f" 외 {remaining}개" if remaining else "")
 
 
 class NotificationScheduler:
@@ -80,8 +70,8 @@ class NotificationScheduler:
                 user_id=user_id,
                 target_date=due.date(),
             )
-            milestones = [m for m in date_data.get("milestones", []) if not m.get("is_completed") and str(m.get("scheduled_date"))[:10] == due.date().isoformat()]
-            if not milestones:
+            notification = build_daily_notification(date_data, due.date())
+            if notification is None:
                 skipped += 1
                 continue
             if not self.repository.list_user_subscriptions(user_id=user_id):
@@ -96,9 +86,7 @@ class NotificationScheduler:
                 continue
             self.push_service.send_user_push(
                 user_id=user_id,
-                title="MileDay · 오늘의 마일스톤",
-                body=milestone_notification_body(milestones),
-                url="/#/today",
+                **notification,
             )
             sent_users += 1
         return {"checked": checked, "sent_users": sent_users, "skipped": skipped}

@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from core.config import get_settings
 from repositories.push import PushRepository, get_push_repository
+from services.calendar_service import CalendarService, get_calendar_service
+from services.notification_content import build_daily_notification
 
 
 DEFAULT_NOTIFICATION_TIME = "08:00"
@@ -17,8 +19,14 @@ class PushConfigurationError(RuntimeError):
 
 
 class PushService:
-    def __init__(self, repository: PushRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: PushRepository | None = None,
+        *,
+        calendar_service: CalendarService | None = None,
+    ) -> None:
         self.repository = repository or get_push_repository()
+        self.calendar_service = calendar_service
 
     def get_public_config(self) -> dict[str, Any]:
         settings = get_settings()
@@ -92,11 +100,18 @@ class PushService:
         return updated
 
     def send_test_push(self, *, user_id: str) -> dict[str, Any]:
+        settings = self.get_notification_settings(user_id=user_id)
+        timezone = settings.get("timezone") or DEFAULT_TIMEZONE
+        target_date = utc_now().astimezone(ZoneInfo(timezone)).date()
+        calendar_service = self.calendar_service or get_calendar_service()
+        date_data = calendar_service.get_date_calendar(user_id=user_id, target_date=target_date)
+        notification = build_daily_notification(date_data, target_date)
+        if notification is None:
+            return {"sent": 0, "removed": 0, "reason": "no_incomplete_milestones"}
+        # A manual resend must neither consult nor change daily delivery logs.
         return self.send_user_push(
             user_id=user_id,
-            title="MileDay",
-            body="Test notification from MileDay.",
-            url="/#/today",
+            **notification,
         )
 
     def send_user_push(self, *, user_id: str, title: str, body: str, url: str) -> dict[str, Any]:
