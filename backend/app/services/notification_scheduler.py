@@ -11,6 +11,17 @@ from services.calendar_service import CalendarService, get_calendar_service
 from services.push_service import PushService, get_push_service, utc_now
 
 
+def milestone_notification_body(milestones: list[dict[str, Any]]) -> str:
+    # Stable ordering also handles equal titles and input rows returned in any order.
+    ordered = sorted(milestones, key=lambda m: (str(m.get("created_at") or ""), str(m.get("id") or ""), str(m.get("title") or "")))
+    titles = []
+    for milestone in ordered[:2]:
+        title = " ".join(str(milestone.get("title") or "").split()) or "마일스톤"
+        titles.append(title if len(title) <= 35 else title[:34] + "…")
+    remaining = len(ordered) - len(titles)
+    return ", ".join(titles) + (f" 외 {remaining}개" if remaining else "")
+
+
 class NotificationScheduler:
     def __init__(
         self,
@@ -69,8 +80,8 @@ class NotificationScheduler:
                 user_id=user_id,
                 target_date=due.date(),
             )
-            schedule_count = len(date_data.get("goals", [])) + len(date_data.get("milestones", []))
-            if schedule_count == 0:
+            milestones = [m for m in date_data.get("milestones", []) if not m.get("is_completed") and str(m.get("scheduled_date"))[:10] == due.date().isoformat()]
+            if not milestones:
                 skipped += 1
                 continue
             if not self.repository.list_user_subscriptions(user_id=user_id):
@@ -85,8 +96,8 @@ class NotificationScheduler:
                 continue
             self.push_service.send_user_push(
                 user_id=user_id,
-                title="MileDay",
-                body=f"오늘 일정이 {schedule_count}개 있습니다.",
+                title="MileDay · 오늘의 마일스톤",
+                body=milestone_notification_body(milestones),
                 url="/#/today",
             )
             sent_users += 1
