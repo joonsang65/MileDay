@@ -42,6 +42,7 @@ const labels = {
     settingsPanelLarge: "크게",
     opacity: "투명도",
     resizeEnabled: "창 크기 조정",
+    todaySidePanel: "오늘의 사이드 패널",
     resizeHint: "켜져 있을 때만 창 모서리를 마우스로 잡아 크기를 조정할 수 있습니다.",
     autoLaunch: "컴퓨터 시작 시 자동 실행",
     autoLaunchHint: "컴퓨터를 켜면 MileDay가 자동으로 시작됩니다.",
@@ -80,6 +81,7 @@ const labels = {
     settingsPanelLarge: "Large",
     opacity: "Opacity",
     resizeEnabled: "Window resizing",
+    todaySidePanel: "Today's side panel",
     resizeHint: "When enabled, drag a window edge or corner to resize the widget.",
     autoLaunch: "Open at Windows login",
     autoLaunchHint: "MileDay opens automatically after you turn on this computer and sign in.",
@@ -118,6 +120,8 @@ export function SettingsPanel({
   const [goalFontSize, setGoalFontSize] = useState(localUiSettings.goalFontSize);
   const [settingsPanelSize, setSettingsPanelSize] = useState(localUiSettings.settingsPanelSize);
   const [opacity, setOpacity] = useState(localUiSettings.opacity);
+  const [isSidePanelSaving, setIsSidePanelSaving] = useState(false);
+  const [sidePanelError, setSidePanelError] = useState<string | null>(null);
   const [resizeEnabled, setResizeEnabled] = useState(localUiSettings.resizeEnabled);
   const [openAtLogin, setOpenAtLogin] = useState(false);
   const [isAutoLaunchLoading, setIsAutoLaunchLoading] = useState(false);
@@ -382,6 +386,20 @@ export function SettingsPanel({
             <Settings2 size={18} aria-hidden="true" />
             <h3>{text.advancedSection}</h3>
           </div>
+          <label className="toggle-row settings-toggle-row">
+            <input type="checkbox" aria-label={text.todaySidePanel}
+              checked={localUiSettings.todaySidePanelEnabled}
+              disabled={isLoading || isSidePanelSaving || !onLocalUiSettingsChange}
+              onChange={(event) => {
+                setIsSidePanelSaving(true);
+                setSidePanelError(null);
+                void onLocalUiSettingsChange?.({ todaySidePanelEnabled: event.target.checked })
+                  .catch(() => setSidePanelError(language === "en" ? "Could not save the side panel setting." : "사이드 패널 설정을 저장하지 못했습니다."))
+                  .finally(() => setIsSidePanelSaving(false));
+              }} />
+            <span><strong>{text.todaySidePanel}</strong></span>
+          </label>
+          {sidePanelError ? <p role="alert" className="error-text">{sidePanelError}</p> : null}
           <label className="toggle-row settings-toggle-row">
             <input
               type="checkbox"

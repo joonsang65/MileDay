@@ -3,6 +3,7 @@ export type LocalUiSettings = {
   goalFontSize: number;
   settingsPanelSize: "small" | "large";
   resizeEnabled: boolean;
+  todaySidePanelEnabled: boolean;
   theme: "system";
   fontFamily: "system";
   opacity: number;
@@ -17,6 +18,7 @@ export const DEFAULT_LOCAL_UI_SETTINGS: LocalUiSettings = {
   goalFontSize: 13,
   settingsPanelSize: "small",
   resizeEnabled: false,
+  todaySidePanelEnabled: false,
   theme: "system",
   fontFamily: "system",
   opacity: 1,

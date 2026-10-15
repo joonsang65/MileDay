@@ -18,6 +18,7 @@ declare global {
         isEncryptionAvailable: () => Promise<boolean>;
       };
       uiSettings?: {
+        setTodaySidePanelEnabled: (enabled: boolean) => Promise<LocalUiSettings>;
         get: () => Promise<LocalUiSettings>;
         setFontSizes: (payload: LocalUiFontSizePayload) => Promise<LocalUiSettings>;
         setResizeEnabled: (resizeEnabled: boolean) => Promise<LocalUiSettings>;

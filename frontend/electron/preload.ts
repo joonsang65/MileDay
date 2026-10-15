@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("mileday", {
     isEncryptionAvailable: () => ipcRenderer.invoke("auth-token:is-encryption-available"),
   },
   uiSettings: {
+    setTodaySidePanelEnabled: (enabled: boolean) => ipcRenderer.invoke("ui-settings:set-today-side-panel-enabled", enabled),
     get: () => ipcRenderer.invoke("ui-settings:get"),
     setFontSizes: (payload: LocalUiFontSizePayload) =>
       ipcRenderer.invoke("ui-settings:set-font-sizes", payload),

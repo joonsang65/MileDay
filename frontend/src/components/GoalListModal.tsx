@@ -9,12 +9,14 @@ import { FloatingPanel } from "./FloatingPanel";
 type GoalListModalProps = {
   language: Language;
   initialGoals?: Goal[];
+  milestoneCompletions?: Record<string, boolean>;
+  pendingMilestoneIds?: ReadonlySet<string>;
   onClose: () => void;
   onUpdateGoal: (goalId: string, payload: GoalUpdatePayload) => Promise<void>;
   onDeleteGoal: (goalId: string) => Promise<void>;
   onCreateMilestone: (goalId: string, payload: MilestoneCreatePayload) => Promise<void>;
   onToggleGoal: (goalId: string, isCompleted: boolean) => Promise<void>;
-  onToggleMilestone: (milestoneId: string, isCompleted: boolean) => Promise<void>;
+  onToggleMilestone: (milestoneId: string, isCompleted: boolean, source?: Milestone) => Promise<void>;
   onUpdateMilestone: (milestoneId: string, payload: MilestoneUpdatePayload) => Promise<void>;
   onDeleteMilestone: (milestoneId: string) => Promise<void>;
 };
@@ -49,6 +51,8 @@ const labels = {
 export function GoalListModal({
   language,
   initialGoals = [],
+  milestoneCompletions,
+  pendingMilestoneIds,
   onClose,
   onToggleGoal,
   onToggleMilestone,
@@ -96,7 +100,9 @@ export function GoalListModal({
 
   const goalData = useMemo(() => {
     return goals.map((goal) => {
-      const milestones = milestonesMap[goal.id] ?? [];
+      const milestones = (milestonesMap[goal.id] ?? []).map((m) =>
+        milestoneCompletions && m.id in milestoneCompletions ? { ...m, is_completed: milestoneCompletions[m.id] } : m,
+      );
       const isCompleted = goal.is_completed || (milestones.length > 0 && milestones.every((milestone) => milestone.is_completed));
       const completedCount = milestones.filter((milestone) => milestone.is_completed).length;
       return {
@@ -107,7 +113,7 @@ export function GoalListModal({
         completedCount,
       };
     });
-  }, [goals, milestonesMap]);
+  }, [goals, milestonesMap, milestoneCompletions]);
 
   const filteredGoals = useMemo(() => {
     switch (activeTab) {
@@ -128,12 +134,12 @@ export function GoalListModal({
   }, [activeTab, filteredGoals.length, goalData.length]);
 
   async function handleToggleMilestone(milestone: Milestone, goalId: string) {
-    if (isMilestoneToggling === milestone.id) {
+    if (isMilestoneToggling === milestone.id || pendingMilestoneIds?.has(milestone.id)) {
       return;
     }
 
     const nextMilestoneCompleted = !milestone.is_completed;
-    const goalMilestones = milestonesMap[goalId] ?? [];
+    const goalMilestones = goalData.find((goal) => goal.id === goalId)?.milestones ?? [];
     const previousGoal = goals.find((goal) => goal.id === goalId);
     const nextGoalCompleted = goalMilestones.length > 0 && goalMilestones.every((item) => (
       item.id === milestone.id ? nextMilestoneCompleted : item.is_completed
@@ -153,7 +159,7 @@ export function GoalListModal({
       goal.id === goalId ? { ...goal, is_completed: nextGoalCompleted } : goal
     )));
     try {
-      await onToggleMilestone(milestone.id, nextMilestoneCompleted);
+      await onToggleMilestone(milestone.id, nextMilestoneCompleted, milestone);
     } catch (error) {
       setMilestonesMap((current) => {
         const milestones = current[goalId] ?? [];
@@ -305,7 +311,7 @@ export function GoalListModal({
                           </div>
                         </li>
                       ) : goal.milestones.map((milestone) => {
-                        const isToggling = isMilestoneToggling === milestone.id;
+                        const isToggling = isMilestoneToggling === milestone.id || pendingMilestoneIds?.has(milestone.id);
                         return (
                           <li key={milestone.id} className="goal-list-item">
                             <div className="editable-row goal-list-row goal-list-milestone-row">

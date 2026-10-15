@@ -1256,6 +1256,48 @@ button:disabled {
   align-content: stretch;
 }
 
+.planner-workspace.has-today-panel {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  gap: 12px;
+}
+
+.today-panel-toggle { display: none; }
+.today-side-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  -webkit-app-region: no-drag;
+}
+.today-side-panel-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.today-goal-group { margin-top: 16px; }
+.today-goal-group h3 { display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; font-size: var(--goal-font-size); }
+.today-side-panel .today-list li { display: flex; align-items: flex-start; gap: 6px; }
+.today-side-panel .today-list strong { min-width: 0; overflow-wrap: anywhere; font-size: var(--goal-font-size); }
+.today-side-panel .today-list li.done strong { color: var(--text-secondary); text-decoration: line-through; }
+.today-side-panel .check-button, .today-side-panel .color-swatch { flex-shrink: 0; }
+
+@media (max-width: 899px) {
+  .planner-workspace.has-today-panel { grid-template-columns: minmax(0, 1fr); gap: 4px; grid-template-rows: auto minmax(0, 1fr); }
+  .today-panel-toggle { display: block; justify-self: end; -webkit-app-region: no-drag; }
+  .has-today-panel .today-side-panel { display: none; }
+  .has-today-panel.today-panel-open .today-side-panel {
+    display: flex;
+    position: absolute;
+    top: 34px;
+    bottom: 0;
+    right: 0;
+    width: min(300px, 92%);
+    z-index: 20;
+    box-shadow: 0 8px 24px #0002;
+  }
+}
+
 .app-credit {
   flex: 0 0 auto;
   display: grid;

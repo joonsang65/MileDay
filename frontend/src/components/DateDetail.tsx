@@ -15,6 +15,7 @@ type DateDetailProps = {
   detail?: CalendarDateData | null;
   goals?: Goal[];
   isLoading: boolean;
+  pendingMilestoneIds?: ReadonlySet<string>;
   onToggleGoal: (goalId: string, isCompleted: boolean) => void | Promise<void>;
   onToggleMilestone: (milestoneId: string, isCompleted: boolean) => void | Promise<void>;
   onUpdateGoal: (goalId: string, payload: GoalUpdatePayload) => Promise<void>;
@@ -189,6 +190,7 @@ export function DateDetail({
   detail,
   goals,
   isLoading,
+  pendingMilestoneIds,
   onToggleGoal,
   onToggleMilestone,
   onUpdateGoal,
@@ -388,7 +390,7 @@ export function DateDetail({
                                   void Promise.resolve(onToggleMilestone(milestone.id, !milestone.is_completed)).catch(() => undefined);
                                 }}
                                 title={milestone.is_completed ? text.markIncomplete : text.markComplete}
-                                disabled={isLoading}
+                                disabled={isLoading || pendingMilestoneIds?.has(milestone.id)}
                               >
                               {milestone.is_completed ? (
                                 <CheckSquare size={18} aria-hidden="true" />

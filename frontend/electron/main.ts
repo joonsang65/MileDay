@@ -71,6 +71,7 @@ function readUiSettings(): StoredLocalUiSettings {
       goalFontSize: normalizeFontSize(parsed.goalFontSize, DEFAULT_LOCAL_UI_SETTINGS.goalFontSize),
       settingsPanelSize: normalizeSettingsPanelSize(parsed.settingsPanelSize),
       resizeEnabled: Boolean(parsed.resizeEnabled),
+      todaySidePanelEnabled: parsed.todaySidePanelEnabled === true,
       theme: DEFAULT_LOCAL_UI_SETTINGS.theme,
       fontFamily: DEFAULT_LOCAL_UI_SETTINGS.fontFamily,
       opacity: normalizeOpacity(parsed.opacity),
@@ -87,6 +88,7 @@ function writeUiSettings(settings: StoredLocalUiSettings): StoredLocalUiSettings
     goalFontSize: normalizeFontSize(settings.goalFontSize, DEFAULT_LOCAL_UI_SETTINGS.goalFontSize),
     settingsPanelSize: normalizeSettingsPanelSize(settings.settingsPanelSize),
     resizeEnabled: settings.resizeEnabled,
+    todaySidePanelEnabled: settings.todaySidePanelEnabled === true,
     theme: DEFAULT_LOCAL_UI_SETTINGS.theme,
     fontFamily: DEFAULT_LOCAL_UI_SETTINGS.fontFamily,
     opacity: normalizeOpacity(settings.opacity),
@@ -360,6 +362,9 @@ function registerAuthTokenHandlers(): void {
 
 function registerUiSettingsHandlers(): void {
   ipcMain.handle("ui-settings:get", () => readUiSettings());
+  ipcMain.handle("ui-settings:set-today-side-panel-enabled", (_event, enabled: unknown) =>
+    updateUiSettings({ todaySidePanelEnabled: enabled === true }),
+  );
   ipcMain.handle("ui-settings:set-font-sizes", (_event, payload: LocalUiFontSizePayload) =>
     updateUiSettings({
       baseFontSize: payload.baseFontSize,

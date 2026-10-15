@@ -35,6 +35,7 @@ describe("SettingsPanel", () => {
           goalFontSize: 13,
           settingsPanelSize: "small",
           resizeEnabled: false,
+          todaySidePanelEnabled: false,
           theme: "system",
           fontFamily: "system",
           opacity: 1,
@@ -58,6 +59,7 @@ describe("SettingsPanel", () => {
     fireEvent.change(screen.getByLabelText("Opacity"), { target: { value: "0.75" } });
     await user.selectOptions(screen.getByLabelText("System text size"), "large");
     await user.click(screen.getByLabelText("Window resizing"));
+    await user.click(screen.getByLabelText("Today's side panel"));
     await user.click(screen.getByLabelText("Open at Windows login"));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -74,6 +76,7 @@ describe("SettingsPanel", () => {
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ opacity: 0.75 });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ settingsPanelSize: "large" });
     expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ resizeEnabled: true });
+    expect(onLocalUiSettingsChange).toHaveBeenCalledWith({ todaySidePanelEnabled: true });
 
     const panel = screen.getByRole("region", { name: "Settings" });
     await user.click(within(panel).getByRole("button", { name: "Log out" }));
