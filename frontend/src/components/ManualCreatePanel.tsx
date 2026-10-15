@@ -3,9 +3,12 @@ import { CalendarPlus, Plus, Trash2 } from "lucide-react";
 
 import type { Goal, GoalCreatePayload, Language, MilestoneCreatePayload } from "@/api/types";
 import { FloatingPanel } from "@/components/FloatingPanel";
+import { getTodayDateKey } from "@/utils/date";
 
 type ManualCreatePanelProps = {
   selectedDate: string;
+  today?: string;
+  timezone?: string;
   isLoading: boolean;
   goals: Goal[];
   onCreateSchedule: (goalPayloadOrId: string | GoalCreatePayload, milestones: MilestoneCreatePayload[]) => Promise<void>;
@@ -30,6 +33,7 @@ const labels = {
     goalTitle: "목표 제목",
     selectGoal: "목표 선택",
     selectGoalRequired: "목표를 선택해 주세요.",
+    noEligibleGoals: "추가할 수 있는 목표가 없습니다.",
     goalPlaceholder: "예: 데이터 분석 과제 마무리",
     deadline: "마감일",
     color: "색상",
@@ -60,6 +64,7 @@ const labels = {
     goalTitle: "Goal title",
     selectGoal: "Select goal",
     selectGoalRequired: "Please select a goal.",
+    noEligibleGoals: "No goals available to add to.",
     goalPlaceholder: "e.g. Finish data analysis assignment",
     deadline: "Deadline",
     color: "Color",
@@ -87,6 +92,8 @@ const labels = {
 
 export function ManualCreatePanel({
   selectedDate,
+  today,
+  timezone = "Asia/Seoul",
   isLoading,
   goals,
   onCreateSchedule,
@@ -101,6 +108,13 @@ export function ManualCreatePanel({
   const [color, setColor] = useState(colorOptions[0]);
   const [milestones, setMilestones] = useState<ManualMilestoneDraft[]>([]);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const todayKey = today ?? getTodayDateKey(timezone);
+  const eligibleGoals = goals.filter((goal) => goal.deadline.slice(0, 10) >= todayKey);
+  useEffect(() => {
+    if (selectedGoalId && !goals.some((goal) => goal.id === selectedGoalId && goal.deadline.slice(0, 10) >= todayKey)) {
+      setSelectedGoalId("");
+    }
+  }, [goals, selectedGoalId, todayKey]);
 
   useEffect(() => {
     setDeadline(selectedDate);
@@ -144,11 +158,11 @@ export function ManualCreatePanel({
         return;
       }
     } else {
-      if (!selectedGoalId) {
+      if (!eligibleGoals.some((goal) => goal.id === selectedGoalId && goal.deadline.slice(0, 10) >= (today ?? getTodayDateKey(timezone)))) {
         setValidationMessage(text.selectGoalRequired);
         return;
       }
-      const selectedGoal = goals.find(g => g.id === selectedGoalId);
+      const selectedGoal = eligibleGoals.find(g => g.id === selectedGoalId);
       if (selectedGoal) {
         targetDeadline = selectedGoal.deadline;
         targetColor = selectedGoal.color;
@@ -264,10 +278,11 @@ export function ManualCreatePanel({
               disabled={isLoading}
             >
               <option value="">{text.selectGoal}</option>
-              {goals.map(g => (
+              {eligibleGoals.map(g => (
                 <option key={g.id} value={g.id}>{g.title}</option>
               ))}
             </select>
+            {eligibleGoals.length === 0 ? <span className="empty-text">{text.noEligibleGoals}</span> : null}
           </label>
         )}
         
@@ -318,7 +333,7 @@ export function ManualCreatePanel({
           <button type="button" className="ghost-button panel-button" onClick={onClose} disabled={isLoading}>
             {text.cancel}
           </button>
-          <button type="submit" className="primary-button panel-primary" disabled={isLoading}>
+          <button type="submit" className="primary-button panel-primary" disabled={isLoading || (mode === "existing" && !eligibleGoals.some((goal) => goal.id === selectedGoalId))}>
             <CalendarPlus size={16} aria-hidden="true" />
             {isLoading ? text.adding : text.add}
           </button>

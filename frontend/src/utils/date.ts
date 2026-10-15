@@ -18,6 +18,14 @@ export function toDateKey(value: Date): string {
   return format(value, DATE_KEY_FORMAT);
 }
 
+export function getTodayDateKey(timezone: string, now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 export function parseDateKey(value: string): Date {
   return parseISO(value);
 }

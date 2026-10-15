@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getMonthGridDays,
+  getTodayDateKey,
   getWeekDays,
   getWeekLabel,
   moveMonth,
@@ -11,6 +12,11 @@ import {
 } from "./date";
 
 describe("date utils", () => {
+  it("uses the user's timezone across the midnight boundary", () => {
+    const now = new Date("2026-10-15T15:00:00Z");
+    expect(getTodayDateKey("Asia/Seoul", now)).toBe("2026-10-16");
+    expect(getTodayDateKey("America/Los_Angeles", now)).toBe("2026-10-15");
+  });
   it("월간 캘린더 격자를 월요일 시작 42칸으로 만든다", () => {
     const days = getMonthGridDays(parseDateKey("2026-07-10"), 1);
 
