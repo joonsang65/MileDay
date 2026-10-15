@@ -5,7 +5,15 @@ import { describe, expect, it, vi } from "vitest";
 import { CalendarBoard } from "./CalendarBoard";
 
 describe("CalendarBoard", () => {
-  it("shows holiday and goal progress text without aggregate metric badges", async () => {
+  it.each(["month", "week"] as const)("keeps deadline-only goals alongside milestones in %s view", (mode) => {
+    const goal = { id: "g", title: "목표 마감", deadline: "2026-07-10", is_completed: false, is_recurring: false, recurrence_type: null, color: "#7F9278", created_at: "", updated_at: "" };
+    render(<CalendarBoard mode={mode} visibleDate="2026-07-10" selectedDate="2026-07-10" weekStartsOn={1} holidayDisplay="hidden" onSelectDate={vi.fn()}
+      days={[{ date: "2026-07-10", is_today: false, goal_count: 1, milestone_count: 1, completed_milestone_count: 0, goals: [goal], milestones: [{ id: "m", goal_id: "another-goal", title: "긴 마일스톤 제목 전체 확인", color: "#D97706", scheduled_date: "2026-07-10", is_completed: false }] }]} />);
+    expect(screen.getByText("마감: 목표 마감")).toBeInTheDocument();
+    expect(screen.getByTitle("긴 마일스톤 제목 전체 확인")).toBeInTheDocument();
+  });
+
+  it("shows each milestone title and completion style in the month calendar", async () => {
     const onSelectDate = vi.fn();
     render(
       <CalendarBoard
@@ -65,14 +73,15 @@ describe("CalendarBoard", () => {
     expect(screen.queryByText("목표 1")).not.toBeInTheDocument();
     expect(screen.queryByText("작업 1/2")).not.toBeInTheDocument();
     expect(screen.getByText("광복절")).toBeInTheDocument();
-    expect(screen.getByText("아동센터 작성 1/2")).toBeInTheDocument();
-    expect(screen.queryByText("초안 작성")).not.toBeInTheDocument();
+    expect(screen.queryByText("아동센터 작성 1/2")).not.toBeInTheDocument();
+    expect(screen.getByTitle("초안 작성")).toBeInTheDocument();
+    expect(screen.getByText("검토")).toHaveClass("done-event");
 
     await userEvent.click(screen.getByRole("button", { name: /10 광복절/i }));
     expect(onSelectDate).toHaveBeenCalledWith("2026-07-10");
   });
 
-  it("groups orphan milestone text by goal title while individual milestone titles stay hidden", () => {
+  it("shows milestone titles without requiring a goal on the same day", () => {
     render(
       <CalendarBoard
         mode="month"
@@ -109,9 +118,9 @@ describe("CalendarBoard", () => {
 
     expect(screen.queryByText("목표 1")).not.toBeInTheDocument();
     expect(screen.queryByText("작업 0/1")).not.toBeInTheDocument();
-    expect(screen.getByText("프로그램 일지 0/1")).toBeInTheDocument();
+    expect(screen.queryByText("프로그램 일지 0/1")).not.toBeInTheDocument();
     expect(screen.queryByText("숨김 휴일")).not.toBeInTheDocument();
-    expect(screen.queryByText("제출")).not.toBeInTheDocument();
+    expect(screen.getByText("제출")).toBeInTheDocument();
   });
 
   it("marks saturday blue and keeps sunday separate from holidays", () => {

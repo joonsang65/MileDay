@@ -16,54 +16,21 @@ type CalendarBoardProps = {
   onSelectDate: (date: string) => void;
 };
 
-type GoalTaskGroup = {
-  id: string;
-  title: string;
-  color: string;
-  total: number;
-  completed: number;
-};
-
-function getGoalTaskGroups(day: CalendarDay | undefined, noGoalLabel: string, allGoals?: Goal[]): GoalTaskGroup[] {
-  if (!day) {
-    return [];
-  }
-
-  const allGoalsMap = new Map<string, Goal>();
-  if (allGoals) {
-    for (const g of allGoals) {
-      allGoalsMap.set(g.id, g);
-    }
-  }
-
-  const groups = new Map<string, GoalTaskGroup>();
-  for (const goal of day.goals) {
-    groups.set(goal.id, {
-      id: goal.id,
-      title: goal.title,
-      color: goal.color,
-      total: 0,
-      completed: 0,
-    });
-  }
-
-  for (const milestone of day.milestones) {
-    const matchedGoal = allGoalsMap.get(milestone.goal_id);
-    const group = groups.get(milestone.goal_id) ?? {
-      id: milestone.goal_id,
-      title: matchedGoal?.title ?? milestone.goal_title ?? noGoalLabel,
-      color: matchedGoal?.color ?? milestone.color,
-      total: 0,
-      completed: 0,
-    };
-    group.total += 1;
-    if (milestone.is_completed) {
-      group.completed += 1;
-    }
-    groups.set(milestone.goal_id, group);
-  }
-
-  return Array.from(groups.values());
+function getDayEvents(day: CalendarDay | undefined, allGoals?: Goal[]) {
+  if (!day) return [];
+  const goals = new Map([...(allGoals ?? []), ...day.goals].map((goal) => [goal.id, goal]));
+  const milestoneGoalIds = new Set(day.milestones.map((m) => m.goal_id));
+  return [
+    ...day.milestones.map((m) => ({
+      id: `milestone:${m.id}`, title: m.title,
+      color: m.color || goals.get(m.goal_id)?.color,
+      completed: m.is_completed, deadline: false,
+    })),
+    ...day.goals.filter((g) => !milestoneGoalIds.has(g.id)).map((g) => ({
+      id: `goal:${g.id}`, title: g.title, color: g.color,
+      completed: g.is_completed, deadline: true,
+    })),
+  ];
 }
 
 const holidayNamesEn: Record<string, string> = {
@@ -144,7 +111,7 @@ export function CalendarBoard({
           const shouldShowHoliday = holidayDisplay === "normal" && day?.is_holiday;
           const shouldMarkHoliday =
             shouldShowHoliday || (holidayDisplay === "weekend_like" && day?.is_holiday);
-          const goalGroups = getGoalTaskGroups(day, language === "en" ? "No goal" : "목표 없음", allGoals);
+          const events = getDayEvents(day, allGoals);
 
           return (
             <button
@@ -169,16 +136,16 @@ export function CalendarBoard({
                 <span className="holiday-name">{getHolidayName(day?.holiday_name, language)}</span>
               ) : null}
               <span className="event-list" aria-hidden="true">
-                {goalGroups.slice(0, 3).map((goal) => (
-                  <span key={goal.id} className="event-text goal-event">
-                    {goal.total > 0
-                      ? `${goal.title} ${goal.completed}/${goal.total}`
-                      : goal.title}
+                {events.slice(0, 3).map((event) => (
+                  <span key={event.id} title={event.title}
+                    className={`event-text ${event.completed ? "done-event" : "goal-event"}`}
+                    style={event.completed ? undefined : { color: event.color }}>
+                    {event.deadline ? `${language === "en" ? "Due" : "마감"}: ${event.title}` : event.title}
                   </span>
                 ))}
               </span>
               <span className="dot-row" aria-hidden="true">
-                {goalGroups.slice(0, 5).map((goal) => (
+                {events.slice(0, 5).map((goal) => (
                   <span key={goal.id} className="dot goal-dot" style={{ background: goal.color }} />
                 ))}
               </span>
