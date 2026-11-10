@@ -516,11 +516,15 @@ export default function App() {
   const [pendingMilestoneIds, setPendingMilestoneIds] = useState<ReadonlySet<string>>(new Set());
   const [milestoneCompletions, setMilestoneCompletions] = useState<Record<string, boolean>>({});
   const pendingMilestonesRef = useRef(new Map<string, string | null>());
+  const pendingGoalMutationsRef = useRef(0);
   const mutationRevisionRef = useRef(0);
   const milestoneGoalIdsRef = useRef(new Map<string, string>());
   const reloadCurrentViewRef = useRef<() => void>(() => undefined);
   const sessionRevisionRef = useRef(0);
   const todaySequenceRef = useRef(0);
+  const dateRevisionRef = useRef(0);
+  const dateRefreshPendingRef = useRef(false);
+  const [dateRefreshRevision, setDateRefreshRevision] = useState(0);
   const [allGoals, setAllGoals] = useState<Goal[]>([]);
   const [userSettings, setUserSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
   const [localUiSettings, setLocalUiSettings] = useState<LocalUiSettings>(DEFAULT_LOCAL_UI_SETTINGS);
@@ -607,16 +611,50 @@ export default function App() {
   }, []);
 
   const [todayKey, setTodayKey] = useState(() => getTodayDateKey(userSettings.timezone));
+  const todayKeyRef = useRef(todayKey);
   useEffect(() => {
-    const updateToday = () => setTodayKey(getTodayDateKey(userSettings.timezone));
+    const updateToday = (refresh = false) => {
+      const nextToday = getTodayDateKey(userSettings.timezone);
+      const previousToday = todayKeyRef.current;
+      if (nextToday === previousToday && !refresh) return;
+
+      // Invalidate reads, not mutations: a sleeping window may resume with old responses pending.
+      dateRevisionRef.current += 1;
+      requestSequenceRef.current += 1;
+      todaySequenceRef.current += 1;
+      prefetchRunRef.current += 1;
+      hasStartedLoginPrefetchRef.current = false;
+      calendarCacheRef.current.clear();
+      dateDetailCacheRef.current.clear();
+      dateRefreshPendingRef.current = true;
+      if (nextToday !== previousToday) {
+        todayKeyRef.current = nextToday;
+        const view = useCalendarStore.getState();
+        if (view.selectedDate === previousToday) {
+          view.selectDate(nextToday);
+          if (getCalendarCacheKey(view.mode, view.visibleDate, view.weekStartsOn)
+            === getCalendarCacheKey(view.mode, previousToday, view.weekStartsOn)) {
+            view.setVisibleDate(view.mode === "week" ? getWeekStartDate(nextToday, view.weekStartsOn) : nextToday);
+          }
+        }
+        setTodayKey(nextToday);
+      }
+      setDateRefreshRevision((revision) => revision + 1);
+    };
+    const handleResume = () => updateToday(true);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") handleResume();
+    };
     updateToday();
-    const timer = window.setInterval(updateToday, 1000);
-    window.addEventListener("focus", updateToday);
-    document.addEventListener("visibilitychange", updateToday);
+    const timer = window.setInterval(() => updateToday(), 1000);
+    window.addEventListener("focus", handleResume);
+    window.addEventListener("online", handleResume);
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("focus", updateToday);
-      document.removeEventListener("visibilitychange", updateToday);
+      window.removeEventListener("focus", handleResume);
+      window.removeEventListener("online", handleResume);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [userSettings.timezone]);
 
@@ -631,6 +669,7 @@ export default function App() {
     dateDetailCacheRef.current.clear();
     settingsCacheRef.current = null;
     pendingMilestonesRef.current.clear();
+    pendingGoalMutationsRef.current = 0;
     setPendingMilestoneIds(new Set());
     setMilestoneCompletions({});
     milestoneGoalIdsRef.current.clear();
@@ -699,7 +738,7 @@ export default function App() {
         try {
           const revision = mutationRevisionRef.current;
           const calendar = await apiClient.getMonthCalendar(target.year, target.month);
-          if (prefetchRunRef.current !== runId || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0) {
+          if (prefetchRunRef.current !== runId || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0) {
             return;
           }
           cacheCalendarMonth(calendarCacheRef.current, dateDetailCacheRef.current, calendar);
@@ -723,6 +762,7 @@ export default function App() {
     const { force = false, quiet = false } = options;
     const revision = mutationRevisionRef.current;
     const session = sessionRevisionRef.current;
+    const dateRevision = dateRevisionRef.current;
     const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
     const calendarCacheKey = getCalendarCacheKey(mode, visibleDate, weekStartsOn);
@@ -762,7 +802,7 @@ export default function App() {
         currentViewRef.current.selectedDate === selectedDate &&
         currentViewRef.current.visibleDate === visibleDate &&
         currentViewRef.current.weekStartsOn === weekStartsOn;
-      if (session !== sessionRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || requestSequence !== requestSequenceRef.current || !isCurrentView) {
+      if (session !== sessionRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0 || requestSequence !== requestSequenceRef.current || !isCurrentView) {
         return;
       }
       settingsCacheRef.current = settings;
@@ -792,7 +832,7 @@ export default function App() {
           currentViewRef.current.selectedDate === selectedDate &&
           currentViewRef.current.visibleDate === visibleDate &&
           currentViewRef.current.weekStartsOn === weekStartsOn;
-        if (session !== sessionRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || requestSequence !== requestSequenceRef.current || !isStillCurrentView) {
+        if (session !== sessionRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0 || requestSequence !== requestSequenceRef.current || !isStillCurrentView) {
           return;
         }
       }
@@ -805,14 +845,14 @@ export default function App() {
         setHasAppliedInitialSettings(true);
       }
       void apiClient.listGoals().then((goals) => {
-        if (session !== sessionRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0) return;
+        if (session !== sessionRevisionRef.current || dateRevision !== dateRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0) return;
         setAllGoals(goals);
         for (const goal of goals) {
           updateCachedCalendars((calendar) => upsertGoalInCalendar(calendar, goal));
           updateCachedDateDetails((detail) => upsertGoalInDateDetail(detail, goal));
         }
       }).catch((error) => {
-        if (session === sessionRevisionRef.current && revision === mutationRevisionRef.current) {
+        if (session === sessionRevisionRef.current && dateRevision === dateRevisionRef.current && revision === mutationRevisionRef.current) {
           setRequestState((current) => ({ ...current, message: getUserFacingErrorMessage(error, userSettings.language) }));
         }
       });
@@ -829,7 +869,7 @@ export default function App() {
         currentViewRef.current.selectedDate === selectedDate &&
         currentViewRef.current.visibleDate === visibleDate &&
         currentViewRef.current.weekStartsOn === weekStartsOn;
-      if (session !== sessionRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || requestSequence !== requestSequenceRef.current || !isCurrentView) {
+      if (session !== sessionRevisionRef.current || revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0 || requestSequence !== requestSequenceRef.current || !isCurrentView) {
         return;
       }
       if (error instanceof ApiClientError && error.status === 401) {
@@ -874,7 +914,7 @@ export default function App() {
     try {
       const detail = await apiClient.getDateCalendar(todayKey);
       if (sequence !== todaySequenceRef.current || session !== sessionRevisionRef.current) return;
-      if (revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0) {
+      if (revision !== mutationRevisionRef.current || pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0) {
         setTodayDetail(dateDetailCacheRef.current.get(todayKey) ?? null);
         setTodayRequest({ isLoading: false, error: null });
         return;
@@ -900,11 +940,15 @@ export default function App() {
   useEffect(() => {
     setTodayDetail(null);
     setSidePanelOpen(true);
-    void loadToday();
     return () => { todaySequenceRef.current += 1; };
   }, [loadToday]);
 
   reloadCurrentViewRef.current = () => {
+    if (pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0) return;
+    if (dateRefreshPendingRef.current) {
+      setDateRefreshRevision((revision) => revision + 1);
+      return;
+    }
     void loadCalendar({ quiet: true });
     void loadToday();
   };
@@ -917,15 +961,20 @@ export default function App() {
   }, [loadCalendar, loadToday]);
 
   useEffect(() => {
-    void loadCalendar();
-  }, [loadCalendar]);
+    if (pendingMilestonesRef.current.size > 0 || pendingGoalMutationsRef.current > 0) return;
+    const force = dateRefreshPendingRef.current;
+    dateRefreshPendingRef.current = false;
+    void loadCalendar({ force });
+    void loadToday(force);
+  }, [loadCalendar, loadToday, dateRefreshRevision]);
 
   useEffect(() => {
     if (overlayMode === "manual-create") {
       const session = sessionRevisionRef.current;
       const revision = mutationRevisionRef.current;
+      const dateRevision = dateRevisionRef.current;
       void apiClient.listGoals().then((goals) => {
-        if (session === sessionRevisionRef.current && revision === mutationRevisionRef.current) setAllGoals(goals);
+        if (session === sessionRevisionRef.current && dateRevision === dateRevisionRef.current && revision === mutationRevisionRef.current) setAllGoals(goals);
       }).catch(() => undefined);
     }
   }, [overlayMode]);
@@ -1098,6 +1147,8 @@ export default function App() {
   async function handleToggleGoal(goalId: string, isCompleted: boolean) {
     const session = sessionRevisionRef.current;
     if (Array.from(pendingMilestonesRef.current.values()).includes(goalId)) throw new Error("Milestones are being saved.");
+    pendingGoalMutationsRef.current += 1;
+    mutationRevisionRef.current += 1;
     setMilestoneCompletions((current) => Object.fromEntries(Object.entries(current).filter(([id]) => milestoneGoalIdsRef.current.get(id) !== goalId)));
     applyGoalAndMilestonesCompletion(goalId, isCompleted);
     setRequestState({ isLoading: false, message: null, notice: null });
@@ -1113,6 +1164,12 @@ export default function App() {
       applyGoalAndMilestonesCompletion(goalId, !isCompleted);
       setRequestState({ isLoading: false, message: getUserFacingErrorMessage(error, userSettings.language), notice: null });
       throw error;
+    } finally {
+      if (session === sessionRevisionRef.current) {
+        pendingGoalMutationsRef.current -= 1;
+        mutationRevisionRef.current += 1;
+        reloadCurrentViewRef.current();
+      }
     }
   }
 
@@ -1490,6 +1547,7 @@ export default function App() {
             mode={mode}
             visibleDate={visibleDate}
             selectedDate={selectedDate}
+            today={todayKey}
             days={calendarData?.days ?? []}
             weekStartsOn={weekStartsOn}
             holidayDisplay={userSettings.holiday_display}

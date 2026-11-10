@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { CalendarBoard } from "./CalendarBoard";
+import type { CalendarDay } from "@/api/types";
 
 describe("CalendarBoard", () => {
   it.each(["month", "week"] as const)("keeps deadline-only goals alongside milestones in %s view", (mode) => {
     const goal = { id: "g", title: "목표 마감", deadline: "2026-07-10", is_completed: false, is_recurring: false, recurrence_type: null, color: "#7F9278", created_at: "", updated_at: "" };
-    render(<CalendarBoard mode={mode} visibleDate="2026-07-10" selectedDate="2026-07-10" weekStartsOn={1} holidayDisplay="hidden" onSelectDate={vi.fn()}
+    render(<CalendarBoard mode={mode} visibleDate="2026-07-10" selectedDate="2026-07-10" today="2026-07-10" weekStartsOn={1} holidayDisplay="hidden" onSelectDate={vi.fn()}
       days={[{ date: "2026-07-10", is_today: false, goal_count: 1, milestone_count: 1, completed_milestone_count: 0, goals: [goal], milestones: [{ id: "m", goal_id: "another-goal", title: "긴 마일스톤 제목 전체 확인", color: "#D97706", scheduled_date: "2026-07-10", is_completed: false }] }]} />);
     expect(screen.getByText("마감: 목표 마감")).toBeInTheDocument();
     expect(screen.getByTitle("긴 마일스톤 제목 전체 확인")).toBeInTheDocument();
@@ -20,6 +21,7 @@ describe("CalendarBoard", () => {
         mode="month"
         visibleDate="2026-07-10"
         selectedDate="2026-07-10"
+        today="2026-07-10"
         weekStartsOn={1}
         holidayDisplay="normal"
         onSelectDate={onSelectDate}
@@ -87,6 +89,7 @@ describe("CalendarBoard", () => {
         mode="month"
         visibleDate="2026-07-10"
         selectedDate="2026-07-11"
+        today="2026-07-10"
         weekStartsOn={0}
         holidayDisplay="hidden"
         onSelectDate={vi.fn()}
@@ -129,6 +132,7 @@ describe("CalendarBoard", () => {
         mode="week"
         visibleDate="2026-07-11"
         selectedDate="2026-07-11"
+        today="2026-07-10"
         weekStartsOn={0}
         holidayDisplay="hidden"
         onSelectDate={vi.fn()}
@@ -141,5 +145,16 @@ describe("CalendarBoard", () => {
     expect(screen.getByRole("button", { name: "11" })).toHaveClass("saturday");
     expect(screen.getByRole("button", { name: "12" })).toHaveClass("sunday");
     expect(screen.getByRole("button", { name: "11" })).not.toHaveClass("holiday");
+  });
+
+  it.each(["month", "week"] as const)("ignores cached is_today flags in %s view, even before new data arrives", (mode) => {
+    const cachedDays: CalendarDay[] = [{ date: "2026-12-31", is_today: true, goals: [], milestones: [], goal_count: 0, milestone_count: 0, completed_milestone_count: 0 }];
+    const props = { mode, visibleDate: "2026-12-28", selectedDate: "2026-12-31", days: cachedDays, weekStartsOn: 1 as const, holidayDisplay: "hidden" as const, onSelectDate: vi.fn() };
+    const { container, rerender } = render(<CalendarBoard {...props} today="2026-12-31" />);
+    expect(container.querySelector('[data-date="2026-12-31"]')).toHaveClass("today");
+    rerender(<CalendarBoard {...props} today="2027-01-01" />);
+    expect(container.querySelector('[data-date="2026-12-31"]')).not.toHaveClass("today");
+    expect(container.querySelector('[data-date="2027-01-01"]')).toHaveClass("today");
+    expect(container.querySelectorAll(".day-cell.today")).toHaveLength(1);
   });
 });

@@ -8,6 +8,7 @@ type CalendarBoardProps = {
   mode: CalendarMode;
   visibleDate: string;
   selectedDate: string;
+  today: string;
   days: CalendarDay[];
   weekStartsOn: 0 | 1;
   holidayDisplay: HolidayDisplay;
@@ -75,6 +76,7 @@ export function CalendarBoard({
   mode,
   visibleDate,
   selectedDate,
+  today,
   days,
   weekStartsOn,
   holidayDisplay,
@@ -120,7 +122,7 @@ export function CalendarBoard({
               data-date={dateKey}
               className={[
                 "day-cell",
-                day?.is_today ? "today" : "",
+                dateKey === today ? "today" : "",
                 isSelected ? "selected" : "",
                 isMuted ? "muted" : "",
                 isSunday ? "sunday" : "",

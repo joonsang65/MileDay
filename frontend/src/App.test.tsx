@@ -40,6 +40,161 @@ beforeEach(() => {
   window.mileday = { platform: "win32", uiSettings: { get: vi.fn().mockResolvedValue(localSettings()), setTodaySidePanelEnabled: vi.fn().mockImplementation(async (enabled) => localSettings(enabled)) } } as unknown as NonNullable<Window["mileday"]>;
 });
 
+describe("desktop date rollover", () => {
+  async function flush() {
+    await act(async () => {
+      for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
+    });
+  }
+
+  async function startAt(date: string, mode: "month" | "week" = "month", visibleDate = date, timezone = "Asia/Seoul") {
+    vi.useRealTimers();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${date}T23:59:59.000+09:00`));
+    useCalendarStore.setState({ mode, selectedDate: date, visibleDate });
+    vi.mocked(apiClient.getSettings).mockResolvedValue({ ...DEFAULT_USER_SETTINGS, calendar_view: mode, week_starts_on: 1, timezone });
+    vi.mocked(apiClient.listGoals).mockResolvedValue([]);
+    vi.spyOn(apiClient, "getWeekCalendar").mockImplementation(async (start_date) => ({ start_date, end_date: start_date, days: [], goals: [], milestones: [] }));
+    const result = render(<App />);
+    await flush();
+    // Finish initial prefetch so later assertions distinguish cached data from fresh reads.
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    await flush();
+    return result;
+  }
+
+  it.each([
+    ["2026-10-09", "2026-10-10", "month", "2026-10-10"],
+    ["2026-10-15", "2026-10-16", "month", "2026-10-16"],
+    ["2026-10-31", "2026-11-01", "month", "2026-11-01"],
+    ["2026-12-31", "2027-01-01", "month", "2027-01-01"],
+    ["2026-12-31", "2027-01-01", "week", "2026-12-28"],
+    ["2027-01-03", "2027-01-04", "week", "2027-01-04"],
+  ] as const)("rolls %s to %s while awake in %s view", async (before, after, mode, visibleDate) => {
+    const { container } = await startAt(before, mode);
+    vi.mocked(apiClient.getDateCalendar).mockClear();
+    vi.mocked(apiClient.getMonthCalendar).mockClear();
+    vi.mocked(apiClient.getWeekCalendar).mockClear();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    await flush();
+    expect(useCalendarStore.getState()).toMatchObject({ selectedDate: after, visibleDate });
+    expect(container.querySelector(`[data-date="${after}"]`)).toHaveClass("today");
+    expect(container.querySelector(`[data-date="${before}"].today`)).toBeNull();
+    expect(screen.getByRole("complementary")).toHaveTextContent(after);
+    expect(apiClient.getDateCalendar).toHaveBeenCalledWith(after);
+    if (mode === "month") {
+      const [year, month] = after.split("-").map(Number);
+      expect(apiClient.getMonthCalendar).toHaveBeenCalledWith(year, month);
+    } else {
+      expect(apiClient.getWeekCalendar).toHaveBeenCalledWith(visibleDate);
+    }
+  });
+
+  it.each(["focus", "visibilitychange", "online"])("refreshes immediately on %s after sleeping past midnight and preserves browsing", async (eventName) => {
+    await startAt("2026-10-15");
+    act(() => useCalendarStore.setState({ selectedDate: "2026-12-10", visibleDate: "2026-12-10" }));
+    await flush();
+    vi.mocked(apiClient.getMonthCalendar).mockClear();
+    vi.mocked(apiClient.getDateCalendar).mockClear();
+    act(() => {
+      vi.setSystemTime(new Date("2027-01-01T00:00:00+09:00"));
+      (eventName === "visibilitychange" ? document : window).dispatchEvent(new Event(eventName));
+    });
+    await flush();
+    expect(useCalendarStore.getState()).toMatchObject({ selectedDate: "2026-12-10", visibleDate: "2026-12-10" });
+    expect(apiClient.getMonthCalendar).toHaveBeenCalledWith(2026, 12);
+    expect(apiClient.getDateCalendar).toHaveBeenCalledWith("2027-01-01");
+    expect(screen.getByRole("complementary")).toHaveTextContent("2027-01-01");
+  });
+
+  it("preserves a separately browsed month even when selection follows today", async () => {
+    await startAt("2026-10-31");
+    act(() => useCalendarStore.setState({ visibleDate: "2027-02-01" }));
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(useCalendarStore.getState()).toMatchObject({ selectedDate: "2026-11-01", visibleDate: "2027-02-01" });
+  });
+
+  it("uses the configured timezone rather than the host date", async () => {
+    const { container } = await startAt("2026-10-15", "month", "2026-10-15", "America/New_York");
+    act(() => {
+      vi.setSystemTime(new Date("2026-10-16T01:00:00+09:00"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await flush();
+    expect(screen.getByRole("complementary")).toHaveTextContent("2026-10-15");
+    expect(container.querySelector('[data-date="2026-10-15"]')).toHaveClass("today");
+    act(() => {
+      vi.setSystemTime(new Date("2026-10-16T00:00:00-04:00"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await flush();
+    expect(screen.getByRole("complementary")).toHaveTextContent("2026-10-16");
+    expect(container.querySelector('[data-date="2026-10-16"]')).toHaveClass("today");
+  });
+
+  it("defers rollover reads until a pending milestone mutation settles", async () => {
+    const saving = deferred<Milestone>();
+    vi.mocked(apiClient.completeMilestone).mockReturnValueOnce(saving.promise);
+    await startAt("2026-10-15");
+    fireEvent.click(within(screen.getByRole("complementary")).getByRole("button", { name: "오늘 작업" }));
+    vi.mocked(apiClient.getMonthCalendar).mockClear();
+    vi.mocked(apiClient.getDateCalendar).mockClear();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(apiClient.getMonthCalendar).not.toHaveBeenCalled();
+    expect(apiClient.getDateCalendar).not.toHaveBeenCalled();
+    expect(apiClient.completeMilestone).toHaveBeenCalledTimes(1);
+    await act(async () => saving.resolve({ ...milestone, is_completed: true }));
+    await flush();
+    expect(apiClient.getMonthCalendar).toHaveBeenCalledWith(2026, 10);
+    expect(apiClient.getDateCalendar).toHaveBeenCalledWith("2026-10-16");
+    expect(useCalendarStore.getState().selectedDate).toBe("2026-10-16");
+  });
+
+  it("preserves a pending optimistic goal completion during rollover", async () => {
+    const saving = deferred<Goal>();
+    vi.spyOn(apiClient, "completeGoal").mockReturnValue(saving.promise);
+    vi.mocked(apiClient.getDateCalendar).mockImplementation(async (date) => ({ ...detail(date), milestones: [], milestone_count: 0 }));
+    await startAt("2026-10-15");
+    act(() => useUiStore.getState().openDayView());
+    fireEvent.click(screen.getByTestId("goal-toggle"));
+    expect(screen.getByTestId("goal-toggle")).toHaveAttribute("aria-pressed", "true");
+    vi.mocked(apiClient.getMonthCalendar).mockClear();
+    vi.mocked(apiClient.getDateCalendar).mockClear();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(screen.getByTestId("goal-toggle")).toHaveAttribute("aria-pressed", "true");
+    expect(apiClient.getMonthCalendar).not.toHaveBeenCalled();
+    expect(apiClient.getDateCalendar).not.toHaveBeenCalled();
+    await act(async () => saving.resolve({ ...goal, is_completed: true }));
+    await flush();
+    expect(apiClient.getMonthCalendar).toHaveBeenCalledWith(2026, 10);
+    expect(apiClient.getDateCalendar).toHaveBeenCalledWith("2026-10-16");
+  });
+
+  it.each(["focus", "visibilitychange", "online"])("forces fresh data on same-day %s without moving the selection", async (eventName) => {
+    await startAt("2026-10-15");
+    vi.mocked(apiClient.getMonthCalendar).mockClear();
+    vi.mocked(apiClient.getDateCalendar).mockClear();
+    act(() => (eventName === "visibilitychange" ? document : window).dispatchEvent(new Event(eventName)));
+    await flush();
+    expect(apiClient.getMonthCalendar).toHaveBeenCalledWith(2026, 10);
+    expect(apiClient.getDateCalendar).toHaveBeenCalledWith("2026-10-15");
+    expect(useCalendarStore.getState()).toMatchObject({ selectedDate: "2026-10-15", visibleDate: "2026-10-15" });
+  });
+
+  it("starts session refresh, handles cleared sessions, and cleans up on unmount", async () => {
+    const stop = vi.fn();
+    vi.mocked(apiClient.startSessionRefresh).mockReturnValue(stop);
+    const { unmount } = await startAt("2026-10-15");
+    expect(apiClient.startSessionRefresh).toHaveBeenCalledTimes(1);
+    act(() => window.dispatchEvent(new Event("mileday-session-cleared")));
+    await flush();
+    expect(screen.getByRole("heading", { name: "로그인" })).toBeInTheDocument();
+    unmount();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+});
+
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); delete window.mileday; });
 
 async function start() {
