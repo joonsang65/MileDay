@@ -3,9 +3,21 @@ from functools import lru_cache
 import time
 from typing import Any
 
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
 from core.config import get_settings
+
+
+def create_supabase_auth_client() -> Client:
+    # Auth events mutate client headers even when session persistence is disabled.
+    settings = get_settings()
+    if not settings.supabase_url or not settings.supabase_anon_key:
+        raise RuntimeError("Supabase URL and anon key are required.")
+    return create_client(
+        settings.supabase_url,
+        settings.supabase_anon_key,
+        options=ClientOptions(persist_session=False, auto_refresh_token=False),
+    )
 
 
 @lru_cache

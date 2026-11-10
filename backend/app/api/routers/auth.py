@@ -7,6 +7,8 @@ from schemas.auth_schemas import (
     LogInResponse,
     LogOutResponse,
     DeleteAccountResponse,
+    RefreshRequest,
+    RefreshResponse,
     SignUpRequest,
     SignUpResponse,
     UserStatusResponse,
@@ -57,11 +59,30 @@ def login(
         "data": {
             "access_token": session.access_token,
             "refresh_token": session.refresh_token,
+            "expires_at": session.expires_at,
             "token_type": session.token_type,
             "user": {
                 "id": session.user.id,
                 "email": session.user.email,
             },
+        },
+    }
+
+
+@router.post("/refresh", response_model=RefreshResponse, summary="Refresh session")
+def refresh(
+    body: RefreshRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> dict:
+    session = auth_service.refresh(body.refresh_token)
+    return {
+        "success": True,
+        "data": {
+            "access_token": session.access_token,
+            "refresh_token": session.refresh_token,
+            "expires_at": session.expires_at,
+            "token_type": session.token_type,
+            "user": {"id": session.user.id, "email": session.user.email},
         },
     }
 

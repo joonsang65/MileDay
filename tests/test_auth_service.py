@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from exceptions.auth import (
@@ -62,8 +64,16 @@ class FakeAuthClient:
         self.login_response: dict | None = None
         self.get_user_response: dict | None = None
         self.login_error: Exception | None = None
+        self.refresh_token = None
+        self.refresh_response: dict | None = None
+        self.refresh_error: Exception | None = None
+        self.refresh_calls = 0
+        self.close_calls = 0
         self.get_user_error: Exception | None = None
         self.get_user_errors: list[Exception] = []
+
+    def close(self) -> None:
+        self.close_calls += 1
 
     def sign_up(self, payload: dict[str, str]) -> dict:
         self.sign_up_payload = payload
@@ -78,9 +88,29 @@ class FakeAuthClient:
                 "access_token": "access-token",
                 "refresh_token": "refresh-token",
                 "token_type": "bearer",
+                "expires_at": 1800000000,
             },
             "user": {"id": "user-1", "email": payload["email"]},
         }
+
+    def refresh_session(self, refresh_token: str) -> dict:
+        self.refresh_token = refresh_token
+        self.refresh_calls += 1
+        if self.refresh_error:
+            raise self.refresh_error
+        return (
+            self.refresh_response
+            if self.refresh_response is not None
+            else {
+                "session": {
+                    "access_token": "new-access-token",
+                    "refresh_token": "rotated-refresh-token",
+                    "token_type": "bearer",
+                    "expires_at": 1800003600,
+                },
+                "user": {"id": "user-1", "email": "user@example.com"},
+            }
+        )
 
     def get_user(self, token: str) -> dict:
         self.user_token = token
@@ -113,6 +143,7 @@ def test_auth_service_signup_login_me_logout() -> None:
     session = service.login(email="user@example.com", password="password123")
     assert session.access_token == "access-token"
     assert session.refresh_token == "refresh-token"
+    assert session.expires_at == 1800000000
     assert session.user.email == "user@example.com"
 
     current_user = service.get_user("access-token")
@@ -190,7 +221,9 @@ def test_get_user_maps_invalid_expired_and_unavailable_tokens() -> None:
         service.get_user("access-token")
 
 
-def test_get_user_retries_retryable_auth_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_user_retries_retryable_auth_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = FakeSupabaseClient()
     service = AuthService(client)
     sleeps: list[float] = []
@@ -285,3 +318,271 @@ def test_get_bearer_token_validates_header() -> None:
 
     with pytest.raises(AuthInvalidTokenError):
         get_bearer_token("Bearer access-token extra")
+
+
+def test_refresh_returns_rotated_session_and_supports_rollover() -> None:
+    client = FakeSupabaseClient()
+    service = AuthService(client)
+
+    session = service.refresh("refresh-token")
+
+    assert client.auth.refresh_token == "refresh-token"
+    assert session.access_token == "new-access-token"
+    assert session.refresh_token == "rotated-refresh-token"
+    assert session.expires_at == 1800003600
+    assert session.token_type == "bearer"
+    assert session.user.id == "user-1"
+
+    service.refresh(session.refresh_token)
+    assert client.auth.refresh_token == "rotated-refresh-token"
+
+
+@pytest.mark.parametrize("token", ["", " \t\n", None, 123])
+def test_refresh_rejects_blank_or_invalid_input_without_calling_supabase(token) -> None:
+    client = FakeSupabaseClient()
+    with pytest.raises(AuthInvalidTokenError):
+        AuthService(client).refresh(token)
+    assert client.auth.refresh_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("error", "expected", "calls"),
+    [
+        (
+            FakeAuthError(
+                "Invalid Refresh Token", status=400, code="refresh_token_not_found"
+            ),
+            AuthInvalidTokenError,
+            1,
+        ),
+        (
+            FakeAuthError(
+                "Already Used", status=400, code="refresh_token_already_used"
+            ),
+            AuthInvalidTokenError,
+            1,
+        ),
+        (FakeAuthError("Refresh token expired", status=401), AuthTokenExpiredError, 1),
+        (FakeAuthError("Service unavailable", status=503), SupabaseUnavailableError, 3),
+        (RuntimeError("Server disconnected"), SupabaseUnavailableError, 3),
+    ],
+)
+def test_refresh_maps_provider_errors(error, expected, calls, monkeypatch) -> None:
+    client = FakeSupabaseClient()
+    client.auth.refresh_error = error
+    monkeypatch.setattr("services.auth_service.time.sleep", lambda _: None)
+
+    with pytest.raises(expected):
+        AuthService(client).refresh("refresh-token")
+
+    assert client.auth.refresh_calls == calls
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {},
+        {"session": None, "user": {"id": "user-1", "email": "user@example.com"}},
+        {
+            "session": {"access_token": "access", "refresh_token": "refresh"},
+            "user": None,
+        },
+        {
+            "session": {"access_token": "", "refresh_token": "refresh"},
+            "user": {"id": "user-1", "email": "user@example.com"},
+        },
+        {
+            "session": {"access_token": "access", "refresh_token": " "},
+            "user": {"id": "user-1", "email": "user@example.com"},
+        },
+        {
+            "session": {"access_token": 123, "refresh_token": "refresh"},
+            "user": {"id": "user-1", "email": "user@example.com"},
+        },
+        {
+            "session": {"access_token": "access", "refresh_token": "refresh"},
+            "user": {"id": "user-1"},
+        },
+        {
+            "session": {
+                "access_token": "access",
+                "refresh_token": "refresh",
+                "expires_at": -1,
+            },
+            "user": {"id": "user-1", "email": "user@example.com"},
+        },
+    ],
+)
+def test_refresh_rejects_incomplete_provider_responses(response) -> None:
+    client = FakeSupabaseClient()
+    client.auth.refresh_response = response
+
+    with pytest.raises(AuthInvalidTokenError):
+        AuthService(client).refresh("refresh-token")
+
+
+def test_session_normalization_supports_sdk_objects_and_relative_expiry(
+    monkeypatch,
+) -> None:
+    client = FakeSupabaseClient()
+    client.auth.login_response = SimpleNamespace(
+        session=SimpleNamespace(
+            access_token="access-token",
+            refresh_token="refresh-token",
+            expires_in=3600,
+        ),
+        user=SimpleNamespace(id="user-1", email="user@example.com"),
+    )
+    monkeypatch.setattr("services.auth_service.time.time", lambda: 1800000000)
+
+    session = AuthService(client).login(
+        email="user@example.com", password="password123"
+    )
+
+    assert session.expires_at == 1800003600
+    assert session.token_type == "bearer"
+
+
+def test_legacy_session_payload_and_constructor_remain_compatible() -> None:
+    from services.auth_service import AuthSession, AuthUser
+
+    session = AuthSession(
+        "access", "refresh", "bearer", AuthUser("user-1", "user@example.com")
+    )
+    assert session.expires_at is None
+
+    client = FakeSupabaseClient()
+    client.auth.login_response = {
+        "session": {"access_token": "access", "refresh_token": "refresh"},
+        "user": {"id": "user-1", "email": "user@example.com"},
+    }
+    assert (
+        AuthService(client)
+        .login(email="user@example.com", password="password123")
+        .expires_at
+        is None
+    )
+
+
+def test_auth_services_do_not_share_mutable_clients(monkeypatch) -> None:
+    clients: list[FakeSupabaseClient] = []
+
+    def create_client():
+        client = FakeSupabaseClient()
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(
+        "services.auth_service.create_supabase_auth_client", create_client
+    )
+    first = AuthService()
+    second = AuthService()
+
+    first.login(email="first@example.com", password="password123")
+    second.refresh("second-refresh-token")
+    first.get_user("first-access-token")
+
+    assert len(clients) == 2
+    assert first.client is clients[0]
+    assert second.client is clients[1]
+    assert clients[0].auth.refresh_token is None
+    assert clients[1].auth.sign_in_payload is None
+    assert clients[1].auth.user_token is None
+
+
+def test_refresh_retry_replaces_only_the_request_client(monkeypatch) -> None:
+    first = FakeSupabaseClient()
+    first.auth.refresh_error = FakeAuthError("unavailable", status=503)
+    second = FakeSupabaseClient()
+    clients = iter([first, second])
+    monkeypatch.setattr(
+        "services.auth_service.create_supabase_auth_client", lambda: next(clients)
+    )
+    monkeypatch.setattr("services.auth_service.time.sleep", lambda _: None)
+
+    session = AuthService().refresh("refresh-token")
+
+    assert session.refresh_token == "rotated-refresh-token"
+    assert first.auth.refresh_calls == second.auth.refresh_calls == 1
+    assert first.auth.refresh_token == second.auth.refresh_token == "refresh-token"
+    assert first.auth.close_calls == 1
+    assert second.auth.close_calls == 0
+
+
+def test_closing_service_does_not_close_injected_clients() -> None:
+    client = FakeSupabaseClient()
+    service = AuthService(client, supabase_admin_client=client)
+    service.close()
+    assert client.auth.close_calls == 0
+
+
+def test_dependency_closes_owned_client_when_request_raises(monkeypatch) -> None:
+    from services.auth_service import get_auth_service
+
+    client = FakeSupabaseClient()
+    admin_client = FakeSupabaseClient()
+    monkeypatch.setattr(
+        "services.auth_service.create_supabase_auth_client", lambda: client
+    )
+    dependency = get_auth_service()
+    service = next(dependency)
+    service.admin_client = admin_client
+    service.login(email="user@example.com", password="password123")
+
+    with pytest.raises(RuntimeError, match="request failed"):
+        dependency.throw(RuntimeError("request failed"))
+
+    assert client.auth.close_calls == 1
+    assert admin_client.auth.close_calls == 0
+    service.close()
+    assert client.auth.close_calls == 1
+
+
+def test_auth_client_factory_disables_persistence_and_auto_refresh(monkeypatch) -> None:
+    import core.supabase as supabase_module
+
+    created = []
+
+    def fake_create_client(url, key, *, options):
+        client = FakeSupabaseClient()
+        created.append((url, key, options, client))
+        return client
+
+    monkeypatch.setattr(
+        supabase_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            supabase_url="https://example.supabase.co",
+            supabase_anon_key="anon",
+        ),
+    )
+    monkeypatch.setattr(supabase_module, "create_client", fake_create_client)
+
+    first = supabase_module.create_supabase_auth_client()
+    second = supabase_module.create_supabase_auth_client()
+
+    assert first is not second
+    assert len(created) == 2
+    for url, key, options, _ in created:
+        assert url == "https://example.supabase.co"
+        assert key == "anon"
+        assert options.persist_session is False
+        assert options.auto_refresh_token is False
+
+
+@pytest.mark.parametrize(
+    ("url", "key"), [("", "anon"), ("https://example.supabase.co", "")]
+)
+def test_auth_client_factory_requires_anon_config(monkeypatch, url, key) -> None:
+    import core.supabase as supabase_module
+
+    monkeypatch.setattr(
+        supabase_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            supabase_url=url,
+            supabase_anon_key=key,
+        ),
+    )
+    with pytest.raises(RuntimeError, match="Supabase URL and anon key"):
+        supabase_module.create_supabase_auth_client()

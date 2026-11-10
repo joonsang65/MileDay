@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 import time
 from typing import Any, Callable
 
-from core.supabase import get_supabase_admin_client, get_supabase_client, reset_supabase_client
+from core.supabase import create_supabase_auth_client, get_supabase_admin_client
 from exceptions.auth import (
     AuthEmailNotConfirmedError,
     AuthAccountDeleteFailedError,
@@ -19,6 +20,7 @@ from exceptions.common import SupabaseUnavailableError
 try:
     from supabase import AuthRetryableError, AuthUnknownError
 except ImportError:  # pragma: no cover - fallback for partial environments
+
     class AuthRetryableError(Exception):  # type: ignore[no-redef]
         pass
 
@@ -38,6 +40,7 @@ class AuthSession:
     refresh_token: str
     token_type: str
     user: AuthUser
+    expires_at: int | None = None
 
 
 def _get_value(source: Any, key: str) -> Any:
@@ -109,10 +112,12 @@ def _map_login_error(exc: Exception) -> Exception:
     return AuthInvalidCredentialsError(detail=_safe_detail(exc))
 
 
-def _map_token_error(exc: Exception) -> Exception:
+def _map_token_error(
+    exc: Exception, *, message: str = "Supabase Auth token verification failed."
+) -> Exception:
     if _is_retryable_auth_error(exc):
         return SupabaseUnavailableError(
-            message="Supabase Auth token verification failed.",
+            message=message,
             detail=_safe_detail(exc),
         )
     if _is_expired_token_error(exc):
@@ -139,10 +144,14 @@ def _map_delete_account_error(exc: Exception) -> Exception:
 
 
 class AuthService:
-    def __init__(self, supabase_client: Any | None = None, supabase_admin_client: Any | None = None) -> None:
+    def __init__(
+        self,
+        supabase_client: Any | None = None,
+        supabase_admin_client: Any | None = None,
+    ) -> None:
         self._uses_default_client = supabase_client is None
         self._uses_default_admin_client = supabase_admin_client is None
-        self.client = supabase_client or get_supabase_client()
+        self.client = supabase_client
         self.admin_client = supabase_admin_client
 
     def signup(self, *, email: str, password: str) -> AuthUser:
@@ -171,22 +180,22 @@ class AuthService:
         except Exception as exc:
             raise _map_login_error(exc) from exc
 
-        session = _get_value(response, "session")
-        user = _get_value(response, "user")
-        if not session or not user:
-            raise AuthInvalidCredentialsError()
+        return self._build_session(response, error_type=AuthInvalidCredentialsError)
 
-        access_token = str(_get_value(session, "access_token") or "")
-        refresh_token = str(_get_value(session, "refresh_token") or "")
-        if not access_token or not refresh_token:
-            raise AuthInvalidCredentialsError()
+    def refresh(self, refresh_token: str) -> AuthSession:
+        if not isinstance(refresh_token, str) or not refresh_token.strip():
+            raise AuthInvalidTokenError()
 
-        return AuthSession(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type=str(_get_value(session, "token_type") or "bearer"),
-            user=self._build_user(user),
-        )
+        try:
+            response = self._run_auth_operation(
+                lambda: self._get_client().auth.refresh_session(refresh_token.strip()),
+            )
+        except Exception as exc:
+            raise _map_token_error(
+                exc, message="Supabase Auth token refresh failed."
+            ) from exc
+
+        return self._build_session(response, error_type=AuthInvalidTokenError)
 
     def get_user(self, access_token: str) -> AuthUser:
         if not access_token.strip():
@@ -231,14 +240,19 @@ class AuthService:
         return user
 
     def _get_client(self) -> Any:
-        if self._uses_default_client:
-            self.client = get_supabase_client()
+        if self.client is None:
+            self.client = create_supabase_auth_client()
         return self.client
 
     def _get_admin_client(self) -> Any:
         if self._uses_default_admin_client:
             self.admin_client = get_supabase_admin_client()
         return self.admin_client
+
+    def close(self) -> None:
+        if self._uses_default_client and self.client is not None:
+            client, self.client = self.client, None
+            client.auth.close()
 
     def _run_auth_operation(self, operation: Callable[[], Any]) -> Any:
         last_error: Exception | None = None
@@ -250,11 +264,52 @@ class AuthService:
                 if attempt >= 3 or not _is_retryable_auth_error(exc):
                     raise
                 if self._uses_default_client:
-                    reset_supabase_client()
+                    self.close()
                 time.sleep(0.1 if attempt == 1 else 0.3)
         if last_error:
             raise last_error
         raise RuntimeError("Supabase auth operation did not run.")
+
+    def _build_session(
+        self,
+        response: Any,
+        *,
+        error_type: type[AuthInvalidCredentialsError] | type[AuthInvalidTokenError],
+    ) -> AuthSession:
+        session = _get_value(response, "session")
+        user = _get_value(response, "user")
+        if not session or not user:
+            raise error_type()
+
+        access_token = _get_value(session, "access_token")
+        refresh_token = _get_value(session, "refresh_token")
+        if not all(
+            isinstance(token, str) and token.strip()
+            for token in (access_token, refresh_token)
+        ):
+            raise error_type()
+
+        expires_at = _get_value(session, "expires_at")
+        expires_in = _get_value(session, "expires_in")
+        if expires_at is None and expires_in is not None:
+            if type(expires_in) is not int or expires_in <= 0:
+                raise error_type()
+            expires_at = int(time.time()) + expires_in
+        if expires_at is not None and (type(expires_at) is not int or expires_at <= 0):
+            raise error_type()
+
+        try:
+            auth_user = self._build_user(user)
+        except AuthUserNotFoundError as exc:
+            raise error_type() from exc
+
+        return AuthSession(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type=str(_get_value(session, "token_type") or "bearer"),
+            user=auth_user,
+            expires_at=expires_at,
+        )
 
     def _build_user(self, user: Any) -> AuthUser:
         if not user:
@@ -268,5 +323,9 @@ class AuthService:
         return AuthUser(id=str(user_id), email=str(email))
 
 
-def get_auth_service() -> AuthService:
-    return AuthService()
+def get_auth_service() -> Iterator[AuthService]:
+    service = AuthService()
+    try:
+        yield service
+    finally:
+        service.close()

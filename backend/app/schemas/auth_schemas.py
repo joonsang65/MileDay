@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field
+from typing import Annotated
+
+from pydantic import BaseModel, EmailStr, Field, StringConstraints
 
 
 # 회원가입 요청 DTO
@@ -40,11 +42,23 @@ class LogInData(BaseModel):
     refresh_token: str
     token_type: str
     user: LogInUser
+    expires_at: int | None = None
 
 
 # 로그인 응답 DTO
 class LogInResponse(BaseModel):
     # 로그인 성공 응답 envelope
+    success: bool
+    data: LogInData
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: Annotated[
+        str, StringConstraints(strict=True, strip_whitespace=True, min_length=1)
+    ]
+
+
+class RefreshResponse(BaseModel):
     success: bool
     data: LogInData
 
