@@ -6,6 +6,7 @@ export type ApiEnvelope<T> = {
 export type AuthSession = {
   access_token: string;
   refresh_token: string;
+  expires_at: number;
   token_type: "bearer";
   user: {
     id: string;

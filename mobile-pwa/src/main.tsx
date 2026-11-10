@@ -32,6 +32,7 @@ function tabFromLocation(): Tab {
 
 function App() {
   const [isAuthed, setIsAuthed] = React.useState(api.hasSession());
+  const [sessionUserId, setSessionUserId] = React.useState(api.getUserId());
   const [tab, setTab] = React.useState<Tab>(tabFromLocation);
   const [preloadStatus, setPreloadStatus] = React.useState<PreloadStatus>(api.hasSession() ? "loading" : "idle");
   const [preloadError, setPreloadError] = React.useState("");
@@ -52,10 +53,21 @@ function App() {
   React.useEffect(() => {
     function handleSessionCleared() {
       setIsAuthed(false);
+      setSessionUserId(null);
       setPreloadStatus("idle");
     }
     window.addEventListener("mileday-mobile-session-cleared", handleSessionCleared);
-    return () => window.removeEventListener("mileday-mobile-session-cleared", handleSessionCleared);
+    const handleSessionChanged = () => {
+      setIsAuthed(api.hasSession());
+      setSessionUserId(api.getUserId());
+    };
+    window.addEventListener("mileday-mobile-session-changed", handleSessionChanged);
+    const stop = api.startSessionMaintenance();
+    return () => {
+      stop();
+      window.removeEventListener("mileday-mobile-session-cleared", handleSessionCleared);
+      window.removeEventListener("mileday-mobile-session-changed", handleSessionChanged);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -65,7 +77,10 @@ function App() {
     let alive = true;
     setPreloadStatus("loading");
     setPreloadError("");
-    preloadRequiredMonths()
+    api.ensureSession().catch((error) => {
+      // Cached schedules remain usable during a temporary auth/network outage.
+      if (!api.hasSession()) throw error;
+    }).then(() => preloadRequiredMonths())
       .then((result) => {
         if (!alive) {
           return;
@@ -88,7 +103,7 @@ function App() {
     return () => {
       alive = false;
     };
-  }, [isAuthed, preloadAttempt]);
+  }, [isAuthed, sessionUserId, preloadAttempt]);
 
   React.useEffect(() => {
     if (!isAuthed || preloadStatus !== "ready") {
@@ -136,7 +151,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" key={sessionUserId}>
       {tab === "today" ? <Today /> : null}
       {tab === "calendar" ? <Calendar /> : null}
       {tab === "settings" ? <SettingsView onLogout={() => setIsAuthed(false)} /> : null}
@@ -401,9 +416,14 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
   }
 
   async function logout() {
-    await api.logout();
-    clearMonthCache();
-    onLogout();
+    try {
+      await api.logout();
+    } catch {
+      // Local logout still completes when the server is unreachable.
+    } finally {
+      clearMonthCache();
+      onLogout();
+    }
   }
 
   return (
