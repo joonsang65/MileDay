@@ -16,6 +16,7 @@ export type ApiErrorEnvelope = {
 export type AuthSession = {
   access_token: string;
   refresh_token: string;
+  expires_at?: number | null;
   token_type: "bearer";
   user: {
     id: string;

@@ -30,6 +30,7 @@ beforeEach(() => {
   useUiStore.setState({ overlayMode: "none" });
   vi.spyOn(apiClient, "hasAccessToken").mockReturnValue(true);
   vi.spyOn(apiClient, "loadStoredAccessToken").mockResolvedValue(true);
+  vi.spyOn(apiClient, "startSessionRefresh").mockReturnValue(vi.fn());
   vi.spyOn(apiClient, "getSettings").mockResolvedValue(DEFAULT_USER_SETTINGS);
   vi.spyOn(apiClient, "listGoals").mockResolvedValue([goal]);
   vi.spyOn(apiClient, "listGoalsWithMilestones").mockResolvedValue([{ ...goal, milestones: [milestone] }]);

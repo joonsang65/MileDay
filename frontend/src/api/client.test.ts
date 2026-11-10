@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MileDayApiClient } from "./client";
 
@@ -31,6 +31,11 @@ describe("MileDayApiClient", () => {
     vi.unstubAllGlobals();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+    delete window.mileday;
+  });
+
   it("로그인 성공 시 access token을 저장한다", async () => {
     mockFetch({
       success: true,
@@ -45,7 +50,9 @@ describe("MileDayApiClient", () => {
     const client = new MileDayApiClient({ baseUrl: "http://api.test", accessToken: null });
     await client.login("user@example.com", "password");
 
-    expect(localStorage.getItem("mileday.access_token")).toBe("access-token");
+    expect(JSON.parse(localStorage.getItem("mileday.session")!)).toMatchObject({
+      access_token: "access-token", refresh_token: "refresh-token",
+    });
   });
 
   it("회원가입은 인증 헤더 없이 signup API를 호출한다", async () => {
@@ -68,6 +75,181 @@ describe("MileDayApiClient", () => {
         body: JSON.stringify({ email: "user@example.com", password: "password123" }),
       }),
     );
+  });
+
+  function session(expiresAt = Math.floor(Date.now() / 1000) + 3600) {
+    return { access_token: "new-access", refresh_token: "new-refresh", expires_at: expiresAt,
+      token_type: "bearer", user: { id: "user-1", email: "user@example.com" } };
+  }
+
+  function saveExpiredSession() {
+    localStorage.setItem("mileday.session", JSON.stringify({
+      access_token: "old-access", refresh_token: "old-refresh", expires_at: 1,
+    }));
+  }
+
+  it("restores expired sessions and persists both rotated tokens", async () => {
+    saveExpiredSession();
+    const fetchMock = mockFetch({ success: true, data: session() });
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    expect(await client.loadStoredAccessToken()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("http://api.test/auth/refresh", expect.objectContaining({
+      body: JSON.stringify({ refresh_token: "old-refresh" }),
+      headers: expect.not.objectContaining({ Authorization: expect.any(String) }),
+    }));
+    expect(JSON.parse(localStorage.getItem("mileday.session")!)).toMatchObject({
+      access_token: "new-access", refresh_token: "new-refresh", expires_at: expect.any(Number),
+    });
+  });
+
+  it("deduplicates refresh for concurrent protected requests", async () => {
+    saveExpiredSession();
+    const fetchMock = vi.fn().mockImplementation(async (url: string) => ({
+      ok: true, status: 200,
+      json: async () => ({ success: true, data: url.endsWith("/auth/refresh") ? session() : [] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    await Promise.all([client.listGoals(), client.listGoals()]);
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/auth/refresh"))).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/goals"))).toHaveLength(2);
+  });
+
+  it("retries a rejected authenticated request once after refreshing", async () => {
+    localStorage.setItem("mileday.session", JSON.stringify(session()));
+    const fetchMock = mockFetchSequence([
+      { ok: false, status: 401, payload: { success: false, error: { code: "AUTH_TOKEN_EXPIRED" } } },
+      { ok: true, status: 200, payload: { success: true, data: session() } },
+      { ok: true, status: 200, payload: { success: true, data: [] } },
+    ]);
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    await expect(client.listGoals()).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("retains saved sessions during offline startup", async () => {
+    saveExpiredSession();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    expect(await client.loadStoredAccessToken()).toBe(true);
+    expect(JSON.parse(localStorage.getItem("mileday.session")!).refresh_token).toBe("old-refresh");
+  });
+
+  it("clears revoked refresh sessions and announces authentication loss", async () => {
+    saveExpiredSession();
+    mockFetch({ success: false, error: { code: "AUTH_INVALID_TOKEN" } }, false, 401);
+    const cleared = vi.fn();
+    window.addEventListener("mileday-session-cleared", cleared);
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    await expect(client.loadStoredAccessToken()).rejects.toMatchObject({ status: 401 });
+    expect(client.hasAccessToken()).toBe(false);
+    expect(localStorage.getItem("mileday.session")).toBeNull();
+    expect(cleared).toHaveBeenCalledOnce();
+    window.removeEventListener("mileday-session-cleared", cleared);
+  });
+
+  it("keeps unremembered sessions only in memory through refresh", async () => {
+    const fetchMock = mockFetch({ success: true, data: session(1) });
+    const client = new MileDayApiClient({ baseUrl: "http://api.test", accessToken: null });
+    await client.login("user@example.com", "password", false);
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: true, data: session() }) });
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: true, data: [] }) });
+    await client.listGoals();
+    expect(client.hasAccessToken()).toBe(true);
+    expect(localStorage.getItem("mileday.session")).toBeNull();
+  });
+
+  it("refreshes before expiry while running and removes lifecycle timers", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem("mileday.session", JSON.stringify(session(Math.floor(Date.now() / 1000) + 120)));
+    const fetchMock = mockFetch({ success: true, data: session() });
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    const stop = client.startSessionRefresh();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not restore a session after logout during an in-flight refresh", async () => {
+    saveExpiredSession();
+    let finish!: (value: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise((resolve) => { finish = resolve; })));
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    const restoring = client.loadStoredAccessToken();
+    await Promise.resolve();
+    client.setAccessToken(null);
+    await client.persistAccessToken(null);
+    finish({ ok: true, status: 200, json: async () => ({ success: true, data: session() }) });
+    expect(await restoring).toBe(false);
+    expect(localStorage.getItem("mileday.session")).toBeNull();
+  });
+
+  it("stores a complete session through Electron secure storage", async () => {
+    const set = vi.fn().mockResolvedValue(true);
+    window.mileday = { platform: "win32", authToken: {
+      get: vi.fn().mockResolvedValue(null), set, clear: vi.fn().mockResolvedValue(true),
+      isEncryptionAvailable: vi.fn().mockResolvedValue(true),
+    } };
+    mockFetch({ success: true, data: session() });
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    await client.login("user@example.com", "password");
+    expect(JSON.parse(set.mock.calls[0][0])).toMatchObject({
+      access_token: "new-access", refresh_token: "new-refresh", expires_at: expect.any(Number),
+    });
+    expect(localStorage.getItem("mileday.session")).toBeNull();
+  });
+
+  it("can still restore a legacy access-token-only installation", async () => {
+    localStorage.setItem("mileday.access_token", "legacy-access");
+    const client = new MileDayApiClient({ baseUrl: "http://api.test" });
+    expect(await client.loadStoredAccessToken()).toBe(true);
+  });
+
+  it("never replays an old account's mutation using a new account's token", async () => {
+    let rejectOldRequest!: (value: unknown) => void;
+    const fetchMock = vi.fn().mockReturnValueOnce(new Promise((resolve) => { rejectOldRequest = resolve; }))
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ success: true, data: session() }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new MileDayApiClient({ baseUrl: "http://api.test", accessToken: "account-a" });
+    const creating = client.createGoal({ title: "A's goal", deadline: "2026-12-31", is_recurring: false,
+      recurrence_type: null, color: "#0F766E" });
+    const assertion = expect(creating).rejects.toMatchObject({ code: "SESSION_CHANGED", status: 409 });
+    await Promise.resolve();
+    client.setAccessToken(null);
+    await client.login("b@example.com", "password");
+    rejectOldRequest({ ok: false, status: 401, json: async () => ({ success: false, error: { code: "AUTH_TOKEN_EXPIRED" } }) });
+    await assertion;
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/goals"))).toHaveLength(1);
+  });
+
+  it("does not apply a login response after the session was cleared", async () => {
+    let completeLogin!: (value: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise((resolve) => { completeLogin = resolve; })));
+    const client = new MileDayApiClient({ baseUrl: "http://api.test", accessToken: null });
+    const loggingIn = client.login("user@example.com", "password");
+    const assertion = expect(loggingIn).rejects.toMatchObject({ code: "SESSION_CHANGED" });
+    client.setAccessToken(null);
+    completeLogin({ ok: true, status: 200, json: async () => ({ success: true, data: session() }) });
+    await assertion;
+    expect(client.hasAccessToken()).toBe(false);
+    expect(localStorage.getItem("mileday.session")).toBeNull();
+  });
+
+  it.each(["logout", "deleteAccount"] as const)("a pending %s cannot clear a newer login", async (operation) => {
+    let finish!: (value: unknown) => void;
+    const fetchMock = vi.fn().mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }))
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ success: true, data: session() }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new MileDayApiClient({ baseUrl: "http://api.test", accessToken: "account-a" });
+    const pending = client[operation]();
+    const assertion = expect(pending).rejects.toMatchObject({ code: "SESSION_CHANGED" });
+    await Promise.resolve();
+    await client.login("b@example.com", "password");
+    finish({ ok: true, status: 200, json: async () => ({ success: true, data: {} }) });
+    await assertion;
+    expect(client.hasAccessToken()).toBe(true);
+    expect(JSON.parse(localStorage.getItem("mileday.session")!).refresh_token).toBe("new-refresh");
   });
 
   it("보호 API 호출은 Authorization 헤더를 포함한다", async () => {

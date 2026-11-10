@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu, safeStorage, screen, Tray } from "electron";
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { getAutoLaunchState, setAutoLaunchState } from "./autoLaunch";
@@ -123,7 +123,14 @@ function writeStoredAccessToken(accessToken: string): boolean {
     return false;
   }
 
-  writeFileSync(getAccessTokenPath(), safeStorage.encryptString(accessToken));
+  const path = getAccessTokenPath();
+  const temporaryPath = `${path}.tmp`;
+  try {
+    writeFileSync(temporaryPath, safeStorage.encryptString(accessToken));
+    renameSync(temporaryPath, path);
+  } finally {
+    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+  }
   return true;
 }
 

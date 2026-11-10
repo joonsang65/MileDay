@@ -596,6 +596,16 @@ export default function App() {
     return getWeekLabel(parseDateKey(visibleDate), userSettings.language);
   }, [mode, userSettings.language, visibleDate]);
 
+  useEffect(() => {
+    const handleSessionCleared = () => setIsAuthenticated(false);
+    window.addEventListener("mileday-session-cleared", handleSessionCleared);
+    const stopSessionRefresh = apiClient.startSessionRefresh();
+    return () => {
+      stopSessionRefresh();
+      window.removeEventListener("mileday-session-cleared", handleSessionCleared);
+    };
+  }, []);
+
   const [todayKey, setTodayKey] = useState(() => getTodayDateKey(userSettings.timezone));
   useEffect(() => {
     const updateToday = () => setTodayKey(getTodayDateKey(userSettings.timezone));
@@ -976,25 +986,18 @@ export default function App() {
   async function handleLogout() {
     sessionRevisionRef.current += 1;
     setIsAuthenticated(false);
-    try {
-      await apiClient.logout();
-    } catch {
-      apiClient.setAccessToken(null);
-      void apiClient.persistAccessToken(null);
-    } finally {
-      setIsAuthenticated(false);
-      setCalendarData(null);
-      setDateDetail(null);
-      setUserSettings(DEFAULT_USER_SETTINGS);
-      prefetchRunRef.current += 1;
-      hasStartedLoginPrefetchRef.current = false;
-      calendarCacheRef.current.clear();
-      dateDetailCacheRef.current.clear();
-      settingsCacheRef.current = null;
-      closeOverlay();
-      setHasAppliedInitialSettings(false);
-      setRequestState({ isLoading: false, message: null, notice: null });
-    }
+    setCalendarData(null);
+    setDateDetail(null);
+    setUserSettings(DEFAULT_USER_SETTINGS);
+    prefetchRunRef.current += 1;
+    hasStartedLoginPrefetchRef.current = false;
+    calendarCacheRef.current.clear();
+    dateDetailCacheRef.current.clear();
+    settingsCacheRef.current = null;
+    closeOverlay();
+    setHasAppliedInitialSettings(false);
+    setRequestState({ isLoading: false, message: null, notice: null });
+    await apiClient.logout().catch(() => undefined);
   }
 
   function handleModeChange(nextMode: CalendarMode) {
