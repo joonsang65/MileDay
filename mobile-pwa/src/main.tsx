@@ -3,13 +3,15 @@ import ReactDOM from "react-dom/client";
 import { Bell, CalendarDays, ChevronLeft, ChevronRight, LogOut, Settings, Sun } from "lucide-react";
 
 import { api } from "./api";
-import { displayDate, isInMonth, monthGrid, monthLabel, moveMonth, parseDateKey, todayKey, toDateKey } from "./date";
+import { displayDate, isInMonth, monthGrid, monthLabel, moveMonth, parseDateKey, rollCalendarDay, todayKey, toDateKey, watchDay, weekDateKeys } from "./date";
+import type { DayState } from "./date";
 import {
   clearMonthCache,
   getDateWithCache,
   getMonthWithCache,
   preloadExtraMonths,
   preloadRequiredMonths,
+  readCachedDate,
   readCachedMonth,
 } from "./month-cache";
 import { disablePush, enablePush, isPushSupported, registerServiceWorker } from "./push";
@@ -37,6 +39,9 @@ function App() {
   const [preloadStatus, setPreloadStatus] = React.useState<PreloadStatus>(api.hasSession() ? "loading" : "idle");
   const [preloadError, setPreloadError] = React.useState("");
   const [preloadAttempt, setPreloadAttempt] = React.useState(0);
+  const [day, setDay] = React.useState<DayState>(() => ({ today: todayKey(), revision: 0 }));
+
+  React.useEffect(() => watchDay(setDay), []);
 
   React.useEffect(() => {
     void registerServiceWorker();
@@ -109,21 +114,12 @@ function App() {
     if (!isAuthed || preloadStatus !== "ready") {
       return;
     }
-    function refreshInBackground() {
-      preloadExtraMonths();
-    }
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        refreshInBackground();
-      }
-    }
-    window.addEventListener("online", refreshInBackground);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      window.removeEventListener("online", refreshInBackground);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [isAuthed, preloadStatus]);
+    preloadExtraMonths(parseDateKey(day.today));
+  }, [isAuthed, preloadStatus, day]);
+
+  React.useEffect(() => {
+    if (isAuthed && preloadStatus === "error") setPreloadAttempt((current) => current + 1);
+  }, [day]);
 
   function navigate(next: Tab) {
     setTab(next);
@@ -152,8 +148,8 @@ function App() {
 
   return (
     <main className="app-shell" key={sessionUserId}>
-      {tab === "today" ? <Today /> : null}
-      {tab === "calendar" ? <Calendar /> : null}
+      {tab === "today" ? <Today day={day} /> : null}
+      {tab === "calendar" ? <Calendar day={day} /> : null}
       {tab === "settings" ? <SettingsView onLogout={() => setIsAuthed(false)} /> : null}
       <nav className="bottom-nav" aria-label="Primary">
         <button className={tab === "today" ? "active" : ""} onClick={() => navigate("today")}>
@@ -228,47 +224,65 @@ function Login({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-function Today() {
+function Today({ day }: { day: DayState }) {
   const [today, setToday] = React.useState<CalendarDateData | null>(null);
   const [week, setWeek] = React.useState<CalendarDateData[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
 
   React.useEffect(() => {
-    const now = new Date();
-    const weekDates = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(now);
-      date.setDate(now.getDate() + index);
-      return toDateKey(date);
+    let alive = true;
+    setLoading(true);
+    setError("");
+    const weekDates = weekDateKeys(day.today);
+    // Show cached days immediately, then replace them with live data if available.
+    const cached = weekDates.flatMap((date) => {
+      const data = readCachedDate(date);
+      return data ? [data] : [];
     });
-    Promise.all(weekDates.map((date) => getDateWithCache(date)))
-      .then((weekData) => {
-        const [todayData] = weekData;
-        setToday(todayData);
-        setWeek(weekData);
+    setToday(cached.find((data) => data.date === day.today) || null);
+    setWeek(cached);
+    void Promise.allSettled(weekDates.map((date) => getDateWithCache(date, true)))
+      .then((results) => {
+        if (!alive) return;
+        const days = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+        setToday(days.find((data) => data.date === day.today) || null);
+        setWeek(days);
+        if (days.length !== 7) setError("일부 일정을 가져오지 못했습니다. 네트워크 상태를 확인해주세요.");
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [day]);
 
   return (
     <section className="screen">
       <header className="screen-header">
         <p className="eyebrow">Today</p>
-        <h1>{displayDate(todayKey())}</h1>
+        <h1>{displayDate(day.today)}</h1>
       </header>
       {loading ? <p className="status-text">불러오는 중입니다.</p> : null}
-      <ScheduleSection title="오늘 일정" data={today} />
-      <WeekScheduleSection days={week.slice(1)} />
+      {error ? <p className="error-text">{error}</p> : null}
+      <ScheduleSection title="오늘 일정" data={today?.date === day.today ? today : null} />
+      <WeekScheduleSection days={week.filter((data) => data.date > day.today)} />
     </section>
   );
 }
 
-function Calendar() {
-  const [visibleMonth, setVisibleMonth] = React.useState(new Date());
-  const [selectedDate, setSelectedDate] = React.useState(todayKey());
+function Calendar({ day }: { day: DayState }) {
+  const [calendar, setCalendar] = React.useState(() => ({ visibleMonth: parseDateKey(day.today), selectedDate: day.today }));
+  const { visibleMonth, selectedDate } = calendar;
+  const previousToday = React.useRef(day.today);
   const [month, setMonth] = React.useState<CalendarMonthData | null>(null);
   const selected = month?.days.find((day) => day.date === selectedDate) || null;
 
   React.useEffect(() => {
+    const previous = previousToday.current;
+    previousToday.current = day.today;
+    setCalendar((current) => rollCalendarDay(current, previous, day.today));
+  }, [day.today]);
+
+  React.useEffect(() => {
+    let alive = true;
     const year = visibleMonth.getFullYear();
     const monthNumber = visibleMonth.getMonth() + 1;
     const cached = readCachedMonth(year, monthNumber);
@@ -277,17 +291,18 @@ function Calendar() {
     } else {
       setMonth(null);
     }
-    getMonthWithCache(year, monthNumber).then(setMonth).catch(() => undefined);
-  }, [visibleMonth]);
+    getMonthWithCache(year, monthNumber).then((data) => { if (alive) setMonth(data); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [visibleMonth, day]);
 
   return (
     <section className="screen">
       <header className="calendar-top">
-        <button className="icon-button" onClick={() => setVisibleMonth((current) => moveMonth(current, -1))} aria-label="이전 달">
+        <button className="icon-button" onClick={() => setCalendar((current) => ({ ...current, visibleMonth: moveMonth(current.visibleMonth, -1) }))} aria-label="이전 달">
           <ChevronLeft />
         </button>
         <h1>{monthLabel(visibleMonth)}</h1>
-        <button className="icon-button" onClick={() => setVisibleMonth((current) => moveMonth(current, 1))} aria-label="다음 달">
+        <button className="icon-button" onClick={() => setCalendar((current) => ({ ...current, visibleMonth: moveMonth(current.visibleMonth, 1) }))} aria-label="다음 달">
           <ChevronRight />
         </button>
       </header>
@@ -297,17 +312,20 @@ function Calendar() {
       <div className="month-grid">
         {monthGrid(visibleMonth).map((date) => {
           const key = toDateKey(date);
-          const day = month?.days.find((item) => item.date === key);
+          const data = month?.days.find((item) => item.date === key);
           return (
             <button
               key={key}
               className={[
                 "date-cell",
+                key === day.today ? "today" : "",
                 key === selectedDate ? "selected" : "",
                 !isInMonth(date, visibleMonth) ? "muted" : "",
-                day && day.goal_count + day.milestone_count > 0 ? "has-events" : "",
+                data && data.goal_count + data.milestone_count > 0 ? "has-events" : "",
               ].filter(Boolean).join(" ")}
-              onClick={() => setSelectedDate(key)}
+              aria-current={key === day.today ? "date" : undefined}
+              aria-pressed={key === selectedDate}
+              onClick={() => setCalendar((current) => ({ ...current, selectedDate: key }))}
             >
               <span>{date.getDate()}</span>
               <i />

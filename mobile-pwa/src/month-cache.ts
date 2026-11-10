@@ -1,11 +1,13 @@
 import { addMonths, startOfMonth } from "date-fns";
 
-import { api } from "./api";
+import { api, ApiError } from "./api";
+import { todayKey } from "./date";
 import type { CalendarDateData, CalendarMonthData } from "./types";
 
 const CACHE_PREFIX = "mileday.mobile.month";
 const REQUIRED_RADIUS = 2;
 const EXTRA_RADIUS = 6;
+const pendingMonths = new Map<string, Promise<CalendarMonthData>>();
 
 type CachedMonth = {
   cached_at: string;
@@ -31,7 +33,7 @@ export function readCachedMonth(year: number, month: number): CalendarMonthData 
     if (!raw) {
       return null;
     }
-    return (JSON.parse(raw) as CachedMonth).data;
+    return withLocalToday((JSON.parse(raw) as CachedMonth).data);
   } catch {
     return null;
   }
@@ -44,20 +46,48 @@ export function readCachedDate(dateKey: string): CalendarDateData | null {
 }
 
 export async function getMonthWithCache(year: number, month: number): Promise<CalendarMonthData> {
-  const fresh = await api.getMonth(year, month);
-  writeCachedMonth(fresh);
-  return fresh;
+  const userId = api.getUserId();
+  const key = cacheKey(year, month);
+  const pending = pendingMonths.get(key);
+  if (pending) return pending;
+  const request = (async () => {
+    const fresh = await api.getMonth(year, month);
+    assertCurrentUser(userId);
+    writeCachedMonth(fresh);
+    return withLocalToday(fresh);
+  })().finally(() => {
+    if (pendingMonths.get(key) === request) pendingMonths.delete(key);
+  });
+  pendingMonths.set(key, request);
+  return request;
 }
 
-export async function getDateWithCache(dateKey: string): Promise<CalendarDateData> {
+export async function getDateWithCache(dateKey: string, revalidate = false): Promise<CalendarDateData> {
+  const userId = api.getUserId();
   const cached = readCachedDate(dateKey);
-  if (cached) {
+  if (cached && !revalidate) {
     refreshDateMonth(dateKey);
     return cached;
   }
-  const fresh = await api.getToday(dateKey);
-  refreshDateMonth(dateKey);
-  return fresh;
+  try {
+    const fresh = await api.getToday(dateKey);
+    assertCurrentUser(userId);
+    refreshDateMonth(dateKey);
+    return { ...fresh, is_today: fresh.date === todayKey() };
+  } catch (error) {
+    assertCurrentUser(userId);
+    if (cached) return cached;
+    throw error;
+  }
+}
+
+function assertCurrentUser(userId: string | null) {
+  if (!userId || userId !== api.getUserId()) throw new ApiError("Session changed.", 409);
+}
+
+function withLocalToday(data: CalendarMonthData): CalendarMonthData {
+  const today = todayKey();
+  return { ...data, days: data.days.map((day) => ({ ...day, is_today: day.date === today })) };
 }
 
 export async function preloadRequiredMonths(base = new Date()): Promise<PreloadResult> {

@@ -392,6 +392,13 @@ input {
   background: var(--selected-date-bg);
 }
 
+.date-cell.today span {
+  color: var(--primary-hover);
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .date-cell i {
   width: 5px;
   height: 5px;
