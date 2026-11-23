@@ -36,7 +36,7 @@ app/api/routers
 | Auth | `app/api/routers/auth.py` | 회원가입, 로그인, 로그아웃, 현재 사용자, 계정 삭제 |
 | Goals | `app/api/routers/goals.py` | 목표 CRUD, 완료 처리, 목표+마일스톤 통합 조회 |
 | Milestones | `app/api/routers/milestones.py` | 마일스톤 CRUD, 오늘 할 일, 완료 처리 |
-| Calendar | `app/api/routers/calender.py` | 월간, 주간, 날짜 상세 조회 |
+| Calendar | `app/api/routers/calendar.py` | 월간, 주간, 날짜 상세 조회 |
 | Settings | `app/api/routers/settings.py` | 사용자 설정 조회/수정 |
 | AI | `app/api/routers/schedule_assistant.py` | AI 일정 초안 생성 |
 

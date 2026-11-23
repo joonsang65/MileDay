@@ -14,7 +14,7 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from api.routers.auth import router as auth_router
-from api.routers.calender import router as calender_router
+from api.routers.calendar import router as calendar_router
 from api.routers.external_calender import router as external_calender_router
 from api.routers.goals import router as goals_router
 from api.routers.milestones import router as milestones_router
@@ -97,7 +97,7 @@ def health_db() -> dict[str, str | int]:
 app.include_router(auth_router)
 app.include_router(goals_router)
 app.include_router(milestones_router)
-app.include_router(calender_router)
+app.include_router(calendar_router)
 app.include_router(settings_router)
 app.include_router(external_calender_router)
 app.include_router(schedule_assistant_router)
