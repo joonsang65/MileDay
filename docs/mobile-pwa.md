@@ -112,6 +112,10 @@ npx web-push generate-vapid-keys
 
 ## Scheduler
 
+정기 알림과 테스트 재발송은 Web Push에 `TTL=3600`을 전달해 즉시 수신할 수 없는 기기를 위해 최대 1시간 보관을 요청한다. 실제 보관 시간과 전달 여부는 푸시 서비스와 기기 상태에 따라 달라진다.
+
+테스트 화면의 전송 성공은 푸시 서비스의 접수 성공을 뜻하며, 휴대폰 수신 확인을 뜻하지 않는다. 백엔드는 푸시 서비스 응답 상태와 TTL을 로그로 남기고 구독 endpoint 및 인증 키는 기록하지 않는다.
+
 스케줄러는 기존 FastAPI process 안에서 실행되며, `NOTIFICATION_SCHEDULER_ENABLED=true`일 때만 동작한다.
 
 각 사용자 설정에 대해 사용자의 `timezone` 기준 현재 시간이 `notification_time`과 일치하는지 확인한다. 알림 시간이 되면 먼저 해당 local date에 일정이 있는지, 그리고 push subscription이 하나 이상 있는지 확인한다. 그 다음 delivery log row를 생성하고 Web Push를 보낸다. 다른 worker가 이미 같은 row를 만들었다면 발송을 건너뛴다.

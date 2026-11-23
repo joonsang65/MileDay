@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -12,6 +13,9 @@ from services.notification_content import build_daily_notification
 
 DEFAULT_NOTIFICATION_TIME = "08:00"
 DEFAULT_TIMEZONE = "Asia/Seoul"
+PUSH_TTL_SECONDS = 60 * 60
+
+logger = logging.getLogger(__name__)
 
 
 class PushConfigurationError(RuntimeError):
@@ -157,11 +161,18 @@ class PushService:
 
         claims = {"sub": f"mailto:{settings.vapid_claims_email}"}
         try:
-            webpush(
+            response = webpush(
                 subscription_info=subscription_info,
                 data=_json_payload(payload),
                 vapid_private_key=settings.vapid_private_key,
                 vapid_claims=claims,
+                # Keep the message available while the phone reconnects to its push service.
+                ttl=PUSH_TTL_SECONDS,
+            )
+            logger.info(
+                "Web Push accepted by push service (status=%s, ttl_seconds=%s)",
+                response.status_code,
+                PUSH_TTL_SECONDS,
             )
         except WebPushException:
             raise

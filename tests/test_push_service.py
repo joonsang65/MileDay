@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+import json
+import logging
+import sys
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 from services.notification_content import build_daily_notification
-from services.push_service import DEFAULT_NOTIFICATION_TIME, DEFAULT_TIMEZONE, PushService
+from services.push_service import DEFAULT_NOTIFICATION_TIME, DEFAULT_TIMEZONE, PUSH_TTL_SECONDS, PushService
 
 
 class FakeRepository:
@@ -140,6 +145,68 @@ class FakeCalendarService:
     def get_date_calendar(self, **payload):
         self.calls.append(payload)
         return self.data
+
+
+@pytest.fixture
+def push_transport(monkeypatch):
+    class WebPushException(Exception):
+        def __init__(self, status_code):
+            super().__init__(f"Push rejected: {status_code}")
+            self.response = SimpleNamespace(status_code=status_code)
+
+    webpush = Mock(return_value=SimpleNamespace(status_code=201))
+    monkeypatch.setitem(sys.modules, "pywebpush", SimpleNamespace(webpush=webpush, WebPushException=WebPushException))
+    monkeypatch.setattr("services.push_service.get_settings", lambda: SimpleNamespace(
+        vapid_public_key="public-key", vapid_private_key="private-key", vapid_claims_email="push@example.com",
+    ))
+    return webpush, WebPushException
+
+
+def test_push_transport_requests_retention_and_logs_acceptance(push_transport, caplog) -> None:
+    webpush, _ = push_transport
+    repo = FakeRepository()
+    repo.subscriptions = [{"id": "sub-1", "endpoint": "https://push/secret-endpoint", "p256dh": "secret-p256", "auth": "secret-auth"}]
+    service = PushService(repository=repo)
+    with caplog.at_level(logging.INFO, logger="services.push_service"):
+        result = service.send_user_push(user_id="user-1", title="오늘 일정", body="마일스톤", url="/#/today")
+    assert result == {"sent": 1, "removed": 0}
+    options = webpush.call_args.kwargs
+    assert options["ttl"] == 3600
+    assert json.loads(options["data"]) == {"title": "오늘 일정", "body": "마일스톤", "url": "/#/today"}
+    assert "status=201, ttl_seconds=3600" in caplog.text
+    for secret in ("secret-endpoint", "secret-p256", "secret-auth", "private-key"):
+        assert secret not in caplog.text
+
+
+def test_manual_resends_use_positive_ttl_each_time(monkeypatch, push_transport) -> None:
+    monkeypatch.setattr("services.push_service.utc_now", lambda: datetime(2026, 10, 15, 12, tzinfo=UTC))
+    webpush, _ = push_transport
+    repo = FakeRepository()
+    repo.subscriptions = [{"id": "sub-1", "endpoint": "https://push", "p256dh": "p256", "auth": "auth"}]
+    calendar = FakeCalendarService()
+    calendar.data = {"milestones": [{"id": "m", "title": "작업", "scheduled_date": "2026-10-15", "is_completed": False}]}
+    service = PushService(repository=repo, calendar_service=calendar)
+    assert service.send_test_push(user_id="user-1")["sent"] == 1
+    assert service.send_test_push(user_id="user-1")["sent"] == 1
+    assert webpush.call_count == 2
+    assert all(call.kwargs["ttl"] == PUSH_TTL_SECONDS > 0 for call in webpush.call_args_list)
+    assert repo.deleted_delivery_logs == []
+
+
+@pytest.mark.parametrize("status_code", [404, 410, 503])
+def test_failed_push_is_not_counted_as_sent(push_transport, status_code) -> None:
+    webpush, error_type = push_transport
+    webpush.side_effect = error_type(status_code)
+    repo = FakeRepository()
+    repo.subscriptions = [{"id": "sub-1", "endpoint": "https://push", "p256dh": "p256", "auth": "auth"}]
+    service = PushService(repository=repo)
+    if status_code in (404, 410):
+        assert service.send_user_push(user_id="user-1", title="Title", body="Body", url="/#/today") == {"sent": 0, "removed": 1}
+        assert repo.deleted == [{"subscription_id": "sub-1"}]
+    else:
+        with pytest.raises(error_type):
+            service.send_user_push(user_id="user-1", title="Title", body="Body", url="/#/today")
+    assert repo.touched == []
 
 
 def test_manual_push_resends_current_users_fresh_schedule_without_changing_daily_logs(monkeypatch) -> None:

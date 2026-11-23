@@ -423,10 +423,12 @@ function SettingsView({ onLogout }: { onLogout: () => void }) {
       const result = await api.sendTestPush();
       if (result.reason === "no_incomplete_milestones") {
         setMessage("오늘 예정된 미완료 마일스톤이 없습니다.");
+      } else if (result.sent > 0) {
+        setMessage("오늘 일정 알림을 푸시 서버에 전송했습니다. 휴대폰 알림 표시까지 잠시 걸릴 수 있습니다.");
       } else if (result.sent === 0) {
         setMessage("알림을 받을 기기가 없습니다. 이 기기에서 알림을 다시 설정해 주세요.");
       } else {
-        setMessage("오늘 일정 알림을 다시 보냈습니다.");
+        setMessage("알림 전송 결과를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "테스트 알림을 보낼 수 없습니다.");
