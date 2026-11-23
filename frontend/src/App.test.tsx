@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { apiClient } from "@/api/client";
-import type { CalendarDateData, Goal, Milestone } from "@/api/types";
+import type { CalendarDateData, CalendarMonthData, Goal, Milestone } from "@/api/types";
 import { DEFAULT_USER_SETTINGS } from "@/config/defaultUserSettings";
 import { DEFAULT_LOCAL_UI_SETTINGS } from "@/types/localUiSettings";
 import { useCalendarStore } from "@/store/calendarStore";
@@ -203,6 +203,42 @@ async function start() {
 }
 
 describe("today side panel integration", () => {
+  it("discards a prefetched month that resolves after a milestone is saved", async () => {
+    const prefetch = deferred<CalendarMonthData>();
+    const monthRequest = vi.mocked(apiClient.getMonthCalendar);
+    const defaultMonth = monthRequest.getMockImplementation()!;
+    const october = (completed: boolean): CalendarMonthData => {
+      const item = { ...milestone, is_completed: completed };
+      return {
+        year: 2026, month: 10, goals: [goal],
+        milestones: [{ ...item, user_id: "user-1", created_at: "", updated_at: "" }],
+        days: [{ ...detail("2026-10-15"), milestones: [item], milestone_count: 1, completed_milestone_count: Number(completed) }],
+      };
+    };
+    let octoberResponse = prefetch.promise;
+    monthRequest.mockImplementation((year, month) =>
+      year === 2026 && month === 10 ? octoberResponse : defaultMonth(year, month),
+    );
+
+    const panel = await start();
+    await waitFor(() => expect(monthRequest).toHaveBeenCalledWith(2026, 10));
+    const checkbox = panel.getByRole("button", { name: "오늘 작업" });
+    fireEvent.click(checkbox);
+    await waitFor(() => {
+      expect(checkbox).toHaveAttribute("aria-pressed", "true");
+      expect(checkbox).toBeEnabled();
+    });
+    octoberResponse = Promise.resolve(october(true));
+    await act(async () => prefetch.resolve(october(false)));
+    fireEvent.click(screen.getByRole("button", { name: "오늘" }));
+
+    await waitFor(() => {
+      const day = within(screen.getByRole("button", { name: "15" }));
+      expect(day.getByTitle(milestone.title)).toHaveClass("done-event");
+      expect(panel.getByRole("button", { name: milestone.title })).toHaveAttribute("aria-pressed", "true");
+    });
+  });
+
   it("defaults off and does not fetch panel-only data", async () => {
     vi.mocked(window.mileday!.uiSettings!.get).mockResolvedValue(DEFAULT_LOCAL_UI_SETTINGS);
     render(<App />);

@@ -1,3 +1,7 @@
+import type { CalendarMilestoneSummary, Goal as CalendarGoal } from "../../shared/calendar-month.generated";
+
+export type { CalendarMonthData } from "../../shared/calendar-month.generated";
+
 export type ApiEnvelope<T> = {
   success: boolean;
   data: T;
@@ -14,45 +18,9 @@ export type AuthSession = {
   };
 };
 
-export type Goal = {
-  id: string;
-  title: string;
-  deadline: string;
-  is_completed: boolean;
-  is_recurring: boolean;
-  recurrence_type: "daily" | "weekly" | "monthly" | null;
-  color: string;
-  created_at: string;
-  updated_at: string;
-};
+export type Goal = CalendarGoal;
 
-export type Milestone = {
-  id: string;
-  goal_id: string;
-  goal_title?: string | null;
-  title: string;
-  color: string;
-  scheduled_date: string;
-  is_completed: boolean;
-};
-
-export type CalendarDay = {
-  date: string;
-  is_today: boolean;
-  goal_count: number;
-  milestone_count: number;
-  completed_milestone_count: number;
-  goals: Goal[];
-  milestones: Milestone[];
-};
-
-export type CalendarMonthData = {
-  year: number;
-  month: number;
-  days: CalendarDay[];
-  goals: Goal[];
-  milestones: Milestone[];
-};
+export type Milestone = CalendarMilestoneSummary;
 
 export type CalendarDateData = {
   date: string;

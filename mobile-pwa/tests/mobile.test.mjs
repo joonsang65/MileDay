@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { after, before, beforeEach, test } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import { createServer } from "vite";
@@ -71,6 +72,7 @@ before(async () => {
   globalThis.localStorage = new MemoryStorage();
   server = await createServer({
     configFile: false, appType: "custom",
+    optimizeDeps: { noDiscovery: true },
     server: { middlewareMode: true, hmr: false, watch: null },
   });
   ({ ApiClient, api } = await server.ssrLoadModule("/src/api.ts"));
@@ -85,6 +87,24 @@ beforeEach(() => {
   localStorage.clear();
   api.clearSession();
   globalThis.fetch = async () => { throw new TypeError("offline"); };
+});
+
+test("reads the server's monthly calendar response", async (t) => {
+  mockNow(t);
+  const fixture = JSON.parse(await readFile(new URL("../../tests/fixtures/calendar-month.json", import.meta.url), "utf8"));
+  const client = seed();
+  globalThis.fetch = async (url) => {
+    assert.ok(url.endsWith("/calendar/month?year=2026&month=7"));
+    return Response.json(fixture);
+  };
+  assert.deepEqual(await client.getMonth(2026, 7), fixture.data);
+});
+
+test("rejects a login response without a numeric expiry", async () => {
+  const client = new ApiClient();
+  globalThis.fetch = async () => ok(session({ expires_at: null }));
+  await assert.rejects(client.login("a@example.com", "password"), { status: 502 });
+  assert.equal(localStorage.getItem(SESSION_KEY), null);
 });
 
 test("login atomically stores the full session and restores it without legacy keys", async (t) => {

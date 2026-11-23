@@ -1,3 +1,12 @@
+import type {
+  CalendarDayData as CalendarDayResponse,
+  CalendarMilestoneSummary,
+  Goal as GoalResponse,
+  Milestone as MilestoneResponse,
+} from "../../../shared/calendar-month.generated";
+
+export type { CalendarMonthData } from "../../../shared/calendar-month.generated";
+
 export type ApiEnvelope<T> = {
   success: boolean;
   data: T;
@@ -29,18 +38,7 @@ export type SignUpResult = {
   email: string;
 };
 
-export type Goal = {
-  id: string;
-  user_id?: string | null;
-  title: string;
-  deadline: string;
-  is_completed: boolean;
-  is_recurring: boolean;
-  recurrence_type: "daily" | "weekly" | "monthly" | null;
-  color: string;
-  created_at: string;
-  updated_at: string;
-};
+export type Goal = GoalResponse & Required<Pick<GoalResponse, "is_completed" | "is_recurring" | "recurrence_type">>;
 
 export type GoalWithMilestones = Goal & {
   milestones: Milestone[];
@@ -59,18 +57,7 @@ export type GoalCreatePayload = {
 
 export type GoalUpdatePayload = Partial<GoalCreatePayload>;
 
-export type Milestone = {
-  id: string;
-  goal_id: string;
-  user_id?: string;
-  goal_title?: string | null;
-  title: string;
-  color: string;
-  scheduled_date: string;
-  is_completed: boolean;
-  created_at?: string;
-  updated_at?: string;
-};
+export type Milestone = CalendarMilestoneSummary & Partial<Pick<MilestoneResponse, "user_id" | "created_at" | "updated_at">>;
 
 export type MilestoneCreatePayload = {
   title: string;
@@ -97,24 +84,8 @@ export type UserSettings = {
 
 export type UserSettingsUpdatePayload = Partial<UserSettings>;
 
-export type CalendarDay = {
-  date: string;
-  is_today: boolean;
-  is_holiday?: boolean;
-  holiday_name?: string | null;
-  goal_count: number;
-  milestone_count: number;
-  completed_milestone_count: number;
+export type CalendarDay = Omit<CalendarDayResponse, "goals"> & {
   goals: Goal[];
-  milestones: Milestone[];
-};
-
-export type CalendarMonthData = {
-  year: number;
-  month: number;
-  days: CalendarDay[];
-  goals: Goal[];
-  milestones: Milestone[];
 };
 
 export type CalendarWeekData = {

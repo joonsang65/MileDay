@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import calendarMonth from "../../../tests/fixtures/calendar-month.json";
 import { MileDayApiClient } from "./client";
 
 function mockFetch(payload: unknown, ok = true, status = 200) {
@@ -36,12 +37,20 @@ describe("MileDayApiClient", () => {
     delete window.mileday;
   });
 
+  it("reads the server's monthly calendar response", async () => {
+    const fetchMock = mockFetch(calendarMonth);
+    const client = new MileDayApiClient({ baseUrl: "http://api.test", accessToken: "token" });
+    await expect(client.getMonthCalendar(2026, 7)).resolves.toEqual(calendarMonth.data);
+    expect(fetchMock).toHaveBeenCalledWith("http://api.test/calendar/month?year=2026&month=7", expect.any(Object));
+  });
+
   it("로그인 성공 시 access token을 저장한다", async () => {
     mockFetch({
       success: true,
       data: {
         access_token: "access-token",
         refresh_token: "refresh-token",
+        expires_at: null,
         token_type: "bearer",
         user: { id: "user-1", email: "user@example.com" },
       },

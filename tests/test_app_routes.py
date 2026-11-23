@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from core.auth import get_auth_service as get_auth_dependency
@@ -717,11 +720,8 @@ def test_calendar_routes_use_current_user_and_service(client: TestClient) -> Non
     try:
         month = client.get("/calendar/month", params={"year": 2026, "month": 7})
         assert month.status_code == 200
-        month_data = month.json()["data"]
-        assert month_data["year"] == 2026
-        assert month_data["month"] == 7
-        assert month_data["days"][0]["goal_count"] == 1
-        assert month_data["days"][0]["milestones"][0]["goal_title"] == "포트폴리오 준비"
+        fixture = Path(__file__).with_name("fixtures") / "calendar-month.json"
+        assert month.json() == json.loads(fixture.read_text(encoding="utf-8"))
 
         week = client.get("/calendar/week", params={"start_date": "2026-07-08"})
         assert week.status_code == 200
