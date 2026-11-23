@@ -7,15 +7,15 @@ import pytest
 
 from exceptions.common import BadRequestError
 from schemas.ai_schedule_schemas import AiScheduleAvailability, AiScheduleDraftRequest
+from services.ai_schedule_parser import parse_ai_schedule_draft_output
 from services.ai_schedule_service import (
     AiScheduleService,
     ai_schedule_draft_response_schema,
     build_ai_schedule_draft_prompt,
     build_create_goal_payload,
     get_ai_schedule_service,
-    parse_ai_schedule_draft_output,
-    validate_ai_schedule_draft,
 )
+from services.ai_schedule_validation import validate_ai_schedule_draft
 
 
 class FakeGeminiClient:
@@ -98,17 +98,19 @@ def test_validate_ai_schedule_draft_rejects_outside_availability() -> None:
     draft = valid_model_output()
     draft["milestones"][0]["scheduled_date"] = "2026-08-23"
 
-    validation = validate_ai_schedule_draft(draft_request(), draft)
+    validation = validate_ai_schedule_draft(
+        draft_request(), parse_ai_schedule_draft_output(json.dumps(draft)),
+    )
 
     assert validation["is_valid"] is False
     assert "MILESTONE_OUTSIDE_AVAILABILITY" in validation["failure_codes"]
 
 
-def test_validate_ai_schedule_draft_reports_shape_and_preference_errors() -> None:
+def test_validate_ai_schedule_draft_reports_multiple_schedule_errors() -> None:
     draft = {
         "goal": {"title": " ", "deadline": "2026-08-01"},
         "milestones": [
-            "not-a-dict",
+            {"title": "준비 작업", "scheduled_date": "2026-08-22"},
             {"title": "", "scheduled_date": "bad-date"},
             {"title": "중복 작업", "scheduled_date": "2026-08-22"},
             {"title": "중복 작업", "scheduled_date": "2026-08-22"},
@@ -118,32 +120,23 @@ def test_validate_ai_schedule_draft_reports_shape_and_preference_errors() -> Non
         ],
         "planning_preference": {
             "intensity": "fast",
-            "preferred_days": "weekend",
+            "preferred_days": ["weekend"],
         },
     }
 
-    validation = validate_ai_schedule_draft(draft_request(), draft)
+    validation = validate_ai_schedule_draft(
+        draft_request(), parse_ai_schedule_draft_output(json.dumps(draft)),
+    )
 
     assert validation["is_valid"] is False
     assert "EMPTY_GOAL_TITLE" in validation["failure_codes"]
     assert "DEADLINE_NOT_FUTURE" in validation["failure_codes"]
-    assert "INVALID_MILESTONE_SHAPE" in validation["failure_codes"]
     assert "EMPTY_MILESTONE_TITLE" in validation["failure_codes"]
     assert "INVALID_MILESTONE_DATE" in validation["failure_codes"]
     assert "DUPLICATE_MILESTONE" in validation["failure_codes"]
     assert "INVALID_INTENSITY" in validation["failure_codes"]
     assert "INVALID_PREFERRED_DAYS" in validation["failure_codes"]
     assert "MILESTONE_COUNT_HIGH" in validation["warnings"]
-
-
-def test_validate_ai_schedule_draft_warns_when_preferred_days_not_reflected() -> None:
-    draft = valid_model_output()
-    draft["planning_preference"]["preferred_days"] = ["monday"]
-
-    validation = validate_ai_schedule_draft(draft_request(), draft)
-
-    assert validation["is_valid"] is True
-    assert "PREFERRED_DAYS_NOT_REFLECTED" in validation["warnings"]
 
 
 def test_parse_ai_schedule_draft_output_rejects_invalid_json() -> None:
@@ -191,17 +184,55 @@ def test_build_create_goal_payload_matches_existing_goal_api_shape() -> None:
     assert payload["write_policy"] == "user_confirmation_required"
 
 
-def test_ai_schedule_service_returns_editable_draft_and_payload() -> None:
-    fake_client = FakeGeminiClient(valid_model_output())
+@pytest.mark.parametrize(
+    ("sample", "warnings"),
+    [
+        ("normal", []),
+        ("mixed-malformed", []),
+        ("preferred-days-warning", ["PREFERRED_DAYS_NOT_REFLECTED"]),
+    ],
+)
+def test_ai_schedule_service_returns_editable_draft_and_payload(
+    sample: str,
+    warnings: list[str],
+) -> None:
+    expected = valid_model_output()
+    provider_output = valid_model_output()
+    if sample == "mixed-malformed":
+        provider_output["goal"]["title"] += " "
+        provider_output["milestones"].insert(1, "not-a-milestone")
+        provider_output["planning_preference"]["preferred_days"] = [42, " saturday "]
+    if sample == "preferred-days-warning":
+        provider_output["planning_preference"]["preferred_days"] = ["monday"]
+        expected["planning_preference"]["preferred_days"] = ["monday"]
+    fake_client = FakeGeminiClient(provider_output)
     service = AiScheduleService(gemini_client=fake_client)
 
     result = service.create_draft(user_id="user-1", body=draft_request())
 
-    assert result["goal"]["title"] == "데이터 분석 과제 마무리"
-    assert result["milestones"][0]["client_id"] == "draft-1"
-    assert result["milestones"][0]["selected"] is True
-    assert result["validation"]["is_valid"] is True
-    assert result["create_goal_payload"]["write_policy"] == "user_confirmation_required"
+    assert result == {
+        "goal": expected["goal"],
+        "milestones": [
+            {"client_id": f"draft-{index}", **item, "selected": True}
+            for index, item in enumerate(expected["milestones"], start=1)
+        ],
+        "planning_preference": expected["planning_preference"],
+        "validation": {"is_valid": True, "failure_codes": [], "warnings": warnings},
+        "create_goal_payload": {
+            "goal": {
+                **expected["goal"],
+                "is_completed": False,
+                "is_recurring": False,
+                "recurrence_type": None,
+                "color": "#7F9278",
+            },
+            "milestones": [
+                {**item, "color": "#7F9278", "is_completed": False}
+                for item in expected["milestones"]
+            ],
+            "write_policy": "user_confirmation_required",
+        },
+    }
     assert fake_client.requests[0]["response_schema"]["required"] == [
         "goal",
         "milestones",
@@ -217,7 +248,21 @@ def test_ai_schedule_service_rejects_invalid_model_output() -> None:
     with pytest.raises(BadRequestError) as exc_info:
         service.create_draft(user_id="user-1", body=draft_request())
 
-    assert "MILESTONE_AFTER_DEADLINE" in exc_info.value.detail["failure_codes"]
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.error_code == "BAD_REQUEST"
+    assert exc_info.value.message == "AI 일정 초안이 저장 가능한 형식이 아닙니다."
+    assert exc_info.value.detail == {
+        "failure_codes": ["MILESTONE_AFTER_DEADLINE", "MILESTONE_OUTSIDE_AVAILABILITY"],
+    }
+
+
+def test_ai_schedule_service_preserves_null_preferred_days_failure() -> None:
+    provider_output = valid_model_output()
+    provider_output["planning_preference"]["preferred_days"] = None
+    service = AiScheduleService(gemini_client=FakeGeminiClient(provider_output))
+
+    with pytest.raises(TypeError, match="'NoneType' object is not iterable"):
+        service.create_draft(user_id="user-1", body=draft_request())
 
 
 def test_get_ai_schedule_service_uses_configured_client(monkeypatch) -> None:

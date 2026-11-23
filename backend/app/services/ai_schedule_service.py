@@ -1,28 +1,17 @@
 from __future__ import annotations
 
 import json
-import re
-from collections import Counter
-from datetime import date
 from typing import Any
 
 from exceptions.common import BadRequestError
 from infrastructure.gemini_client import GeminiClient, get_gemini_client
 from schemas.ai_schedule_schemas import AiScheduleDraftRequest
+from services.ai_schedule_parser import ParsedScheduleDraft, parse_ai_schedule_draft_output
+from services.ai_schedule_validation import WEEKDAYS, validate_ai_schedule_draft
 
 
 DEFAULT_GOAL_COLOR = "#7F9278"
 PROMPT_VERSION = "v1-product-ai-draft"
-WEEKDAYS = (
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-)
-JSON_BLOCK_PATTERN = re.compile(r"```(?:json)?\s*(?P<body>.*?)```", re.DOTALL | re.IGNORECASE)
 
 
 class AiScheduleService:
@@ -136,77 +125,6 @@ def ai_schedule_draft_response_schema() -> dict[str, Any]:
     }
 
 
-def parse_ai_schedule_draft_output(raw_output: str) -> dict[str, Any]:
-    payload = _load_json_object(raw_output)
-    goal = payload.get("goal") if isinstance(payload.get("goal"), dict) else {}
-    milestones = payload.get("milestones") if isinstance(payload.get("milestones"), list) else []
-    preference = (
-        payload.get("planning_preference")
-        if isinstance(payload.get("planning_preference"), dict)
-        else {}
-    )
-    return {
-        "goal": {
-            "title": _clean_string(goal.get("title")),
-            "deadline": _clean_string(goal.get("deadline")),
-        },
-        "milestones": [
-            {
-                "title": _clean_string(item.get("title")),
-                "scheduled_date": _clean_string(item.get("scheduled_date")),
-            }
-            for item in milestones
-            if isinstance(item, dict)
-        ],
-        "planning_preference": {
-            "intensity": _clean_string(preference.get("intensity")),
-            "preferred_days": [
-                _clean_string(day)
-                for day in preference.get("preferred_days", [])
-                if isinstance(day, str)
-            ],
-        },
-    }
-
-
-def validate_ai_schedule_draft(
-    request: AiScheduleDraftRequest,
-    draft: dict[str, Any],
-) -> dict[str, Any]:
-    failures: list[str] = []
-    warnings: list[str] = []
-    goal = draft.get("goal") if isinstance(draft.get("goal"), dict) else {}
-    milestones = draft.get("milestones") if isinstance(draft.get("milestones"), list) else []
-    preference = (
-        draft.get("planning_preference")
-        if isinstance(draft.get("planning_preference"), dict)
-        else {}
-    )
-    availability_dates = {item.date.isoformat() for item in request.availability}
-
-    deadline = _parse_date(goal.get("deadline"))
-    if not _clean_string(goal.get("title")):
-        failures.append("EMPTY_GOAL_TITLE")
-    if deadline is None:
-        failures.append("INVALID_DEADLINE")
-    else:
-        if deadline <= request.today:
-            failures.append("DEADLINE_NOT_FUTURE")
-
-    if not milestones:
-        failures.append("NO_MILESTONES")
-    if len(milestones) > 6:
-        warnings.append("MILESTONE_COUNT_HIGH")
-
-    _validate_milestones(milestones, deadline, availability_dates, failures)
-    _validate_preference(milestones, preference, failures, warnings)
-    return {
-        "is_valid": not failures,
-        "failure_codes": sorted(set(failures)),
-        "warnings": sorted(set(warnings)),
-    }
-
-
 def build_create_goal_payload(draft: dict[str, Any]) -> dict[str, Any]:
     goal = draft["goal"]
     milestones = draft["milestones"]
@@ -234,7 +152,7 @@ def build_create_goal_payload(draft: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _with_ui_fields(draft: dict[str, Any]) -> dict[str, Any]:
+def _with_ui_fields(draft: ParsedScheduleDraft) -> dict[str, Any]:
     return {
         "goal": draft["goal"],
         "milestones": [
@@ -248,94 +166,6 @@ def _with_ui_fields(draft: dict[str, Any]) -> dict[str, Any]:
         ],
         "planning_preference": draft["planning_preference"],
     }
-
-
-def _validate_milestones(
-    milestones: list[Any],
-    deadline: date | None,
-    availability_dates: set[str],
-    failures: list[str],
-) -> None:
-    seen = Counter()
-    for item in milestones:
-        if not isinstance(item, dict):
-            failures.append("INVALID_MILESTONE_SHAPE")
-            continue
-        title = _clean_string(item.get("title"))
-        scheduled_date_text = _clean_string(item.get("scheduled_date"))
-        scheduled_date = _parse_date(scheduled_date_text)
-        if not title:
-            failures.append("EMPTY_MILESTONE_TITLE")
-        if scheduled_date is None:
-            failures.append("INVALID_MILESTONE_DATE")
-            continue
-        if deadline is not None and scheduled_date > deadline:
-            failures.append("MILESTONE_AFTER_DEADLINE")
-        if scheduled_date_text not in availability_dates:
-            failures.append("MILESTONE_OUTSIDE_AVAILABILITY")
-        seen[(title, scheduled_date_text)] += 1
-    if any(count > 1 for count in seen.values()):
-        failures.append("DUPLICATE_MILESTONE")
-
-
-def _validate_preference(
-    milestones: list[Any],
-    preference: dict[str, Any],
-    failures: list[str],
-    warnings: list[str],
-) -> None:
-    intensity = preference.get("intensity")
-    if intensity not in {"relaxed", "balanced", "intensive"}:
-        failures.append("INVALID_INTENSITY")
-    preferred_days = preference.get("preferred_days")
-    if not isinstance(preferred_days, list):
-        failures.append("INVALID_PREFERRED_DAYS")
-        return
-    invalid_days = [day for day in preferred_days if day not in WEEKDAYS]
-    if invalid_days:
-        failures.append("INVALID_PREFERRED_DAYS")
-
-    valid_dates = [
-        parsed
-        for item in milestones
-        if isinstance(item, dict)
-        for parsed in [_parse_date(item.get("scheduled_date"))]
-        if parsed is not None
-    ]
-    if preferred_days and valid_dates:
-        matched = sum(1 for item in valid_dates if WEEKDAYS[item.weekday()] in preferred_days)
-        if matched == 0:
-            warnings.append("PREFERRED_DAYS_NOT_REFLECTED")
-
-
-def _load_json_object(raw_output: str) -> dict[str, Any]:
-    text = raw_output.strip()
-    match = JSON_BLOCK_PATTERN.fullmatch(text)
-    if match is not None:
-        text = match.group("body").strip()
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise BadRequestError(
-            message="AI 일정 초안 JSON을 해석하지 못했습니다.",
-            detail={"reason": exc.msg},
-        ) from exc
-    if not isinstance(value, dict):
-        raise BadRequestError(message="AI 일정 초안은 JSON object여야 합니다.")
-    return value
-
-
-def _clean_string(value: object) -> str:
-    return value.strip() if isinstance(value, str) else ""
-
-
-def _parse_date(value: object) -> date | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
-        return None
 
 
 def get_ai_schedule_service() -> AiScheduleService:
